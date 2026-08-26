@@ -1,0 +1,135 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Dark-first trading terminal. P&L green/red follows the trader convention and
+ * is NEVER load-bearing: every value is signed text, bars anchor to zero,
+ * win/loss ships as text chips, markers differ by shape — color only reinforces.
+ */
+:root {
+  --background: #f9f9f7;
+  --foreground: #0b0b0b;
+  --card: #fcfcfb;
+  --card-foreground: #0b0b0b;
+  --popover: #fcfcfb;
+  --popover-foreground: #0b0b0b;
+  --primary: #16161a;
+  --primary-foreground: #fafafa;
+  --secondary: #f0efec;
+  --secondary-foreground: #16161a;
+  --muted: #f0efec;
+  --muted-foreground: #52514e;
+  --accent: #f0efec;
+  --accent-foreground: #16161a;
+  --destructive: #d03b3b;
+  --destructive-foreground: #fafafa;
+  --border: #e1e0d9;
+  --input: #e1e0d9;
+  --ring: #898781;
+  --radius: 0.5rem;
+
+  /* viz tokens (validated: see docs/design.md) */
+  --viz-surface: #fcfcfb;
+  --ink-muted: #898781;
+  --gridline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --profit: #006300;
+  --profit-fill: #0ca30c;
+  --loss: #d03b3b;
+  --neutral-mid: #f0efec;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+}
+
+.dark {
+  --background: #0d0d0d;
+  --foreground: #f4f4f2;
+  --card: #1a1a19;
+  --card-foreground: #f4f4f2;
+  --popover: #1a1a19;
+  --popover-foreground: #f4f4f2;
+  --primary: #e8e8e4;
+  --primary-foreground: #16161a;
+  --secondary: #26262a;
+  --secondary-foreground: #f4f4f2;
+  --muted: #232326;
+  --muted-foreground: #a3a29b;
+  --accent: #26262a;
+  --accent-foreground: #f4f4f2;
+  --destructive: #d03b3b;
+  --destructive-foreground: #fafafa;
+  --border: #2c2c2a;
+  --input: #2c2c2a;
+  --ring: #898781;
+
+  --viz-surface: #1a1a19;
+  --ink-muted: #898781;
+  --gridline: #2c2c2a;
+  --baseline: #383835;
+  --profit: #0ca30c;
+  --profit-fill: #0ca30c;
+  --loss: #d03b3b;
+  --neutral-mid: #383835;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-profit: var(--profit);
+  --color-loss: var(--loss);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  ::selection {
+    @apply bg-primary/20;
+  }
+}
+
+/* Numbers that must align vertically (tables, axis ticks). */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}

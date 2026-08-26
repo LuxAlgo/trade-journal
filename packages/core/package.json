@@ -1,0 +1,19 @@
+{
+  "name": "@luxalgo/journal-core",
+  "version": "0.1.0",
+  "description": "Pure trade-journal domain engine: round-trip matching, performance metrics, aggregations, equity curves, and the open Edge Score. No IO, no framework.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

@@ -1,0 +1,8 @@
+# Legal and release-critical files require LuxAlgo review.
+# NOTE: the team below must exist in the LuxAlgo org with write access to this
+# repo for GitHub to enforce these rules; adjust the handle if it differs.
+/LICENSE            @LuxAlgo/maintainers
+/TRADEMARKS.md      @LuxAlgo/maintainers
+/SECURITY.md        @LuxAlgo/maintainers
+/.github/workflows/ @LuxAlgo/maintainers
+/scripts/check-licenses.mjs @LuxAlgo/maintainers
