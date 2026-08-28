@@ -69,17 +69,14 @@ One primitive drives everything: a raw **execution** (a fill). Executions come i
 
 ```mermaid
 flowchart LR
-    subgraph sources["Get trades in"]
-        BS["Broker sync<br/><i>@luxalgo/broker-sdk</i>"]
-        IM["12 statement formats<br/><i>TradeZella, IBKR, ToS...</i>"]
-        MN["Manual entry"]
-    end
-    sources --> EX["Executions<br/><i>deduped fills</i>"]
-    EX --> RT["Round-trip engine<br/><i>FIFO / LIFO / WAVG<br/>annotations survive rebuilds</i>"]
+    BS["Broker sync (broker-sdk)"] --> EX["Executions (deduped fills)"]
+    IM["12 statement formats"] --> EX
+    MN["Manual entry"] --> EX
+    EX --> RT["Round-trip engine (FIFO / LIFO / WAVG)"]
     RT --> D["Dashboard + calendar"]
-    RT --> J["Daily journal<br/><i>voice dictation</i>"]
+    RT --> J["Daily journal + voice"]
     RT --> R["Reports + Edge Score"]
-    RT --> AI["AI reflection<br/><i>BYO key · MCP next</i>"]
+    RT --> AI["AI reflection"]
 ```
 
 ## Features
