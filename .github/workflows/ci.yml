@@ -22,6 +22,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: node scripts/check-licenses.mjs
+      - run: pnpm -r --filter "./packages/*" build
       - run: pnpm build
 
   dco:

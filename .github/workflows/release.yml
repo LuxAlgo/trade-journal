@@ -1,0 +1,36 @@
+name: Release packages
+
+# Publishes @luxalgo/journal-core and @luxalgo/journal-importers to npm with
+# provenance. Run manually from the Actions tab, or push a v* tag.
+# Requires the NPM_TOKEN repository secret (an npm automation token).
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write # npm provenance (OIDC)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm -r --filter "./packages/*" build
+      # pnpm rewrites workspace:* to the real version in the published tarball
+      # and applies each package's publishConfig (dist entry points, provenance).
+      - run: pnpm -r --filter "./packages/*" publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

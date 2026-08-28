@@ -9,14 +9,53 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.17"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LuxAlgo/trade-journal.git",
+    "directory": "packages/importers"
+  },
+  "homepage": "https://github.com/LuxAlgo/trade-journal",
+  "keywords": [
+    "trading",
+    "trade-journal",
+    "csv",
+    "import",
+    "tradezella",
+    "tradervue",
+    "broker-statement"
+  ],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@luxalgo/journal-core": "workspace:*"
   },
   "publishConfig": {
     "access": "public",
-    "provenance": true
+    "provenance": true,
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      }
+    }
   }
 }
