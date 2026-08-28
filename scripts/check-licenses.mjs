@@ -20,8 +20,7 @@ const ALLOWED = new Set([
   "BlueOak-1.0.0",
 ]);
 
-// Package-scoped exceptions, each with a reason. Adding here requires review
-// (see CODEOWNERS on this file's directory).
+// Package-scoped exceptions, each with a reason. Add sparingly and explain why.
 const EXCEPTIONS = {
   // Browser-support data used by the build toolchain (browserslist). Data
   // under an attribution license, not code; attribution ships in the package.
