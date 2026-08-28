@@ -4,7 +4,7 @@
 
 <br/>
 
-Broker sync, deep analytics, a P&L calendar, daily journaling with voice dictation, and AI-native reflection. Self-hosted, MIT, free forever.
+Broker sync, deep analytics, a P&L calendar, daily journaling with voice dictation, and AI reflection. All on your own machine.
 
 Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project. Official repository: [github.com/LuxAlgo/trade-journal](https://github.com/LuxAlgo/trade-journal)
 
@@ -19,17 +19,9 @@ Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project. Official 
 
 ---
 
-Everything the paid journaling SaaS tier charges $300+/year for, running on your own machine, on your own data, with your own keys.
+**Record every trade. See what actually works.** Connect a broker or drop in a statement export, and Trade Journal rebuilds your history into round-trip trades, a P&L calendar, deep analytics, and a daily journal you can type, dictate, or ask questions of with your own AI. One command to run, and everything stays on your machine.
 
 > ⚠️ **Early release.** APIs and schema may still move before 1.0. Statement parsers are cross-checked against real-world field sources; per-format status lives in [docs/importers.md](docs/importers.md).
-
-## Why this exists
-
-A trade journal is two things: a **verified record** of what you actually did, and the **reflection** that turns that record into better trading. Closed journals charge a subscription for both and hold your data hostage for it. This project gives you the record for free, and opens the reflection layer to any tool, including your own AI.
-
-- **Your keys never leave your box.** Broker credentials are AES-256-GCM encrypted next to your database. No cloud middleman. We don't want your keys.
-- **Your numbers are auditable.** The [Edge Score](docs/edge-score.md) is a documented, versioned formula, not a proprietary black box. Every metric is open source and unit-tested.
-- **Your journal is portable.** One-click JSON/CSV export of everything, always.
 
 ## Quickstart
 
@@ -59,7 +51,15 @@ docker compose up -d
 | `JOURNAL_DATA_DIR`  | Where the SQLite database lives (default `./data`)                                          |
 | `ANTHROPIC_API_KEY` | AI features via env instead of the Settings page                                            |
 
-Deploy anywhere a Node process and a persistent disk exist: Docker, Railway, Fly.io, a $5 VPS. Serverless platforms without a disk need an external database, which v0.1 does not support. SQLite on disk is the point.
+Deploy anywhere a Node process and a persistent disk exist: Docker, Railway, Fly.io, a small VPS. Serverless platforms without a disk need an external database, which v0.1 does not support. SQLite on disk is the point.
+
+## Why this exists
+
+A trade journal is two things: a **verified record** of what you actually did, and the **reflection** that turns that record into better trading. Trade Journal keeps the record on your own machine and opens the reflection layer to any tool you choose, including your own AI.
+
+- **Your keys never leave your box.** Broker credentials are AES-256-GCM encrypted next to your database. No cloud middleman. We don't want your keys.
+- **Your numbers are auditable.** The [Edge Score](docs/edge-score.md) is a documented, versioned formula, not a proprietary black box. Every metric is open source and unit-tested.
+- **Your journal is portable.** One-click JSON/CSV export of everything, always.
 
 ## How it works
 
