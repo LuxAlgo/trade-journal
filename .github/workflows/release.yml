@@ -1,8 +1,15 @@
 name: Release packages
 
-# Publishes @luxalgo/journal-core and @luxalgo/journal-importers to npm with
-# provenance. Run manually from the Actions tab, or push a v* tag.
-# Requires the NPM_TOKEN repository secret (an npm automation token).
+# Publishes @luxalgo/journal-core and @luxalgo/journal-importers to npm via
+# trusted publishing (OIDC) — no NPM_TOKEN secret. Run manually from the
+# Actions tab, or push a v* tag.
+#
+# One-time setup per package on npmjs.com (Package Settings -> Trusted
+# Publisher -> GitHub Actions): org "LuxAlgo", repo "trade-journal",
+# workflow filename "release.yml", and check "Allow npm publish".
+# Note: OIDC cannot create a brand-new package (npm/cli#8544), so the first
+# version of each package must be published once with credentials before
+# the trusted publisher can be attached.
 on:
   workflow_dispatch:
   push:
@@ -17,9 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # version comes from the packageManager field in package.json
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -30,7 +36,7 @@ jobs:
       - run: pnpm test
       - run: pnpm -r --filter "./packages/*" build
       # pnpm rewrites workspace:* to the real version in the published tarball
-      # and applies each package's publishConfig (dist entry points, provenance).
+      # and applies each package's publishConfig (dist entry points). Auth and
+      # provenance come from the OIDC exchange (id-token: write above); no
+      # static token must be present or npm may fall back to token auth.
       - run: pnpm -r --filter "./packages/*" publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
