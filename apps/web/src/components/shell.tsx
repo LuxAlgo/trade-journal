@@ -15,6 +15,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LuxAlgoMark } from "@/components/luxalgo-mark";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -35,12 +36,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 flex h-screen w-52 shrink-0 flex-col border-r bg-card/50">
-        <div className="flex h-14 items-center gap-2 border-b px-4">
-          <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-xs font-bold text-primary-foreground">
-            TJ
-          </div>
+        <Link href="/" className="flex h-14 items-center gap-2.5 border-b px-4">
+          <LuxAlgoMark className="h-[18px] w-5 shrink-0" />
           <span className="text-sm font-semibold tracking-tight">Trade Journal</span>
-        </div>
+        </Link>
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
           {NAV.map(({ href, label, icon: Icon }) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);

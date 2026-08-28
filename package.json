@@ -1,7 +1,7 @@
 {
   "name": "trade-journal-monorepo",
   "private": true,
-  "description": "The open-source trade journal. Broker sync, deep analytics, daily journaling, and AI-native reflection — self-hosted, free forever.",
+  "description": "The open-source trade journal. Broker sync, deep analytics, daily journaling, and AI-native reflection. Self-hosted, free forever.",
   "license": "MIT",
   "repository": {
     "type": "git",
