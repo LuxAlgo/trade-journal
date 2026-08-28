@@ -66,7 +66,9 @@ function Journal() {
                 {day.stats ? (
                   <div className="flex flex-1 items-center gap-6 text-sm">
                     <Pnl value={day.stats.netPnl} className="w-24 font-semibold" />
-                    <span className="text-muted-foreground">{day.stats.trades} trades</span>
+                    <span className="text-muted-foreground">
+                      {day.stats.trades} trade{day.stats.trades === 1 ? "" : "s"}
+                    </span>
                     <span className="text-muted-foreground">
                       {fmtPercent(
                         day.stats.wins + day.stats.losses > 0

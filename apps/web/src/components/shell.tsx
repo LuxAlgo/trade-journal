@@ -25,10 +25,41 @@ const NAV = [
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/notebook", label: "Notebook", icon: BookText },
   { href: "/playbooks", label: "Playbooks", icon: BookOpen },
+] as const;
+
+const NAV_SETUP = [
   { href: "/import", label: "Import", icon: Import },
   { href: "/accounts", label: "Accounts", icon: Wallet },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
+
+function NavLink({
+  href,
+  label,
+  icon: Icon,
+  active,
+}: {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
+        active
+          ? "bg-accent font-medium text-accent-foreground"
+          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+      )}
+    >
+      {active && <span className="prism-bar absolute left-0 h-4 w-0.5 rounded-full" />}
+      <Icon className={cn("h-4 w-4", active && "text-brand")} />
+      {label}
+    </Link>
+  );
+}
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -41,24 +72,25 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <span className="text-sm font-semibold tracking-tight">Trade Journal</span>
         </Link>
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
-          {NAV.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-                  active
-                    ? "bg-accent font-medium text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </Link>
-            );
-          })}
+          {NAV.map(({ href, label, icon }) => (
+            <NavLink
+              key={href}
+              href={href}
+              label={label}
+              icon={icon}
+              active={href === "/" ? pathname === "/" : pathname.startsWith(href)}
+            />
+          ))}
+          <div className="!my-3 border-t" />
+          {NAV_SETUP.map(({ href, label, icon }) => (
+            <NavLink
+              key={href}
+              href={href}
+              label={label}
+              icon={icon}
+              active={pathname.startsWith(href)}
+            />
+          ))}
         </nav>
         <div className="space-y-1 border-t p-3 text-xs text-muted-foreground">
           <div>

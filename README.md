@@ -21,6 +21,13 @@ Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project. Official 
 
 **Record every trade. See what actually works.** Connect a broker or drop in a statement export, and Trade Journal rebuilds your history into round-trip trades, a P&L calendar, deep analytics, and a daily journal you can type, dictate, or ask questions of with your own AI. One command to run, and everything stays on your machine.
 
+<img src=".github/assets/screenshot-dashboard.png" alt="Dashboard: P&L calendar, Edge Score radar, equity curve, win-rate gauges" width="100%" />
+
+<details>
+<summary>More screens: per-trade chart with entry/exit markers, running P&L, and trade journaling</summary>
+<img src=".github/assets/screenshot-trade.png" alt="Trade page: chart with entry and exit markers, running P&L, notes with voice dictation, AI critique" width="100%" />
+</details>
+
 > ⚠️ **Early release.** APIs and schema may still move before 1.0. Statement parsers are cross-checked against real-world field sources; per-format status lives in [docs/importers.md](docs/importers.md).
 
 ## Quickstart

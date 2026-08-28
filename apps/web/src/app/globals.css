@@ -27,8 +27,14 @@
   --destructive-foreground: #fafafa;
   --border: #e1e0d9;
   --input: #e1e0d9;
-  --ring: #898781;
+  --ring: #0b7cbd;
   --radius: 0.5rem;
+
+  /* Brand accent (LuxAlgo blue) + decorative prism gradient stops. The prism
+   * pair is gradient-only — never the sole carrier of information. */
+  --brand: #0b7cbd;
+  --prism-from: #0b7cbd;
+  --prism-to: #7a1fd0;
 
   /* viz tokens (validated: see docs/design.md) */
   --viz-surface: #fcfcfb;
@@ -50,30 +56,34 @@
 }
 
 .dark {
-  --background: #0d0d0d;
-  --foreground: #f4f4f2;
-  --card: #1a1a19;
-  --card-foreground: #f4f4f2;
-  --popover: #1a1a19;
-  --popover-foreground: #f4f4f2;
-  --primary: #e8e8e4;
-  --primary-foreground: #16161a;
-  --secondary: #26262a;
-  --secondary-foreground: #f4f4f2;
-  --muted: #232326;
-  --muted-foreground: #a3a29b;
-  --accent: #26262a;
-  --accent-foreground: #f4f4f2;
+  --background: #08080a;
+  --foreground: #f4f4f4;
+  --card: #101013;
+  --card-foreground: #f4f4f4;
+  --popover: #131317;
+  --popover-foreground: #f4f4f4;
+  --primary: #ececec;
+  --primary-foreground: #131316;
+  --secondary: #1b1b20;
+  --secondary-foreground: #f4f4f4;
+  --muted: #17171b;
+  --muted-foreground: #9c9ca6;
+  --accent: #1b1b20;
+  --accent-foreground: #f4f4f4;
   --destructive: #d03b3b;
   --destructive-foreground: #fafafa;
-  --border: #2c2c2a;
-  --input: #2c2c2a;
-  --ring: #898781;
+  --border: #222228;
+  --input: #26262c;
+  --ring: #1197e2;
 
-  --viz-surface: #1a1a19;
-  --ink-muted: #898781;
-  --gridline: #2c2c2a;
-  --baseline: #383835;
+  --brand: #1197e2;
+  --prism-from: #2ea7ee;
+  --prism-to: #b45bff;
+
+  --viz-surface: #101013;
+  --ink-muted: #8b8b95;
+  --gridline: #1e1e24;
+  --baseline: #30303a;
   --profit: #0ca30c;
   --profit-fill: #0ca30c;
   --loss: #d03b3b;
@@ -110,6 +120,7 @@
   --color-ring: var(--ring);
   --color-profit: var(--profit);
   --color-loss: var(--loss);
+  --color-brand: var(--brand);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -132,4 +143,23 @@
 /* Numbers that must align vertically (tables, axis ticks). */
 .tnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* Prism gradient, decorative only: hero numbers and small indicator bars.
+ * The value it decorates is always also plain text or geometry. */
+.prism-text {
+  background-image: linear-gradient(100deg, var(--prism-from), var(--prism-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.prism-bar {
+  background-image: linear-gradient(180deg, var(--prism-from), var(--prism-to));
+}
+
+/* Hairline top sheen that lifts cards off a near-black canvas. */
+.card-sheen {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.04),
+    0 1px 2px rgb(0 0 0 / 0.25);
 }

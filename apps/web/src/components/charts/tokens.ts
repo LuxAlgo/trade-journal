@@ -7,6 +7,9 @@ export interface VizTokens {
   inkMuted: string;
   gridline: string;
   baseline: string;
+  brand: string;
+  prismFrom: string;
+  prismTo: string;
   profit: string;
   profitFill: string;
   loss: string;
@@ -23,7 +26,10 @@ const read = (): VizTokens => {
     surface: v("--viz-surface", "#1a1a19"),
     inkMuted: v("--ink-muted", "#898781"),
     gridline: v("--gridline", "#2c2c2a"),
-    baseline: v("--baseline", "#383835"),
+    baseline: v("--baseline", "#30303a"),
+    brand: v("--brand", "#1197e2"),
+    prismFrom: v("--prism-from", "#2ea7ee"),
+    prismTo: v("--prism-to", "#b45bff"),
     profit: v("--profit", "#0ca30c"),
     profitFill: v("--profit-fill", "#0ca30c"),
     loss: v("--loss", "#d03b3b"),

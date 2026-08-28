@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import type {
   CalendarMonth,
   DayStats,
@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useApi } from "@/lib/use-api";
+import { postJson, useApi } from "@/lib/use-api";
 import { fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
 
 interface Bucket {
@@ -78,7 +78,7 @@ function Dashboard() {
               <CardTitle>Net P&L</CardTitle>
             </CardHeader>
             <CardContent>
-              <Pnl value={m.netPnl} className="text-2xl font-semibold" />
+              <Pnl value={m.netPnl} className="text-3xl font-semibold tracking-tight" />
               <div className="mt-1 text-xs text-muted-foreground">
                 {m.closedTrades} closed trades · {fmtMoney(m.fees)} fees
               </div>
@@ -102,7 +102,7 @@ function Dashboard() {
               <CardTitle>Profit factor</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold tnum">
+              <div className="text-3xl font-semibold tracking-tight tnum">
                 {m.profitFactorIsInfinite
                   ? "∞"
                   : m.profitFactor === null
@@ -126,9 +126,22 @@ function Dashboard() {
               <CardTitle>Avg win / loss</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-semibold tnum">
+              <div className="text-3xl font-semibold tracking-tight tnum">
                 {m.avgWinLossRatio === null ? "–" : fmtNumber(m.avgWinLossRatio)}
               </div>
+              {m.avgWin !== null && m.avgLoss !== null && m.avgWin + m.avgLoss > 0 && (
+                <div
+                  className="mt-2 flex h-1.5 gap-0.5"
+                  role="img"
+                  aria-label="Average win vs average loss, to scale"
+                >
+                  <span
+                    className="rounded-full bg-profit"
+                    style={{ width: `${((m.avgWin / (m.avgWin + m.avgLoss)) * 100).toFixed(1)}%` }}
+                  />
+                  <span className="flex-1 rounded-full bg-loss" />
+                </div>
+              )}
               <div className="mt-1 text-xs text-muted-foreground">
                 <span className="text-profit">{m.avgWin === null ? "–" : fmtMoney(m.avgWin)}</span>
                 {" avg win · "}
@@ -144,9 +157,13 @@ function Dashboard() {
           <Card>
             <CardHeader className="flex-row items-center justify-between">
               <CardTitle>Edge Score</CardTitle>
-              <span className="text-xl font-semibold tnum">
-                {edgeScore.score === null ? "–" : edgeScore.score}
-                <span className="text-xs text-muted-foreground">/100</span>
+              <span className="text-2xl font-semibold tracking-tight tnum">
+                {edgeScore.score === null ? (
+                  "–"
+                ) : (
+                  <span className="prism-text">{edgeScore.score}</span>
+                )}
+                <span className="text-xs text-muted-foreground"> /100</span>
               </span>
             </CardHeader>
             <CardContent>
@@ -362,6 +379,16 @@ function Empty({ label }: { label: string }) {
 }
 
 function EmptyState() {
+  const [loadingDemo, setLoadingDemo] = useState(false);
+  const loadDemo = async () => {
+    setLoadingDemo(true);
+    try {
+      await postJson("/api/demo", {});
+      window.location.reload();
+    } catch {
+      setLoadingDemo(false);
+    }
+  };
   return (
     <div>
       <FilterBar title="Dashboard" />
@@ -371,12 +398,24 @@ function EmptyState() {
           Connect a broker for automatic sync, upload a statement from 10+ platforms (including your
           TradeZella export), or add trades manually.
         </p>
-        <Link
-          href="/import"
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          Import your first trades
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/import"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Import your first trades
+          </Link>
+          <button
+            onClick={loadDemo}
+            disabled={loadingDemo}
+            className="rounded-md border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            {loadingDemo ? "Loading…" : "Load demo data"}
+          </button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Demo data lands in its own account; delete it anytime under Accounts.
+        </p>
       </div>
     </div>
   );

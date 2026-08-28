@@ -42,9 +42,9 @@ export function EdgeRadar({
         <Tooltip contentStyle={tooltipStyle(t)} formatter={(value) => [`${value}/100`, "Score"]} />
         <Radar
           dataKey="value"
-          stroke={t.series[0]}
-          fill={t.series[0]}
-          fillOpacity={0.25}
+          stroke={t.brand}
+          fill={t.brand}
+          fillOpacity={0.28}
           strokeWidth={2}
           isAnimationActive={false}
         />

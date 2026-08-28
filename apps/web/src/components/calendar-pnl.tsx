@@ -52,7 +52,7 @@ function CalendarWeekRow({
       {week.days.map((day, dayIndex) => {
         if (!day) return <div key={dayIndex} className="min-h-16 rounded-md" />;
         const traded = day.trades > 0;
-        const intensity = traded ? 0.08 + 0.3 * (Math.abs(day.netPnl) / maxAbs) : 0;
+        const intensity = traded ? 0.1 + 0.38 * (Math.abs(day.netPnl) / maxAbs) : 0;
         return (
           <Link
             key={day.date}

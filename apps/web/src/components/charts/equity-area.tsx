@@ -22,14 +22,14 @@ export interface EquityPointDatum {
 export function EquityArea({ data, height = 240 }: { data: EquityPointDatum[]; height?: number }) {
   const t = useVizTokens();
   if (!t) return <div style={{ height }} />;
-  const line = t.series[0]!;
+  const line = t.brand;
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
         <defs>
           <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={line} stopOpacity={0.25} />
-            <stop offset="100%" stopColor={line} stopOpacity={0.02} />
+            <stop offset="0%" stopColor={line} stopOpacity={0.3} />
+            <stop offset="100%" stopColor={line} stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid stroke={t.gridline} strokeWidth={1} vertical={false} />
