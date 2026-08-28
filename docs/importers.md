@@ -1,7 +1,7 @@
 # Importers
 
 Every importer produces normalized **executions** (fills). Trade-level exports are
-reconstructed as one entry + one exit execution at the reported average prices — P&L is
+reconstructed as one entry + one exit execution at the reported average prices. P&L is
 preserved exactly; fill-level granularity is not (the warning says so on import).
 
 Nothing is guessed silently: a file that doesn't match a known signature goes to the
@@ -9,15 +9,15 @@ column mapper, where the user maps their own headers.
 
 ## Formats and validation status
 
-Parsers are **alias-driven** — every column is matched through a list of header aliases,
+Parsers are **alias-driven**: every column is matched through a list of header aliases,
 so fixing a drifted header is a one-line change.
 
 Two validation tiers:
 
-- **Cross-checked**: header set verified against _field sources_ — code that parses real
-  user exports in the wild (TradeNote's community broker parsers¹, a real-user TradeZella
-  converter², platform export docs) — with fixtures in `packages/importers/tests` shaped
-  from those sources.
+- **Cross-checked**: header set verified against _field sources_, meaning code that
+  parses real user exports in the wild (TradeNote's community broker parsers¹, a
+  real-user TradeZella converter², platform export docs), with fixtures in
+  `packages/importers/tests` shaped from those sources.
 - **Real file**: verified against an actual export file from a live account
   (the most valuable contribution this repo can receive).
 
@@ -37,13 +37,13 @@ Two validation tiers:
 | DAS Trader Pro                     | fills                        | `Symb`/`B/S` headers                  | ☐             | ☐         |
 | Generic (column mapper)            | fills                        | user-mapped                           | n/a           | n/a       |
 
-¹ [TradeNote community broker parsers](https://github.com/Eleven-Trading/TradeNote/blob/main/src/utils/brokers.js) —
+¹ [TradeNote community broker parsers](https://github.com/Eleven-Trading/TradeNote/blob/main/src/utils/brokers.js):
 real-user headers for Tradovate (`Fill Time`, `B/S`, `Filled Qty`, `Avg Fill Price`,
 `Status=Filled`), TopstepX (`FilledAt`, `Side=Bid/Ask`, `PositionDisposition`,
 `ExecutePrice`, `Size`), NinjaTrader (`Instrument`, `Action`, `E/X`, `$`-prefixed
 `Commission`), IBKR Flex (`Date/Time` as `YYYYMMDD;HHmmss`, `Buy/Sell`, negative
 `Commission`), ThinkorSwim section boundaries.
-² [TradeZella_STB converter](https://github.com/drasticstatic/TradeZella_STB) —
+² [TradeZella_STB converter](https://github.com/drasticstatic/TradeZella_STB):
 confirms `Open Date`, `Status` (win/loss), `Net P&L`, `trades_*.csv` filename, and
 custom journal columns; TradeZella's own docs confirm timezone abbreviations may ride
 in time fields (stripped by our date parser).
@@ -70,7 +70,7 @@ selections beyond the defaults.
 
 ## Adding a format
 
-1. Add a spec to `packages/importers/src/formats/` — most CSVs are a declarative
+1. Add a spec to `packages/importers/src/formats/`; most CSVs are a declarative
    `makeFillsFormat({...})` with header aliases.
 2. Register it in `src/detect.ts` (content-signature formats before header-signature
    ones).
