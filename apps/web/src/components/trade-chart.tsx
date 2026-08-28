@@ -172,47 +172,67 @@ export function TradeChart({
         }),
       });
 
-      const chart = new Vela(host, {
-        symbol: trade.symbol,
-        timeframe: timeframeFor(durationMs),
-        theme: dark ? "dark" : "light",
-        height,
-        live: false,
-        volume: crypto,
-        drawings: false,
-        visibleRange: { from: openMs - pad, to: closeMs + pad },
-        priceStyle: crypto ? "candles" : "line",
-        // Offline path: the trade's own fills as the price series — a journal
-        // charts what happened, it doesn't invent bars it never saw.
-        ...(crypto
-          ? {}
-          : {
-              data: sorted.map((execution) => ({
-                time: Date.parse(execution.executedAt),
-                open: execution.price,
-                high: execution.price,
-                low: execution.price,
-                close: execution.price,
-                volume: 0,
-              })),
-            }),
-      });
+      // Offline mode charts the trade's own fills as the price series — a
+      // journal charts what happened, it doesn't invent bars it never saw.
+      const buildChart = (offline: boolean) =>
+        new Vela(host, {
+          symbol: trade.symbol,
+          timeframe: timeframeFor(durationMs),
+          theme: dark ? "dark" : "light",
+          height,
+          live: false,
+          volume: crypto && !offline,
+          drawings: false,
+          visibleRange: { from: openMs - pad, to: closeMs + pad },
+          priceStyle: crypto && !offline ? "candles" : "line",
+          ...(crypto && !offline
+            ? {}
+            : {
+                data: sorted.map((execution) => ({
+                  time: Date.parse(execution.executedAt),
+                  open: execution.price,
+                  high: execution.price,
+                  low: execution.price,
+                  close: execution.price,
+                  volume: 0,
+                })),
+              }),
+        });
 
-      if (crypto) {
-        const [{ BinanceProvider }, { CoinbaseProvider }] = await Promise.all([
-          import("@luxalgo/vela/providers/binance"),
-          import("@luxalgo/vela/providers/coinbase"),
-        ]);
-        chart.data.registerProvider("binance", new BinanceProvider());
-        chart.data.registerProvider("coinbase", new CoinbaseProvider());
-      }
-
+      let chart = buildChart(!crypto);
       chart.addNativeIndicator(type);
-
       cleanup = () => {
         chart.destroy();
         unregisterNativeIndicator(type);
       };
+
+      if (crypto) {
+        // The feed PARKS the first load until a provider resolves the symbol,
+        // so registration drives the load — await it (it fetches the venue's
+        // symbol listing), then await the bars themselves. If no feed is
+        // reachable, fall back to the offline fill path instead of an empty pane.
+        try {
+          const [{ BinanceProvider }, { CoinbaseProvider }] = await Promise.all([
+            import("@luxalgo/vela/providers/binance"),
+            import("@luxalgo/vela/providers/coinbase"),
+          ]);
+          if (disposed) return;
+          await Promise.race([
+            Promise.all([
+              chart.data.registerProvider("binance", new BinanceProvider()),
+              chart.data.registerProvider("coinbase", new CoinbaseProvider()),
+            ]).then(() => chart.ready()),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("candle feed timeout")), 10_000),
+            ),
+          ]);
+        } catch {
+          if (disposed) return;
+          chart.destroy();
+          chart = buildChart(true);
+          chart.addNativeIndicator(type);
+        }
+      }
     })();
 
     return () => {
@@ -221,5 +241,16 @@ export function TradeChart({
     };
   }, [trade.key, height]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <div ref={hostRef} style={{ height }} className="overflow-hidden rounded-lg border" />;
+  return (
+    <figure>
+      <div ref={hostRef} style={{ height }} className="overflow-hidden rounded-lg border" />
+      {!looksCrypto(trade) && (
+        <figcaption className="mt-1.5 px-1 text-xs text-muted-foreground">
+          Price path drawn from your own fills. Live candles render for symbols with a public
+          keyless feed (crypto via Binance / Coinbase); this journal never fabricates bars it
+          didn&apos;t see.
+        </figcaption>
+      )}
+    </figure>
+  );
 }

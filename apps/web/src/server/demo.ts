@@ -106,6 +106,43 @@ const generateExecutions = (): ImportedExecution[] => {
     }
   }
 
+  // A handful of crypto round trips: these chart on real candles (Vela's
+  // keyless Binance/Coinbase providers), so the demo shows that path too.
+  const CRYPTO = [
+    { symbol: "BTCUSDT", price: 96000, qty: () => Number((0.05 + rnd() * 0.3).toFixed(3)) },
+    { symbol: "ETHUSDT", price: 4400, qty: () => Number((0.5 + rnd() * 3).toFixed(2)) },
+  ] as const;
+  for (let back = 80; back >= 2; back -= 4 + Math.floor(rnd() * 12)) {
+    const day = new Date(today.getTime() - back * 86_400_000);
+    const spec = CRYPTO[Math.floor(rnd() * CRYPTO.length)]!;
+    const long = rnd() < 0.7;
+    const quantity = spec.qty();
+    const entry = spec.price * (0.94 + rnd() * 0.12);
+    const win = rnd() < 0.55;
+    const magnitude = win ? 0.006 + rnd() * 0.02 : 0.004 + rnd() * 0.012;
+    const exit = entry + (win ? 1 : -1) * (long ? 1 : -1) * magnitude * entry;
+    const minute = 10 + Math.floor(rnd() * 300);
+    const hold = 20 + Math.floor(rnd() * 180);
+    rows.push({
+      symbol: spec.symbol,
+      side: long ? "buy" : "sell",
+      quantity,
+      price: Number(entry.toFixed(2)),
+      fee: 2,
+      executedAt: at(day, minute),
+      assetClass: "crypto",
+    });
+    rows.push({
+      symbol: spec.symbol,
+      side: long ? "sell" : "buy",
+      quantity,
+      price: Number(exit.toFixed(2)),
+      fee: 2,
+      executedAt: at(day, minute + hold),
+      assetClass: "crypto",
+    });
+  }
+
   // Two open positions so the dashboard's "Open positions" tab has content.
   const lastDay = new Date(today.getTime() - 86_400_000);
   rows.push({

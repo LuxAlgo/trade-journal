@@ -15,14 +15,27 @@ import { EdgeRadar } from "@/components/charts/edge-radar";
 import { EquityArea } from "@/components/charts/equity-area";
 import { Gauge } from "@/components/charts/gauge";
 import { TimeHeatmap } from "@/components/charts/time-heatmap";
+import {
+  ArrowUpDown,
+  CalendarCheck2,
+  CircleDollarSign,
+  Flame,
+  Scale,
+  Sigma,
+  Target,
+  Timer,
+  TrendingDown,
+  Trophy,
+} from "lucide-react";
 import { FilterBar, useFilters } from "@/components/filter-bar";
 import { Pnl } from "@/components/pnl";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { postJson, useApi } from "@/lib/use-api";
-import { fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
+import { cn, fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
 
 interface Bucket {
   key: string;
@@ -67,27 +80,69 @@ function Dashboard() {
 
   if (m.totalTrades === 0) return <EmptyState />;
 
+  // Momentum: net P&L of the last 7 calendar days vs the 7 before them.
+  // Hidden when either window has no trading days (e.g. the 7D range).
+  const weekDelta = (() => {
+    const now = Date.now();
+    let last = 0;
+    let prior = 0;
+    let lastDays = 0;
+    let priorDays = 0;
+    for (const day of data.days) {
+      const ageDays = (now - Date.parse(`${day.date}T00:00:00Z`)) / 86_400_000;
+      if (ageDays <= 7) {
+        last += day.netPnl;
+        lastDays++;
+      } else if (ageDays <= 14) {
+        prior += day.netPnl;
+        priorDays++;
+      }
+    }
+    return lastDays > 0 && priorDays > 0 ? last - prior : null;
+  })();
+  const bestDay = data.days.length
+    ? data.days.reduce((a, b) => (b.netPnl > a.netPnl ? b : a))
+    : null;
+  const worstDay = data.days.length
+    ? data.days.reduce((a, b) => (b.netPnl < a.netPnl ? b : a))
+    : null;
+
   return (
-    <div>
+    <TooltipProvider delayDuration={200}>
       <FilterBar title="Dashboard" />
       <div className="space-y-3 p-4">
         {/* Headline tiles */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Card>
-            <CardHeader>
-              <CardTitle>Net P&L</CardTitle>
-            </CardHeader>
+            <StatHeader
+              title="Net P&L"
+              icon={CircleDollarSign}
+              hint="Realized profit and loss net of fees, over the selected range."
+            />
             <CardContent>
               <Pnl value={m.netPnl} className="text-3xl font-semibold tracking-tight" />
+              {weekDelta !== null && (
+                <div
+                  className={cn(
+                    "mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                    weekDelta >= 0 ? "bg-profit/10 text-profit" : "bg-loss/10 text-loss",
+                  )}
+                >
+                  {weekDelta >= 0 ? "▲" : "▼"} {fmtMoney(Math.abs(weekDelta)).replace("+", "")} vs
+                  prior 7d
+                </div>
+              )}
               <div className="mt-1 text-xs text-muted-foreground">
                 {m.closedTrades} closed trades · {fmtMoney(m.fees)} fees
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Trade win %</CardTitle>
-            </CardHeader>
+            <StatHeader
+              title="Trade win %"
+              icon={Target}
+              hint="Winning trades ÷ decided trades. Breakevens don't count against you."
+            />
             <CardContent className="flex items-center justify-between gap-2">
               <Gauge value={m.winRate} label="Trade win rate" />
               <div className="space-y-0.5 text-xs text-muted-foreground">
@@ -98,9 +153,11 @@ function Dashboard() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Profit factor</CardTitle>
-            </CardHeader>
+            <StatHeader
+              title="Profit factor"
+              icon={Scale}
+              hint="Gross profit ÷ gross loss. Above 1 means the wins outweigh the losses."
+            />
             <CardContent>
               <div className="text-3xl font-semibold tracking-tight tnum">
                 {m.profitFactorIsInfinite
@@ -113,18 +170,22 @@ function Dashboard() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Day win %</CardTitle>
-            </CardHeader>
+            <StatHeader
+              title="Day win %"
+              icon={CalendarCheck2}
+              hint="Green trading days ÷ all trading days in the selected range."
+            />
             <CardContent className="flex items-center justify-between gap-2">
               <Gauge value={m.dayWinRate} label="Day win rate" />
               <div className="text-xs text-muted-foreground">{m.tradingDays} days</div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Avg win / loss</CardTitle>
-            </CardHeader>
+            <StatHeader
+              title="Avg win / loss"
+              icon={ArrowUpDown}
+              hint="Average winning trade ÷ average losing trade. The bar shows the two to scale."
+            />
             <CardContent>
               <div className="text-3xl font-semibold tracking-tight tnum">
                 {m.avgWinLossRatio === null ? "–" : fmtNumber(m.avgWinLossRatio)}
@@ -294,11 +355,13 @@ function Dashboard() {
         </div>
 
         {/* Risk + behavior row */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Card>
-            <CardHeader>
-              <CardTitle>Max drawdown</CardTitle>
-            </CardHeader>
+            <StatHeader
+              title="Max drawdown"
+              icon={TrendingDown}
+              hint="Largest peak-to-trough drop of the cumulative P&L curve."
+            />
             <CardContent>
               <div className="text-xl font-semibold tnum text-loss">{fmtMoney(-m.maxDrawdown)}</div>
               <div className="mt-1 text-xs text-muted-foreground">
@@ -310,9 +373,11 @@ function Dashboard() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Streaks</CardTitle>
-            </CardHeader>
+            <StatHeader
+              title="Streaks"
+              icon={Flame}
+              hint="Current run of consecutive wins (W) or losses (L), with the best and worst runs."
+            />
             <CardContent>
               <div className="text-xl font-semibold tnum">
                 {m.currentStreak > 0
@@ -327,9 +392,11 @@ function Dashboard() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Expectancy / trade</CardTitle>
-            </CardHeader>
+            <StatHeader
+              title="Expectancy / trade"
+              icon={Sigma}
+              hint="Average net P&L per closed trade: what one more trade is worth on your numbers."
+            />
             <CardContent>
               {m.expectancy === null ? (
                 "–"
@@ -344,12 +411,35 @@ function Dashboard() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Avg duration</CardTitle>
-            </CardHeader>
+            <StatHeader
+              title="Avg duration"
+              icon={Timer}
+              hint="Average time from first entry fill to final exit."
+            />
             <CardContent>
               <div className="text-xl font-semibold tnum">{fmtDuration(m.avgDurationMs)}</div>
               <div className="mt-1 text-xs text-muted-foreground">winners vs losers in Reports</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <StatHeader
+              title="Best / worst day"
+              icon={Trophy}
+              hint="Highest and lowest single-day net P&L in the selected range."
+            />
+            <CardContent className="space-y-1">
+              {bestDay && (
+                <div className="flex items-baseline justify-between">
+                  <Pnl value={bestDay.netPnl} className="text-base font-semibold" />
+                  <span className="text-xs text-muted-foreground">{bestDay.date.slice(5)}</span>
+                </div>
+              )}
+              {worstDay && (
+                <div className="flex items-baseline justify-between">
+                  <Pnl value={worstDay.netPnl} className="text-base font-semibold" />
+                  <span className="text-xs text-muted-foreground">{worstDay.date.slice(5)}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -370,7 +460,30 @@ function Dashboard() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </TooltipProvider>
+  );
+}
+
+/** Stat-tile header: quiet label left, metric icon with an explainer right. */
+function StatHeader({
+  title,
+  hint,
+  icon: Icon,
+}: {
+  title: string;
+  hint: string;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <CardHeader className="flex-row items-center justify-between space-y-0">
+      <CardTitle>{title}</CardTitle>
+      <Tooltip>
+        <TooltipTrigger className="cursor-help" aria-label={`About ${title}`}>
+          <Icon className="h-3.5 w-3.5 text-muted-foreground/70" />
+        </TooltipTrigger>
+        <TooltipContent>{hint}</TooltipContent>
+      </Tooltip>
+    </CardHeader>
   );
 }
 
