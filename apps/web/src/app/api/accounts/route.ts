@@ -5,7 +5,21 @@ import { encryptJson } from "@/server/crypto";
 import { newId, nowIso } from "@/server/ids";
 import { syncAccount } from "@/server/sync";
 
-export const GET = handler(() => {
+export const GET = handler((request: Request) => {
+  if (new URL(request.url).searchParams.get("summary") === "1") {
+    return ok({
+      accounts: db
+        .select({
+          id: accounts.id,
+          name: accounts.name,
+          broker: accounts.broker,
+          archivedAt: accounts.archivedAt,
+        })
+        .from(accounts)
+        .orderBy(asc(accounts.createdAt))
+        .all(),
+    });
+  }
   const rows = db.select().from(accounts).orderBy(asc(accounts.createdAt)).all();
   return ok({
     accounts: rows.map(({ credentialsEnc, ...safe }) => ({

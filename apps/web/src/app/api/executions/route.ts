@@ -15,11 +15,16 @@ export const POST = handler(async (request: Request) => {
   }
   for (const row of body.executions) {
     if (
-      !row.symbol ||
-      !row.side ||
-      !row.executedAt ||
+      !row ||
+      typeof row.symbol !== "string" ||
+      !row.symbol.trim() ||
+      !["buy", "sell"].includes(row.side) ||
+      typeof row.executedAt !== "string" ||
+      !Number.isFinite(Date.parse(row.executedAt)) ||
+      !Number.isFinite(row.quantity) ||
       !(row.quantity > 0) ||
-      !Number.isFinite(row.price)
+      !Number.isFinite(row.price) ||
+      !Number.isFinite(row.fee ?? 0)
     ) {
       return bad("every execution needs symbol, side, quantity > 0, price, executedAt");
     }

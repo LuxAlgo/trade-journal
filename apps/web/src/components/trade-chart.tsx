@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { fmtMoney } from "@/lib/utils";
+import { usePrivacy } from "./privacy";
+import { EquityArea } from "./charts/equity-area";
 
 interface ChartExecution {
   side: "buy" | "sell";
@@ -47,7 +49,41 @@ const timeframeFor = (durationMs: number): string => {
  * fills (a price path of what actually happened), because a journal fabricates
  * nothing it doesn't know.
  */
-export function TradeChart({
+export function TradeChart(props: {
+  trade: ChartTrade;
+  executions: ChartExecution[];
+  height?: number;
+}) {
+  const privateMode = usePrivacy();
+  if (!privateMode) return <PriceChart {...props} />;
+  const data = [...props.executions]
+    .sort((a, b) => a.executedAt.localeCompare(b.executedAt))
+    .map((fill) => ({
+      t: fill.executedAt,
+      cumNetPnl: fill.price / props.trade.avgEntry - 1,
+    }));
+  return (
+    <figure className="rounded-lg border bg-card p-4">
+      <p className="mb-2 text-sm font-medium">Execution price change (%)</p>
+      {props.trade.avgEntry !== 0 && data.length ? (
+        <EquityArea
+          data={data}
+          height={props.height ?? 340}
+          valueFormat="percent"
+          valueLabel="Price change from average entry"
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">No execution prices available.</p>
+      )}
+      <figcaption className="mt-2 text-xs text-muted-foreground">
+        Recorded fills as a percentage of average entry. Privacy mode keeps prices and monetary P&L
+        hidden.
+      </figcaption>
+    </figure>
+  );
+}
+
+function PriceChart({
   trade,
   executions,
   height = 420,

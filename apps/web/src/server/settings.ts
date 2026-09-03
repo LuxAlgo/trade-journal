@@ -1,6 +1,15 @@
 import { eq } from "drizzle-orm";
 import { db, settings } from "@/db";
 import { decryptJson, encryptJson } from "./crypto";
+import { EMPTY_DEFAULTS, type JournalDefaults } from "@/lib/journal-defaults";
+
+export const getJournalDefaults = (): JournalDefaults => {
+  try {
+    return { ...EMPTY_DEFAULTS, ...JSON.parse(getSetting("journalDefaults") ?? "{}") };
+  } catch {
+    return EMPTY_DEFAULTS;
+  }
+};
 
 export const getSetting = (key: string): string | null =>
   db.select().from(settings).where(eq(settings.key, key)).get()?.value ?? null;

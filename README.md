@@ -6,9 +6,9 @@
 
 Broker sync, deep analytics, a P&L calendar, daily journaling with voice dictation, and AI reflection. All on your own machine.
 
-Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project. Official repository: [github.com/LuxAlgo/trade-journal](https://github.com/LuxAlgo/trade-journal)
+Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project. This fork adds richer journaling, comparison reports, a customizable responsive dashboard, and performance improvements. See [everything changed from the original](docs/fork-changes.md) and the [review and performance results](docs/review-and-performance.md). Official repository: [github.com/LuxAlgo/trade-journal](https://github.com/LuxAlgo/trade-journal)
 
-[![CI](https://github.com/LuxAlgo/trade-journal/actions/workflows/ci.yml/badge.svg)](https://github.com/LuxAlgo/trade-journal/actions/workflows/ci.yml)
+[![CI](https://github.com/ChristopherDownie/trade-journal/actions/workflows/ci.yml/badge.svg)](https://github.com/ChristopherDownie/trade-journal/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-white)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/lang-TypeScript-white)](packages/core/src/types.ts)
 [![SQLite](https://img.shields.io/badge/db-SQLite-white)](#quickstart)
@@ -28,14 +28,16 @@ Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project. Official 
 ## Quickstart
 
 ```bash
-git clone https://github.com/LuxAlgo/trade-journal
+git clone https://github.com/ChristopherDownie/trade-journal
 cd trade-journal
 pnpm install
 pnpm dev
 # http://localhost:3000
 ```
 
-Requirements: Node 18.17+, pnpm. First run creates the SQLite database by itself. No migration tool, no setup wizard, no account.
+Requirements: Node 22+, pnpm. First run creates the SQLite database by itself. No migration tool, no setup wizard, no account.
+
+For a faster local preview after making changes, run `pnpm build` followed by `pnpm start`. Development mode compiles pages on demand; production mode serves the optimized build. Stop the development server before building in the same checkout.
 
 ### Docker
 

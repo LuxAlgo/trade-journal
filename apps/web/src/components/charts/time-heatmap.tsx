@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { EChartsOption } from "echarts";
-import { fmtMoney } from "@/lib/utils";
-import { EChart } from "./echart";
+import { fmtMoney, fmtNumber } from "@/lib/utils";
+import { usePrivacy } from "../privacy";
 import { useVizTokens } from "./tokens";
+
+const EChart = dynamic(() => import("./echart").then((module) => module.EChart), { ssr: false });
 
 export interface HourBucket {
   key: string; // "09"
@@ -17,8 +20,37 @@ export interface HourBucket {
  * P&L per opening hour as diverging columns, trade count as a muted line.
  * One value axis per pane — never dual-axis on one grid.
  */
-export function TimeHeatmap({ hours, height = 300 }: { hours: HourBucket[]; height?: number }) {
+export function TimeHeatmap({
+  hours,
+  height = 300,
+  currency = "USD",
+}: {
+  hours: HourBucket[];
+  height?: number;
+  currency?: string;
+}) {
   const t = useVizTokens();
+  const privateMode = usePrivacy();
+  const host = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!host.current) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "240px" },
+    );
+    observer.observe(host.current);
+    return () => observer.disconnect();
+  }, []);
   const option = useMemo<EChartsOption | null>(() => {
     if (!t) return null;
     const categories = hours.map((h) => `${h.key}:00`);
@@ -29,12 +61,11 @@ export function TimeHeatmap({ hours, height = 300 }: { hours: HourBucket[]; heig
         { left: 64, right: 16, bottom: 28, height: "22%" },
       ],
       tooltip: {
+        confine: true,
         trigger: "axis",
         backgroundColor: t.card,
         borderColor: t.border,
         textStyle: { color: t.foreground, fontSize: 12 },
-        valueFormatter: (value) =>
-          typeof value === "number" ? fmtMoney(value) : String(value ?? ""),
       },
       axisPointer: { link: [{ xAxisIndex: "all" }] },
       xAxis: [
@@ -59,10 +90,14 @@ export function TimeHeatmap({ hours, height = 300 }: { hours: HourBucket[]; heig
         {
           type: "value",
           gridIndex: 0,
-          name: "Net P&L",
+          name: privateMode ? "Net P&L (hidden)" : `Net P&L (${currency})`,
           nameTextStyle: { color: t.inkMuted, fontSize: 11 },
           splitLine: { lineStyle: { color: t.gridline } },
-          axisLabel: { color: t.inkMuted, fontSize: 11 },
+          axisLabel: {
+            color: t.inkMuted,
+            fontSize: 11,
+            formatter: (value: number) => (privateMode ? "••••" : fmtNumber(value, 0)),
+          },
         },
         {
           type: "value",
@@ -77,6 +112,9 @@ export function TimeHeatmap({ hours, height = 300 }: { hours: HourBucket[]; heig
         {
           type: "bar",
           name: "Net P&L",
+          tooltip: {
+            valueFormatter: (value) => (privateMode ? "Hidden" : fmtMoney(Number(value), currency)),
+          },
           xAxisIndex: 0,
           yAxisIndex: 0,
           data: hours.map((h) => ({
@@ -91,6 +129,7 @@ export function TimeHeatmap({ hours, height = 300 }: { hours: HourBucket[]; heig
         {
           type: "line",
           name: "Trades",
+          tooltip: { valueFormatter: (value) => fmtNumber(Number(value), 0) },
           xAxisIndex: 1,
           yAxisIndex: 1,
           data: hours.map((h) => h.trades),
@@ -100,8 +139,11 @@ export function TimeHeatmap({ hours, height = 300 }: { hours: HourBucket[]; heig
         },
       ],
     };
-  }, [hours, t]);
+  }, [hours, t, privateMode, currency]);
 
-  if (!option) return <div style={{ height }} />;
-  return <EChart option={option} height={height} />;
+  return (
+    <div ref={host} style={{ height }}>
+      {visible && option && <EChart key={String(privateMode)} option={option} height={height} />}
+    </div>
+  );
 }

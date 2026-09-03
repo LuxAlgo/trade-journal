@@ -69,8 +69,13 @@ export const dailyStats = (trades: RoundTrip[], timeZone = "UTC"): DayStats[] =>
 
 /** Daily cumulative net P&L curve (one point per trading day). */
 export const dailyCumulative = (trades: RoundTrip[], timeZone = "UTC"): EquityPoint[] => {
+  return dailyCumulativeFromDays(dailyStats(trades, timeZone));
+};
+
+/** Daily totals are already ordered by date. */
+export const dailyCumulativeFromDays = (days: DayStats[]): EquityPoint[] => {
   let cum = 0;
-  return dailyStats(trades, timeZone).map((day) => {
+  return days.map((day) => {
     cum += day.netPnl;
     return { t: day.date, cumNetPnl: cum };
   });

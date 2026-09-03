@@ -173,7 +173,11 @@ export interface DemoResult {
 /** Idempotent: a second call returns the existing demo account untouched. */
 export const loadDemoData = (): DemoResult => {
   const existing = db.select().from(accounts).where(eq(accounts.broker, DEMO_BROKER)).get();
-  if (existing) return { accountId: existing.id, inserted: 0, alreadyLoaded: true };
+  if (existing) {
+    if (existing.archivedAt)
+      db.update(accounts).set({ archivedAt: null }).where(eq(accounts.id, existing.id)).run();
+    return { accountId: existing.id, inserted: 0, alreadyLoaded: true };
+  }
 
   const id = newId();
   db.insert(accounts)

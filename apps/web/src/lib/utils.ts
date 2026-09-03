@@ -19,8 +19,15 @@ export const fmtMoney = (value: number, currency = "USD"): string => {
   return formatter.format(value);
 };
 
-export const fmtNumber = (value: number, digits = 2): string =>
-  new Intl.NumberFormat("en-US", { maximumFractionDigits: digits }).format(value);
+const numberFormatters = new Map<number, Intl.NumberFormat>();
+export const fmtNumber = (value: number, digits = 2): string => {
+  let formatter = numberFormatters.get(digits);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: digits });
+    numberFormatters.set(digits, formatter);
+  }
+  return formatter.format(value);
+};
 
 export const fmtPercent = (value: number | null, digits = 1): string =>
   value === null ? "–" : `${(value * 100).toFixed(digits)}%`;

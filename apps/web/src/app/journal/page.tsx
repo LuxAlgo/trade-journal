@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { dayKeyOf } from "@luxalgo/journal-core";
 import { Suspense } from "react";
 import { NotebookPen } from "lucide-react";
 import type { DayStats } from "@luxalgo/journal-core";
@@ -27,7 +28,7 @@ export default function JournalPage() {
 }
 
 function Journal() {
-  const { query } = useFilters();
+  const { query, timeZone } = useFilters();
   const { data } = useApi<{ days: JournalDay[] }>(`/api/journal?${query}`);
 
   return (
@@ -36,7 +37,7 @@ function Journal() {
         title="Daily journal"
         actions={
           <Link
-            href={`/journal/${new Date().toISOString().slice(0, 10)}`}
+            href={`/journal/${dayKeyOf(new Date().toISOString(), timeZone)}?${query}`}
             className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
           >
             View my day
@@ -51,10 +52,10 @@ function Journal() {
           </p>
         )}
         {data?.days.map((day) => (
-          <Link key={day.date} href={`/journal/${day.date}`} className="block">
+          <Link key={day.date} href={`/journal/${day.date}?${query}`} className="block">
             <Card className="transition-colors hover:border-ring">
-              <CardContent className="flex items-center gap-4 py-3">
-                <div className="w-28 shrink-0">
+              <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-3 py-3">
+                <div className="w-full shrink-0 sm:w-28">
                   <div className="text-sm font-medium">{day.date}</div>
                   <div className="text-xs text-muted-foreground">
                     {new Date(`${day.date}T00:00:00Z`).toLocaleDateString("en-US", {
@@ -64,21 +65,19 @@ function Journal() {
                   </div>
                 </div>
                 {day.stats ? (
-                  <div className="flex flex-1 items-center gap-6 text-sm">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 text-sm">
                     <Pnl value={day.stats.netPnl} className="w-24 font-semibold" />
                     <span className="text-muted-foreground">
                       {day.stats.trades} trade{day.stats.trades === 1 ? "" : "s"}
                     </span>
                     <span className="text-muted-foreground">
                       {fmtPercent(
-                        day.stats.wins + day.stats.losses > 0
-                          ? day.stats.wins / (day.stats.wins + day.stats.losses)
-                          : null,
+                        day.stats.trades > 0 ? day.stats.wins / day.stats.trades : null,
                         0,
                       )}{" "}
                       win
                     </span>
-                    <span className="hidden text-muted-foreground md:inline">
+                    <span className="text-muted-foreground">
                       {day.stats.wins}W / {day.stats.losses}L
                     </span>
                   </div>

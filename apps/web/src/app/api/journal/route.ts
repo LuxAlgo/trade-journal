@@ -1,3 +1,4 @@
+import { readFilters } from "@luxalgo/journal-core";
 import { desc } from "drizzle-orm";
 import { dailyStats } from "@luxalgo/journal-core";
 import { db, journalDays } from "@/db";
@@ -12,15 +13,19 @@ import { queryTrades } from "@/server/trades-query";
 export const GET = handler(async (request: Request) => {
   const url = new URL(request.url);
   const timeZone = getTimeZone();
-  const { trades } = queryTrades({
-    accountIds: url.searchParams.get("accounts")?.split(",").filter(Boolean),
-  });
+  const { trades } = queryTrades(readFilters(url.searchParams));
 
   const tradeDays = new Map(dailyStats(trades, timeZone).map((day) => [day.date, day]));
   const noteRows = db.select().from(journalDays).orderBy(desc(journalDays.date)).all();
   const noteDays = new Map(noteRows.map((row) => [row.date, row]));
 
-  const allDates = [...new Set([...tradeDays.keys(), ...noteDays.keys()])].sort().reverse();
+  const filters = readFilters(url.searchParams);
+  const allDates = [...new Set([...tradeDays.keys(), ...noteDays.keys()])]
+    .filter(
+      (date) => (!filters.from || date >= filters.from) && (!filters.to || date <= filters.to),
+    )
+    .sort()
+    .reverse();
   return ok({
     days: allDates.map((date) => ({
       date,

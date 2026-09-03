@@ -1,5 +1,4 @@
 import type { AnnotatedTrade } from "./types";
-import { computeMetrics } from "./metrics";
 import { dailyStats, type DayStats } from "./equity";
 import { WEEKDAYS, dayKeyOf, hourOf, weekdayOf } from "./time";
 
@@ -13,14 +12,29 @@ export interface BucketStats {
 }
 
 const bucketStats = (key: string, trades: AnnotatedTrade[]): BucketStats => {
-  const m = computeMetrics(trades);
+  // A bucket needs totals, not an equity curve, timezone conversion or streaks.
+  let closed = 0,
+    wins = 0,
+    netPnl = 0,
+    profit = 0,
+    loss = 0,
+    volume = 0;
+  for (const trade of trades) {
+    volume += trade.quantity;
+    if (trade.status === "open") continue;
+    closed++;
+    if (trade.status === "win") wins++;
+    netPnl += trade.netPnl;
+    profit += Math.max(0, trade.netPnl);
+    loss -= Math.min(0, trade.netPnl);
+  }
   return {
     key,
     trades: trades.length,
-    netPnl: m.netPnl,
-    winRate: m.winRate,
-    profitFactor: m.profitFactorIsInfinite ? null : m.profitFactor,
-    volume: m.totalVolume,
+    netPnl,
+    winRate: closed ? wins / closed : null,
+    profitFactor: loss > 0 ? profit / loss : null,
+    volume,
   };
 };
 
@@ -128,12 +142,17 @@ export const calendarMonth = (
   year: number,
   month: number,
   timeZone = "UTC",
+): CalendarMonth => calendarMonthFromDays(dailyStats(trades, timeZone), year, month);
+
+/** Reuse already-computed daily totals when rendering an overview. */
+export const calendarMonthFromDays = (
+  dayStats: DayStats[],
+  year: number,
+  month: number,
 ): CalendarMonth => {
   const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
   const days = new Map(
-    dailyStats(trades, timeZone)
-      .filter((d) => d.date.startsWith(monthPrefix))
-      .map((d) => [d.date, d]),
+    dayStats.filter((d) => d.date.startsWith(monthPrefix)).map((d) => [d.date, d]),
   );
 
   const first = new Date(Date.UTC(year, month - 1, 1));

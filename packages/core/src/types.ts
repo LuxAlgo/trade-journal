@@ -83,6 +83,8 @@ export interface RoundTrip {
   exits: ExitAttribution[];
   /** Milliseconds between open and close (undefined while open). */
   durationMs?: number;
+  /** Currency value of one price point per unit. Required for derivative R statistics. */
+  contractMultiplier?: number;
 }
 
 /** User-authored context attached to a round trip (stored by the app, joined for analytics). */

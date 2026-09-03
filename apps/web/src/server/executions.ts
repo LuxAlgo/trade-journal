@@ -1,8 +1,11 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { ImportedExecution } from "@luxalgo/journal-importers";
-import { db, executions } from "@/db";
+import { db, executions, accounts } from "@/db";
 import { executionHash, newId, nowIso } from "./ids";
 import { rebuildAccount } from "./rebuild";
+import { getJournalDefaults } from "./settings";
+import { defaultFee } from "@/lib/journal-defaults";
+import { requireValue } from "./api";
 
 export interface InsertResult {
   inserted: number;
@@ -15,9 +18,29 @@ export const insertExecutions = (
   rows: ImportedExecution[],
   source: "sync" | "import" | "manual",
 ): InsertResult => {
+  requireValue(
+    db.select({ id: accounts.id }).from(accounts).where(eq(accounts.id, accountId)).get(),
+    "Account not found.",
+  );
+  for (const row of rows) {
+    requireValue(
+      row &&
+        typeof row.symbol === "string" &&
+        row.symbol.trim() &&
+        ["buy", "sell"].includes(row.side) &&
+        Number.isFinite(row.quantity) &&
+        row.quantity > 0 &&
+        Number.isFinite(row.price) &&
+        Number.isFinite(row.fee ?? 0) &&
+        typeof row.executedAt === "string" &&
+        Number.isFinite(Date.parse(row.executedAt)),
+      "Every execution needs a symbol, buy/sell side, finite positive quantity, price, fee and valid timestamp.",
+    );
+  }
   let inserted = 0;
   let duplicates = 0;
   const createdAt = nowIso();
+  const defaults = getJournalDefaults();
 
   db.transaction((tx) => {
     for (const row of rows) {
@@ -30,7 +53,7 @@ export const insertExecutions = (
           side: row.side,
           quantity: row.quantity,
           price: row.price,
-          fee: row.fee,
+          fee: defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults),
           executedAt: row.executedAt,
           assetClass: row.assetClass ?? null,
           source,
@@ -42,9 +65,9 @@ export const insertExecutions = (
       if (result.changes > 0) inserted++;
       else duplicates++;
     }
+    if (inserted > 0) rebuildAccount(accountId);
   });
 
-  if (inserted > 0) rebuildAccount(accountId);
   return { inserted, duplicates };
 };
 

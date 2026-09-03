@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { JournalDefaultSettings } from "@/components/journal-default-settings";
 import { Download } from "lucide-react";
 import { FilterBar } from "@/components/filter-bar";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ function Settings() {
   const [multipliers, setMultipliers] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [saved, setSaved] = useState(false);
+  const [failure, setFailure] = useState("");
 
   useEffect(() => {
     if (data) {
@@ -50,7 +52,13 @@ function Settings() {
         parsedMultipliers[symbol.toUpperCase()] = Number(value);
       }
     }
-    await postJson("/api/settings", { timeZone, multipliers: parsedMultipliers }, "PATCH");
+    try {
+      await postJson("/api/settings", { timeZone, multipliers: parsedMultipliers }, "PATCH");
+      setFailure("");
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : "Save failed");
+      return;
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
     refresh();
@@ -60,6 +68,7 @@ function Settings() {
     <div>
       <FilterBar title="Settings" />
       <div className="mx-auto max-w-2xl space-y-3 p-4">
+        <JournalDefaultSettings />
         <Card>
           <CardHeader>
             <CardTitle>Journal</CardTitle>
@@ -92,6 +101,15 @@ function Settings() {
                 className="flex min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm shadow-sm"
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Saving multipliers recalculates existing trade P&L from fills and preserves
+              annotations.
+            </p>
+            {failure && (
+              <p role="alert" className="text-xs text-destructive">
+                {failure}
+              </p>
+            )}
             <Button onClick={save}>{saved ? "Saved ✓" : "Save"}</Button>
           </CardContent>
         </Card>
@@ -109,7 +127,7 @@ function Settings() {
                 {data?.aiConfigured ? "configured" : "not configured"}
               </span>
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Input
                 type="password"
                 value={apiKey}
@@ -146,7 +164,7 @@ function Settings() {
           <CardHeader>
             <CardTitle>Your data</CardTitle>
           </CardHeader>
-          <CardContent className="flex gap-2">
+          <CardContent className="flex flex-wrap gap-2">
             <a href="/api/export" download="trade-journal-export.json">
               <Button variant="outline">
                 <Download />

@@ -4,3 +4,12 @@ data
 .git
 *.md
 !README.md
+**/node_modules
+**/.next
+**/.cache
+**/data
+**/*.db
+**/*.db-*
+**/.env*
+.runtime-backup*
+outputs

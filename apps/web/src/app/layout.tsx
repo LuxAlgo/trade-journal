@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import "./globals.css";
 import { Shell } from "@/components/shell";
+import { PrivacyProvider } from "@/components/privacy";
 
 export const metadata: Metadata = {
   title: "Trade Journal",
@@ -12,7 +14,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className="min-h-screen font-sans antialiased">
-        <Shell>{children}</Shell>
+        <Suspense>
+          <PrivacyProvider>
+            <Shell>{children}</Shell>
+          </PrivacyProvider>
+        </Suspense>
       </body>
     </html>
   );

@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { AdherenceReport } from "@/components/adherence-report";
 import { FilterBar } from "@/components/filter-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,11 +70,11 @@ function Playbooks() {
         )}
         {data?.playbooks.map((playbook) => (
           <Card key={playbook.id}>
-            <CardHeader className="flex-row items-center justify-between">
+            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-foreground text-base font-semibold">
                 {playbook.name}
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="ml-auto flex shrink-0 items-center gap-2">
                 <span className="text-xs text-muted-foreground">{playbook.tradeCount} trades</span>
                 <Button
                   variant="ghost"
@@ -101,13 +102,14 @@ function Playbooks() {
               {playbook.rules.length > 0 && (
                 <ul className="space-y-1 text-sm">
                   {playbook.rules.map((rule, index) => (
-                    <li key={index} className="flex gap-2">
+                    <li key={index} className="flex min-w-0 gap-2 break-words">
                       <span className="text-muted-foreground">{index + 1}.</span>
                       {rule}
                     </li>
                   ))}
                 </ul>
               )}
+              <AdherenceReport bookId={playbook.id} />
             </CardContent>
           </Card>
         ))}

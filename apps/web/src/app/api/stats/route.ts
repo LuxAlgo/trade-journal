@@ -1,4 +1,5 @@
 import {
+  readFilters,
   byDirection,
   byDuration,
   byHour,
@@ -7,15 +8,13 @@ import {
   bySymbol,
   byTag,
   byWeekday,
-  calendarMonth,
+  calendarMonthFromDays,
   computeEdgeScore,
-  computeMetrics,
-  dailyCumulative,
-  dailyStats,
-  equityCurve,
+  computeOverview,
+  dailyCumulativeFromDays,
 } from "@luxalgo/journal-core";
 import { asc } from "drizzle-orm";
-import { accounts, db } from "@/db";
+import { accounts, db, playbooks } from "@/db";
 import { handler, ok } from "@/server/api";
 import { getTimeZone } from "@/server/settings";
 import { queryTrades, type TradeFilters } from "@/server/trades-query";
@@ -23,34 +22,34 @@ import { queryTrades, type TradeFilters } from "@/server/trades-query";
 /** The entire dashboard in one request. */
 export const GET = handler(async (request: Request) => {
   const url = new URL(request.url);
-  const timeZone = url.searchParams.get("tz") ?? getTimeZone();
-  const filters: TradeFilters = {
-    accountIds: url.searchParams.get("accounts")?.split(",").filter(Boolean),
-    from: url.searchParams.get("from") ?? undefined,
-    to: url.searchParams.get("to") ?? undefined,
-  };
+  const timeZone = getTimeZone();
+  const filters: TradeFilters = readFilters(url.searchParams);
 
   const { trades } = queryTrades(filters);
   const accountRows = db.select().from(accounts).orderBy(asc(accounts.createdAt)).all();
-  const selected =
-    filters.accountIds && filters.accountIds.length > 0
-      ? accountRows.filter((a) => filters.accountIds!.includes(a.id))
-      : accountRows;
+  const selected = filters.accounts
+    ? accountRows.filter((a) => filters.accounts!.split(",").includes(a.id))
+    : accountRows;
   const initialBalance = selected.reduce((total, a) => total + a.initialBalance, 0);
 
-  const metrics = computeMetrics(trades, { timeZone, initialBalance });
+  const { metrics, days, equity } = computeOverview(trades, { timeZone, initialBalance });
+  const accountCurrencies = new Map(accountRows.map((a) => [a.id, a.currency]));
 
   const now = new Date();
   const calendarYear = Number(url.searchParams.get("calYear") ?? now.getUTCFullYear());
   const calendarMonthNum = Number(url.searchParams.get("calMonth") ?? now.getUTCMonth() + 1);
 
   return ok({
+    timeZone,
+    currencies: [...new Set(trades.map((t) => accountCurrencies.get(t.accountId) ?? "USD"))],
+    accounts: accountRows.map((a) => ({ id: a.id, name: a.name })),
+    playbooks: db.select({ id: playbooks.id, name: playbooks.name }).from(playbooks).all(),
     metrics,
     edgeScore: computeEdgeScore(metrics),
-    days: dailyStats(trades, timeZone),
-    dailyCumulative: dailyCumulative(trades, timeZone),
-    equity: equityCurve(trades),
-    calendar: calendarMonth(trades, calendarYear, calendarMonthNum, timeZone),
+    days,
+    dailyCumulative: dailyCumulativeFromDays(days),
+    equity,
+    calendar: calendarMonthFromDays(days, calendarYear, calendarMonthNum),
     buckets: {
       symbol: bySymbol(trades).slice(0, 20),
       tag: byTag(trades),
