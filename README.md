@@ -8,7 +8,6 @@ Broker sync, deep analytics, a P&L calendar, daily journaling with voice dictati
 
 Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project. Official repository: [github.com/LuxAlgo/trade-journal](https://github.com/LuxAlgo/trade-journal)
 
-[![CI](https://github.com/LuxAlgo/trade-journal/actions/workflows/ci.yml/badge.svg)](https://github.com/LuxAlgo/trade-journal/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-white)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/lang-TypeScript-white)](packages/core/src/types.ts)
 [![SQLite](https://img.shields.io/badge/db-SQLite-white)](#quickstart)
