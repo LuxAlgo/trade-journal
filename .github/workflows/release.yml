@@ -1,8 +1,9 @@
 name: Release packages
 
 # Publishes @luxalgo/journal-core and @luxalgo/journal-importers to npm via
-# trusted publishing (OIDC) — no NPM_TOKEN secret. Run manually from the
-# Actions tab, or push a v* tag.
+# trusted publishing (OIDC), no NPM_TOKEN secret. Run it manually from the
+# Actions tab after bumping the package versions; tags never publish, so
+# cutting a GitHub Release is always safe.
 #
 # One-time setup per package on npmjs.com (Package Settings -> Trusted
 # Publisher -> GitHub Actions): org "LuxAlgo", repo "trade-journal",
@@ -12,8 +13,6 @@ name: Release packages
 # the trusted publisher can be attached.
 on:
   workflow_dispatch:
-  push:
-    tags: ["v*"]
 
 permissions:
   contents: read
@@ -23,9 +22,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      # version comes from the packageManager field in package.json
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v6
+      # pnpm version comes from the packageManager field in package.json
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 22

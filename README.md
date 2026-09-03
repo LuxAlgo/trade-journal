@@ -4,10 +4,11 @@
 
 <br/>
 
-Broker sync, deep analytics, a P&L calendar, daily journaling with voice dictation, and AI reflection. All on your own machine.
+Broker sync, deep analytics, a P&L calendar, daily journaling with voice dictation, and AI reflection. Self-host it in one command, or use it free inside LuxAlgo.
 
 Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project. Official repository: [github.com/LuxAlgo/trade-journal](https://github.com/LuxAlgo/trade-journal)
 
+[![npm](https://img.shields.io/npm/v/@luxalgo/journal-core?label=npm&color=white)](https://www.npmjs.com/package/@luxalgo/journal-core)
 [![License](https://img.shields.io/badge/license-MIT-white)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/lang-TypeScript-white)](packages/core/src/types.ts)
 [![SQLite](https://img.shields.io/badge/db-SQLite-white)](#quickstart)
@@ -25,6 +26,8 @@ Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project. Official 
 > ⚠️ **Early release.** APIs and schema may still move before 1.0. Statement parsers are cross-checked against real-world field sources; per-format status lives in [docs/importers.md](docs/importers.md).
 
 ## Quickstart
+
+> **Prefer not to self-host?** The same journal runs free inside [LuxAlgo](https://app.luxalgo.com), right beside Quant Charts: sign in and it is there, no setup. Everything below is for running your own copy.
 
 ```bash
 git clone https://github.com/LuxAlgo/trade-journal
@@ -104,6 +107,24 @@ Export your trades as CSV, drop the file on **Import → File upload**, done. Tr
 | [`packages/importers`](packages/importers) | `@luxalgo/journal-importers`: statement parsers + migration importers. Zero-dependency CSV/HTML parsing.                          |
 | [`apps/web`](apps/web)                     | The app: Next.js 15, SQLite (Drizzle), Tailwind, Recharts/ECharts, Vela charting, TanStack Table, ai-sdk.                         |
 
+### Use the engine in your own app
+
+The math and the importers are plain packages on npm, with no framework and no IO:
+
+```bash
+npm install @luxalgo/journal-core @luxalgo/journal-importers
+```
+
+```ts
+import { buildRoundTrips, computeMetrics, computeEdgeScore } from "@luxalgo/journal-core";
+import { parseAuto } from "@luxalgo/journal-importers";
+
+const parsed = parseAuto(csvText, { timeZone: "America/New_York" });
+const trades = buildRoundTrips(parsed!.executions, { method: "fifo" });
+const metrics = computeMetrics(trades, { timeZone: "America/New_York" });
+const edge = computeEdgeScore(metrics);
+```
+
 ```bash
 pnpm test          # unit tests (core + importers)
 pnpm typecheck     # all packages
@@ -120,7 +141,7 @@ pnpm build         # production build
 
 ## Principles
 
-MIT. No telemetry, ever. No hosted version that touches your keys. Sanctioned APIs only. The repo stands alone; LuxAlgo integrations are optional bridges, never dependencies.
+MIT. No telemetry, ever. This repo never phones home and never holds broker keys for anyone but you. The free hosted journal inside LuxAlgo is a separate service built on the same open engine; the repo stands alone, and LuxAlgo integrations are optional bridges, never dependencies. Sanctioned APIs only.
 
 ## Disclaimer
 
