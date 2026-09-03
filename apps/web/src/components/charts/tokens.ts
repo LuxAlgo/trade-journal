@@ -19,7 +19,8 @@ export interface VizTokens {
   border: string;
 }
 
-const read = (): VizTokens => {
+/** Resolve the design tokens from the document so canvas painters match the theme. */
+export const readVizTokens = (): VizTokens => {
   const style = getComputedStyle(document.documentElement);
   const v = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
   return {
@@ -48,8 +49,8 @@ const read = (): VizTokens => {
 export const useVizTokens = (): VizTokens | null => {
   const [tokens, setTokens] = useState<VizTokens | null>(null);
   useEffect(() => {
-    setTokens(read());
-    const observer = new MutationObserver(() => setTokens(read()));
+    setTokens(readVizTokens());
+    const observer = new MutationObserver(() => setTokens(readVizTokens()));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);

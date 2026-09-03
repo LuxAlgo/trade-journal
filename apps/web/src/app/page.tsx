@@ -28,6 +28,8 @@ import {
   Trophy,
 } from "lucide-react";
 import { FilterBar, useFilters } from "@/components/filter-bar";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { MonetaryValue } from "@/components/privacy";
 import { Pnl } from "@/components/pnl";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,13 +74,40 @@ export default function DashboardPage() {
 
 function Dashboard() {
   const { query } = useFilters();
-  const { data, loading } = useApi<StatsPayload>(`/api/stats?${query}`);
+  const { data, loading, error, refresh } = useApi<StatsPayload>(`/api/stats?${query}`);
 
   if (loading && !data) return <DashboardSkeleton />;
-  if (!data) return null;
+  if (!data)
+    return (
+      <div>
+        <FilterBar title="Dashboard" />
+        <div className="space-y-3 p-4">
+          <p role="alert" className="text-sm text-destructive">
+            {error ?? "Could not load the dashboard."}
+          </p>
+          <button
+            type="button"
+            className="rounded-md border px-3 py-2 text-sm hover:bg-accent"
+            onClick={refresh}
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
   const { metrics: m, edgeScore } = data;
 
-  if (m.totalTrades === 0) return <EmptyState />;
+  if (m.totalTrades === 0)
+    return query ? (
+      <div>
+        <FilterBar title="Dashboard" />
+        <p className="p-12 text-center text-sm text-muted-foreground">
+          No trades match these filters. Clear or adjust Filters to see more results.
+        </p>
+      </div>
+    ) : (
+      <EmptyState />
+    );
 
   // Momentum: net P&L of the last 7 calendar days vs the 7 before them.
   // Hidden when either window has no trading days (e.g. the 7D range).
@@ -110,356 +139,482 @@ function Dashboard() {
   return (
     <TooltipProvider delayDuration={200}>
       <FilterBar title="Dashboard" />
-      <div className="space-y-3 p-4">
-        {/* Headline tiles */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <Card>
-            <StatHeader
-              title="Net P&L"
-              icon={CircleDollarSign}
-              hint="Realized profit and loss net of fees, over the selected range."
-            />
-            <CardContent>
-              <Pnl value={m.netPnl} className="text-3xl font-semibold tracking-tight" />
-              {weekDelta !== null && (
-                <div
-                  className={cn(
-                    "mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                    weekDelta >= 0 ? "bg-profit/10 text-profit" : "bg-loss/10 text-loss",
-                  )}
-                >
-                  {weekDelta >= 0 ? "▲" : "▼"} {fmtMoney(Math.abs(weekDelta)).replace("+", "")} vs
-                  prior 7d
-                </div>
-              )}
-              <div className="mt-1 text-xs text-muted-foreground">
-                {m.closedTrades} closed trades · {fmtMoney(m.fees)} fees
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <StatHeader
-              title="Trade win %"
-              icon={Target}
-              hint="Winning trades ÷ decided trades. Breakevens don't count against you."
-            />
-            <CardContent className="flex items-center justify-between gap-2">
-              <Gauge value={m.winRate} label="Trade win rate" />
-              <div className="space-y-0.5 text-xs text-muted-foreground">
-                <div>{m.wins} W</div>
-                <div>{m.breakevens} BE</div>
-                <div>{m.losses} L</div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <StatHeader
-              title="Profit factor"
-              icon={Scale}
-              hint="Gross profit ÷ gross loss. Above 1 means the wins outweigh the losses."
-            />
-            <CardContent>
-              <div className="text-3xl font-semibold tracking-tight tnum">
-                {m.profitFactorIsInfinite
-                  ? "∞"
-                  : m.profitFactor === null
-                    ? "–"
-                    : fmtNumber(m.profitFactor)}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">gross profit ÷ gross loss</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <StatHeader
-              title="Day win %"
-              icon={CalendarCheck2}
-              hint="Green trading days ÷ all trading days in the selected range."
-            />
-            <CardContent className="flex items-center justify-between gap-2">
-              <Gauge value={m.dayWinRate} label="Day win rate" />
-              <div className="text-xs text-muted-foreground">{m.tradingDays} days</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <StatHeader
-              title="Avg win / loss"
-              icon={ArrowUpDown}
-              hint="Average winning trade ÷ average losing trade. The bar shows the two to scale."
-            />
-            <CardContent>
-              <div className="text-3xl font-semibold tracking-tight tnum">
-                {m.avgWinLossRatio === null ? "–" : fmtNumber(m.avgWinLossRatio)}
-              </div>
-              {m.avgWin !== null && m.avgLoss !== null && m.avgWin + m.avgLoss > 0 && (
-                <div
-                  className="mt-2 flex h-1.5 gap-0.5"
-                  role="img"
-                  aria-label="Average win vs average loss, to scale"
-                >
-                  <span
-                    className="rounded-full bg-profit"
-                    style={{ width: `${((m.avgWin / (m.avgWin + m.avgLoss)) * 100).toFixed(1)}%` }}
-                  />
-                  <span className="flex-1 rounded-full bg-loss" />
-                </div>
-              )}
-              <div className="mt-1 text-xs text-muted-foreground">
-                <span className="text-profit">{m.avgWin === null ? "–" : fmtMoney(m.avgWin)}</span>
-                {" avg win · "}
-                <span className="text-loss">{m.avgLoss === null ? "–" : fmtMoney(-m.avgLoss)}</span>
-                {" avg loss"}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Edge score + curves */}
-        <div className="grid gap-3 lg:grid-cols-3">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>Edge Score</CardTitle>
-              <span className="text-2xl font-semibold tracking-tight tnum">
-                {edgeScore.score === null ? (
-                  "–"
-                ) : (
-                  <span className="prism-text">{edgeScore.score}</span>
-                )}
-                <span className="text-xs text-muted-foreground"> /100</span>
-              </span>
-            </CardHeader>
-            <CardContent>
-              {edgeScore.score === null ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  Needs 5+ closed trades. The formula is open —{" "}
-                  <a
-                    className="underline"
-                    href="https://github.com/LuxAlgo/trade-journal/blob/main/docs/edge-score.md"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    read it
-                  </a>
-                  .
-                </p>
-              ) : (
-                <EdgeRadar components={edgeScore.components} />
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Daily net cumulative P&L</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <EquityArea
-                data={data.dailyCumulative.map((p) => ({ t: p.t, cumNetPnl: p.cumNetPnl }))}
-              />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Net daily P&L</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DailyBars data={data.days.map((d) => ({ date: d.date, netPnl: d.netPnl }))} />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Calendar + recent activity */}
-        <div className="grid gap-3 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>
-                {new Date(Date.UTC(data.calendar.year, data.calendar.month - 1)).toLocaleString(
-                  "en-US",
-                  { month: "long", year: "numeric", timeZone: "UTC" },
-                )}
-              </CardTitle>
-              <Link
-                href="/calendar"
-                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-              >
-                Full calendar
-              </Link>
-            </CardHeader>
-            <CardContent>
-              <CalendarPnl calendar={data.calendar} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="recent">
-                <TabsList className="h-8">
-                  <TabsTrigger value="recent" className="text-xs">
-                    Recent trades
-                  </TabsTrigger>
-                  <TabsTrigger value="open" className="text-xs">
-                    Open positions
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="recent" className="space-y-1">
-                  {data.recentTrades.length === 0 && <Empty label="No closed trades yet" />}
-                  {data.recentTrades.map((trade) => (
-                    <Link
-                      key={trade.key}
-                      href={`/trades/${encodeURIComponent(trade.key)}`}
-                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent/60"
-                    >
-                      <span className="flex items-center gap-2">
-                        <Badge
-                          variant={
-                            trade.status === "win"
-                              ? "profit"
-                              : trade.status === "loss"
-                                ? "loss"
-                                : "secondary"
-                          }
-                        >
-                          {trade.status.toUpperCase()}
-                        </Badge>
-                        {trade.symbol}
-                      </span>
-                      <span className="flex items-center gap-3">
-                        <span className="text-xs text-muted-foreground">
-                          {trade.closedAt?.slice(0, 10)}
-                        </span>
-                        <Pnl value={trade.netPnl} />
-                      </span>
-                    </Link>
-                  ))}
-                </TabsContent>
-                <TabsContent value="open" className="space-y-1">
-                  {data.openPositions.length === 0 && <Empty label="Flat — no open positions" />}
-                  {data.openPositions.map((position) => (
+      <DashboardLayout
+        widgets={[
+          {
+            id: "widget-0",
+            label: "Net P&L",
+            size: "small",
+            content: (
+              <Card className="h-full">
+                <StatHeader
+                  title="Net P&L"
+                  icon={CircleDollarSign}
+                  hint="Realized profit and loss net of fees, over the selected range."
+                />
+                <CardContent>
+                  <Pnl value={m.netPnl} className="text-3xl font-semibold tracking-tight" />
+                  {weekDelta !== null && (
                     <div
-                      key={position.key}
-                      className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm"
+                      className={cn(
+                        "mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        weekDelta >= 0 ? "bg-profit/10 text-profit" : "bg-loss/10 text-loss",
+                      )}
                     >
-                      <span className="flex items-center gap-2">
-                        <Badge variant="secondary">{position.direction.toUpperCase()}</Badge>
-                        {position.symbol}
-                      </span>
-                      <span className="tnum text-xs text-muted-foreground">
-                        {fmtNumber(position.quantity, 4)} @ {fmtNumber(position.avgEntry)}
+                      {weekDelta >= 0 ? "▲" : "▼"}{" "}
+                      <MonetaryValue>
+                        {fmtMoney(Math.abs(weekDelta)).replace("+", "")}
+                      </MonetaryValue>{" "}
+                      vs prior 7d
+                    </div>
+                  )}
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {m.closedTrades} closed trades ·{" "}
+                    <MonetaryValue>{fmtMoney(m.fees)}</MonetaryValue> fees
+                  </div>
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-1",
+            label: "Trade win %",
+            size: "small",
+            content: (
+              <Card className="h-full">
+                <StatHeader
+                  title="Trade win %"
+                  icon={Target}
+                  hint="Winning trades divided by all closed trades, including breakevens."
+                />
+                <CardContent className="flex items-center justify-between gap-2">
+                  <Gauge value={m.winRate} label="Trade win rate" />
+                  <div className="space-y-0.5 text-xs text-muted-foreground">
+                    <div>{m.wins} W</div>
+                    <div>{m.breakevens} BE</div>
+                    <div>{m.losses} L</div>
+                  </div>
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-2",
+            label: "Profit factor",
+            size: "small",
+            content: (
+              <Card className="h-full">
+                <StatHeader
+                  title="Profit factor"
+                  icon={Scale}
+                  hint="Gross profit ÷ gross loss. Above 1 means the wins outweigh the losses."
+                />
+                <CardContent>
+                  <div className="text-3xl font-semibold tracking-tight tnum">
+                    {m.profitFactorIsInfinite
+                      ? "∞"
+                      : m.profitFactor === null
+                        ? "–"
+                        : fmtNumber(m.profitFactor)}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    gross profit ÷ gross loss
+                  </div>
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-3",
+            label: "Day win %",
+            size: "small",
+            content: (
+              <Card className="h-full">
+                <StatHeader
+                  title="Day win %"
+                  icon={CalendarCheck2}
+                  hint="Green trading days ÷ all trading days in the selected range."
+                />
+                <CardContent className="flex items-center justify-between gap-2">
+                  <Gauge value={m.dayWinRate} label="Day win rate" />
+                  <div className="text-xs text-muted-foreground">{m.tradingDays} days</div>
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-4",
+            label: "Avg win / loss",
+            size: "small",
+            content: (
+              <Card className="h-full">
+                <StatHeader
+                  title="Avg win / loss"
+                  icon={ArrowUpDown}
+                  hint="Average winning trade ÷ average losing trade. The bar shows the two to scale."
+                />
+                <CardContent>
+                  <div className="text-3xl font-semibold tracking-tight tnum">
+                    {m.avgWinLossRatio === null ? "–" : fmtNumber(m.avgWinLossRatio)}
+                  </div>
+                  {m.avgWin !== null && m.avgLoss !== null && m.avgWin + m.avgLoss > 0 && (
+                    <div
+                      className="mt-2 flex h-1.5 gap-0.5"
+                      role="img"
+                      aria-label="Average win vs average loss, to scale"
+                    >
+                      <span
+                        className="rounded-full bg-profit"
+                        style={{
+                          width: `${((m.avgWin / (m.avgWin + m.avgLoss)) * 100).toFixed(1)}%`,
+                        }}
+                      />
+                      <span className="flex-1 rounded-full bg-loss" />
+                    </div>
+                  )}
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    <span className="text-profit">
+                      {m.avgWin === null ? (
+                        "–"
+                      ) : (
+                        <MonetaryValue>{fmtMoney(m.avgWin)}</MonetaryValue>
+                      )}
+                    </span>
+                    {" avg win · "}
+                    <span className="text-loss">
+                      {m.avgLoss === null ? (
+                        "–"
+                      ) : (
+                        <MonetaryValue>{fmtMoney(-m.avgLoss)}</MonetaryValue>
+                      )}
+                    </span>
+                    {" avg loss"}
+                  </div>
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-5",
+            label: "Edge Score",
+            size: "medium",
+            content: (
+              <Card className="h-full">
+                <CardHeader className="flex-row items-center justify-between">
+                  <CardTitle>Edge Score</CardTitle>
+                  <span className="text-2xl font-semibold tracking-tight tnum">
+                    {edgeScore.score === null ? (
+                      "–"
+                    ) : (
+                      <span className="prism-text">{edgeScore.score}</span>
+                    )}
+                    <span className="text-xs text-muted-foreground"> /100</span>
+                  </span>
+                </CardHeader>
+                <CardContent>
+                  {edgeScore.score === null ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Needs 5+ closed trades. The formula is open —{" "}
+                      <a
+                        className="underline"
+                        href="https://github.com/LuxAlgo/trade-journal/blob/main/docs/edge-score.md"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        read it
+                      </a>
+                      .
+                    </p>
+                  ) : (
+                    <EdgeRadar components={edgeScore.components} />
+                  )}
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-6",
+            label: "Cumulative P&L",
+            size: "medium",
+            content: (
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Daily net cumulative P&L</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <EquityArea
+                    data={data.dailyCumulative.map((p) => ({ t: p.t, cumNetPnl: p.cumNetPnl }))}
+                  />
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-7",
+            label: "Daily P&L",
+            size: "medium",
+            content: (
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Net daily P&L</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <DailyBars data={data.days.map((d) => ({ date: d.date, netPnl: d.netPnl }))} />
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-8",
+            label: "Calendar",
+            size: "wide",
+            content: (
+              <Card className="h-full">
+                <CardHeader className="flex-row items-center justify-between">
+                  <CardTitle>
+                    {new Date(Date.UTC(data.calendar.year, data.calendar.month - 1)).toLocaleString(
+                      "en-US",
+                      { month: "long", year: "numeric", timeZone: "UTC" },
+                    )}
+                  </CardTitle>
+                  <Link
+                    href={`/calendar?${query}`}
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    Full calendar
+                  </Link>
+                </CardHeader>
+                <CardContent>
+                  <CalendarPnl calendar={data.calendar} />
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-9",
+            label: "Activity",
+            size: "medium",
+            content: (
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Activity</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue="recent">
+                    <TabsList className="h-8">
+                      <TabsTrigger value="recent" className="text-xs">
+                        Recent trades
+                      </TabsTrigger>
+                      <TabsTrigger value="open" className="text-xs">
+                        Open positions
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="recent" className="space-y-1">
+                      {data.recentTrades.length === 0 && <Empty label="No closed trades yet" />}
+                      {data.recentTrades.map((trade) => (
+                        <Link
+                          key={trade.key}
+                          href={`/trades/${encodeURIComponent(trade.key)}?${query}`}
+                          className="dashboard-activity-row flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent/60"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                trade.status === "win"
+                                  ? "profit"
+                                  : trade.status === "loss"
+                                    ? "loss"
+                                    : "secondary"
+                              }
+                            >
+                              {trade.status.toUpperCase()}
+                            </Badge>
+                            {trade.symbol}
+                          </span>
+                          <span className="dashboard-activity-detail flex items-center">
+                            <span className="text-xs text-muted-foreground">
+                              {trade.closedAt?.slice(0, 10)}
+                            </span>
+                            <Pnl value={trade.netPnl} />
+                          </span>
+                        </Link>
+                      ))}
+                    </TabsContent>
+                    <TabsContent value="open" className="space-y-1">
+                      {data.openPositions.length === 0 && (
+                        <Empty label="Flat — no open positions" />
+                      )}
+                      {data.openPositions.map((position) => (
+                        <div
+                          key={position.key}
+                          className="dashboard-activity-row flex items-center justify-between rounded-md px-2 py-1.5 text-sm"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Badge variant="secondary">{position.direction.toUpperCase()}</Badge>
+                            {position.symbol}
+                          </span>
+                          <span className="tnum text-xs text-muted-foreground">
+                            {fmtNumber(position.quantity, 4)} @{" "}
+                            <MonetaryValue>{fmtNumber(position.avgEntry)}</MonetaryValue>
+                          </span>
+                        </div>
+                      ))}
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-10",
+            label: "Max drawdown",
+            size: "small",
+            content: (
+              <Card className="h-full">
+                <StatHeader
+                  title="Max drawdown"
+                  icon={TrendingDown}
+                  hint="Largest peak-to-trough drop of the cumulative P&L curve."
+                />
+                <CardContent>
+                  <div className="text-xl font-semibold tnum text-loss">
+                    <MonetaryValue>{fmtMoney(-m.maxDrawdown)}</MonetaryValue>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {m.maxDrawdownPct === null
+                      ? "set an initial balance for %"
+                      : fmtPercent(m.maxDrawdownPct)}
+                    {m.recoveryFactor !== null && ` · recovery ${fmtNumber(m.recoveryFactor)}x`}
+                  </div>
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-11",
+            label: "Streaks",
+            size: "small",
+            content: (
+              <Card className="h-full">
+                <StatHeader
+                  title="Streaks"
+                  icon={Flame}
+                  hint="Current run of consecutive wins (W) or losses (L), with the best and worst runs."
+                />
+                <CardContent>
+                  <div className="text-xl font-semibold tnum">
+                    {m.currentStreak > 0
+                      ? `${m.currentStreak}W`
+                      : m.currentStreak < 0
+                        ? `${-m.currentStreak}L`
+                        : "–"}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    best {m.maxWinStreak}W · worst {m.maxLossStreak}L
+                  </div>
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-12",
+            label: "Expectancy / trade",
+            size: "small",
+            content: (
+              <Card className="h-full">
+                <StatHeader
+                  title="Expectancy / trade"
+                  icon={Sigma}
+                  hint="Average net P&L per closed trade: what one more trade is worth on your numbers."
+                />
+                <CardContent>
+                  {m.expectancy === null ? (
+                    "–"
+                  ) : (
+                    <Pnl value={m.expectancy} className="text-xl font-semibold" />
+                  )}
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {m.avgRealizedR !== null && m.tradesWithRisk > 0
+                      ? `avg ${fmtNumber(m.avgRealizedR)}R over ${m.tradesWithRisk} risk-tagged trades`
+                      : "tag stop-losses to unlock R multiples"}
+                  </div>
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-13",
+            label: "Avg duration",
+            size: "small",
+            content: (
+              <Card className="h-full">
+                <StatHeader
+                  title="Avg duration"
+                  icon={Timer}
+                  hint="Average time from first entry fill to final exit."
+                />
+                <CardContent>
+                  <div className="text-xl font-semibold tnum">{fmtDuration(m.avgDurationMs)}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    winners vs losers in Reports
+                  </div>
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-14",
+            label: "Best / worst day",
+            size: "small",
+            content: (
+              <Card className="h-full">
+                <StatHeader
+                  title="Best / worst day"
+                  icon={Trophy}
+                  hint="Highest and lowest single-day net P&L in the selected range."
+                />
+                <CardContent className="space-y-1">
+                  {bestDay && (
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                      <Pnl value={bestDay.netPnl} className="text-base font-semibold" />
+                      <span className="text-xs text-muted-foreground">{bestDay.date.slice(5)}</span>
+                    </div>
+                  )}
+                  {worstDay && (
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                      <Pnl value={worstDay.netPnl} className="text-base font-semibold" />
+                      <span className="text-xs text-muted-foreground">
+                        {worstDay.date.slice(5)}
                       </span>
                     </div>
-                  ))}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Risk + behavior row */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <Card>
-            <StatHeader
-              title="Max drawdown"
-              icon={TrendingDown}
-              hint="Largest peak-to-trough drop of the cumulative P&L curve."
-            />
-            <CardContent>
-              <div className="text-xl font-semibold tnum text-loss">{fmtMoney(-m.maxDrawdown)}</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {m.maxDrawdownPct === null
-                  ? "set an initial balance for %"
-                  : fmtPercent(m.maxDrawdownPct)}
-                {m.recoveryFactor !== null && ` · recovery ${fmtNumber(m.recoveryFactor)}x`}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <StatHeader
-              title="Streaks"
-              icon={Flame}
-              hint="Current run of consecutive wins (W) or losses (L), with the best and worst runs."
-            />
-            <CardContent>
-              <div className="text-xl font-semibold tnum">
-                {m.currentStreak > 0
-                  ? `${m.currentStreak}W`
-                  : m.currentStreak < 0
-                    ? `${-m.currentStreak}L`
-                    : "–"}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                best {m.maxWinStreak}W · worst {m.maxLossStreak}L
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <StatHeader
-              title="Expectancy / trade"
-              icon={Sigma}
-              hint="Average net P&L per closed trade: what one more trade is worth on your numbers."
-            />
-            <CardContent>
-              {m.expectancy === null ? (
-                "–"
-              ) : (
-                <Pnl value={m.expectancy} className="text-xl font-semibold" />
-              )}
-              <div className="mt-1 text-xs text-muted-foreground">
-                {m.avgRealizedR !== null && m.tradesWithRisk > 0
-                  ? `avg ${fmtNumber(m.avgRealizedR)}R over ${m.tradesWithRisk} risk-tagged trades`
-                  : "tag stop-losses to unlock R multiples"}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <StatHeader
-              title="Avg duration"
-              icon={Timer}
-              hint="Average time from first entry fill to final exit."
-            />
-            <CardContent>
-              <div className="text-xl font-semibold tnum">{fmtDuration(m.avgDurationMs)}</div>
-              <div className="mt-1 text-xs text-muted-foreground">winners vs losers in Reports</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <StatHeader
-              title="Best / worst day"
-              icon={Trophy}
-              hint="Highest and lowest single-day net P&L in the selected range."
-            />
-            <CardContent className="space-y-1">
-              {bestDay && (
-                <div className="flex items-baseline justify-between">
-                  <Pnl value={bestDay.netPnl} className="text-base font-semibold" />
-                  <span className="text-xs text-muted-foreground">{bestDay.date.slice(5)}</span>
-                </div>
-              )}
-              {worstDay && (
-                <div className="flex items-baseline justify-between">
-                  <Pnl value={worstDay.netPnl} className="text-base font-semibold" />
-                  <span className="text-xs text-muted-foreground">{worstDay.date.slice(5)}</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Time performance (the heavy plot) */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Trade time performance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TimeHeatmap
-              hours={data.buckets.hour.map((b) => ({
-                key: b.key,
-                netPnl: b.netPnl,
-                trades: b.trades,
-              }))}
-            />
-          </CardContent>
-        </Card>
-      </div>
+                  )}
+                </CardContent>
+              </Card>
+            ),
+          },
+          {
+            id: "widget-15",
+            label: "Trade time performance",
+            size: "full",
+            content: (
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Trade time performance</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TimeHeatmap
+                    hours={data.buckets.hour.map((b) => ({
+                      key: b.key,
+                      netPnl: b.netPnl,
+                      trades: b.trades,
+                    }))}
+                  />
+                </CardContent>
+              </Card>
+            ),
+          },
+        ]}
+      />
     </TooltipProvider>
   );
 }
@@ -505,13 +660,13 @@ function EmptyState() {
   return (
     <div>
       <FilterBar title="Dashboard" />
-      <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+      <div className="flex flex-col items-center justify-center gap-3 px-4 py-24 text-center">
         <h2 className="text-xl font-semibold">Your journal is empty</h2>
         <p className="max-w-md text-sm text-muted-foreground">
           Connect a broker for automatic sync, upload a statement from 10+ platforms (including your
           TradeZella export), or add trades manually.
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-2">
           <Link
             href="/import"
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
@@ -538,15 +693,17 @@ function DashboardSkeleton() {
   return (
     <div>
       <FilterBar title="Dashboard" />
-      <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-5">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-28" />
-        ))}
-      </div>
-      <div className="grid gap-3 px-4 lg:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-72" />
-        ))}
+      <div className="dashboard-grid-stage space-y-3 p-4">
+        <div className="dashboard-grid grid gap-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} data-card-size="small" className="dashboard-grid-card h-28" />
+          ))}
+        </div>
+        <div className="dashboard-grid grid gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} data-card-size="medium" className="dashboard-grid-card h-72" />
+          ))}
+        </div>
       </div>
     </div>
   );

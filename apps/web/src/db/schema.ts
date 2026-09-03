@@ -1,4 +1,12 @@
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  blob,
+  index,
+  integer,
+  real,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /** One journal account = one broker/platform's trades (TradeZella's model, kept). */
 export const accounts = sqliteTable("accounts", {
@@ -35,6 +43,7 @@ export const executions = sqliteTable(
     executedAt: text("executed_at").notNull(),
     assetClass: text("asset_class"),
     source: text("source", { enum: ["sync", "import", "manual"] }).notNull(),
+    importMetadataJson: text("import_metadata_json"),
     /** Dedup key: identical fills are inserted once per account. */
     contentHash: text("content_hash").notNull(),
     createdAt: text("created_at").notNull(),
@@ -85,6 +94,8 @@ export const trades = sqliteTable(
   (table) => [
     index("trades_account_closed").on(table.accountId, table.closedAt),
     index("trades_symbol").on(table.symbol),
+    index("trades_opened").on(table.openedAt),
+    index("trades_account_opened").on(table.accountId, table.openedAt),
   ],
 );
 
@@ -133,4 +144,54 @@ export const playbooks = sqliteTable("playbooks", {
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
+});
+
+export const attachments = sqliteTable("attachments", {
+  id: text("id").primaryKey(),
+  ownerType: text("owner_type").notNull(),
+  ownerId: text("owner_id").notNull(),
+  name: text("name").notNull(),
+  mime: text("mime").notNull(),
+  size: integer("size").notNull(),
+  data: blob("data", { mode: "buffer" }).notNull(),
+  createdAt: text("created_at").notNull(),
+});
+export const noteTemplates = sqliteTable("note_templates", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  content: text("content").notNull(),
+});
+export const tradeRuleChecks = sqliteTable("trade_rule_checks", {
+  id: text("id").primaryKey(),
+  tradeKey: text("trade_key").notNull(),
+  playbookId: text("playbook_id").notNull(),
+  rule: text("rule").notNull(),
+  followed: integer("followed", { mode: "boolean" }).notNull(),
+});
+export const progressRules = sqliteTable("progress_rules", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  stage: text("stage").notNull(),
+  weekdaysJson: text("weekdays_json").notNull(),
+  createdAt: text("created_at").notNull(),
+  archivedAt: text("archived_at"),
+});
+export const progressChecks = sqliteTable("progress_checks", {
+  id: text("id").primaryKey(),
+  ruleId: text("rule_id").notNull(),
+  date: text("date").notNull(),
+  done: integer("done", { mode: "boolean" }).notNull(),
+});
+export const missedTrades = sqliteTable("missed_trades", {
+  id: text("id").primaryKey(),
+  symbol: text("symbol").notNull(),
+  direction: text("direction").notNull(),
+  observedAt: text("observed_at").notNull(),
+  playbookId: text("playbook_id"),
+  entry: real("entry"),
+  stop: real("stop"),
+  target: real("target"),
+  notes: text("notes").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+  archivedAt: text("archived_at"),
 });

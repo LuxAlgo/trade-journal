@@ -107,6 +107,56 @@ describe("round trips: a trade is one position cycle, flat to flat", () => {
     expect(shuffled).toEqual(forward);
   });
 
+  it("trade matching does not depend on the input order of fills", () => {
+    // Three fills share one timestamp: two carry an import order, one has no
+    // metadata at all. Only a total order over (time, import order, id) keeps
+    // the matching identical no matter how the fills arrive.
+    const at = "2026-08-03T14:00:00Z";
+    const ordered0 = fill("CL", "buy", 10, 100, at, {
+      id: "z",
+      source: "import",
+      importMetadata: { id: "z", order: 0 },
+    });
+    const ordered1 = fill("CL", "sell", 10, 110, at, {
+      id: "a",
+      source: "import",
+      importMetadata: { id: "a", order: 1 },
+    });
+    const unordered = fill("CL", "buy", 10, 105, at, { id: "m" });
+    const later = fill("CL", "sell", 10, 120, "2026-08-03T15:00:00Z", { id: "w" });
+
+    const arrangements = [
+      [ordered0, ordered1, unordered, later],
+      [unordered, ordered0, ordered1, later],
+      [later, ordered1, unordered, ordered0],
+    ];
+    const [first, second, third] = arrangements.map((fills) => buildRoundTrips(fills));
+    expect(second).toEqual(first);
+    expect(third).toEqual(first);
+    // Ordered fills come first, so the 100 -> 110 cycle closes before the 105 entry.
+    expect(first!.map((t) => t.netPnl)).toEqual([100, 150]);
+  });
+
+  it("two separately reported positions in one account and symbol do not net against each other", () => {
+    const trips = buildRoundTrips([
+      fill("EURUSD", "buy", 1, 1.1, "2026-02-02T08:00:00Z", {
+        source: "import",
+        importMetadata: { id: "p1-entry", group: "position-1", order: 0 },
+      }),
+      fill("EURUSD", "sell", 1, 1.2, "2026-02-02T09:00:00Z", {
+        source: "import",
+        importMetadata: { id: "p2-entry", group: "position-2", order: 0 },
+      }),
+    ]);
+    expect(trips).toHaveLength(2);
+    expect(trips.map((t) => t.status)).toEqual(["open", "open"]);
+    expect(trips.map((t) => t.direction)).toEqual(["long", "short"]);
+    expect(trips.map((t) => t.key)).toEqual([
+      "acct-1|EURUSD|long|2026-02-02T08:00:00Z|import:position-1",
+      "acct-1|EURUSD|short|2026-02-02T09:00:00Z|import:position-2",
+    ]);
+  });
+
   it("a futures contract multiplier scales P&L without touching prices", () => {
     const trips = buildRoundTrips(
       [
@@ -117,6 +167,18 @@ describe("round trips: a trade is one position cycle, flat to flat", () => {
     );
     expect(trips[0]!.grossPnl).toBe(2 * 10 * 50);
     expect(trips[0]!.avgEntry).toBe(5000);
+    expect(trips[0]!.contractMultiplier).toBe(50);
+  });
+
+  it("a symbol without a configured multiplier leaves the trade's contract multiplier unset", () => {
+    const trips = buildRoundTrips(
+      [
+        fill("AAPL", "buy", 1, 100, "2026-04-01T14:00:00Z"),
+        fill("AAPL", "sell", 1, 101, "2026-04-01T15:00:00Z"),
+      ],
+      { multipliers: { ES: 50 } },
+    );
+    expect(trips[0]!.contractMultiplier).toBeUndefined();
   });
 
   it("trades in different accounts never match against each other", () => {

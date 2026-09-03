@@ -6,7 +6,7 @@ import { decryptJson, encryptJson } from "./crypto";
 import { nowIso } from "./ids";
 import { insertExecutions, type InsertResult } from "./executions";
 
-/** All broker connectivity goes through @luxalgo/broker-sdk — never direct API code. */
+/** All broker connectivity goes through @luxalgo/broker-sdk, never direct API code. */
 export { listBrokers };
 
 export interface SyncOutcome extends InsertResult {
@@ -27,7 +27,7 @@ export const syncAccount = async (accountId: string): Promise<SyncOutcome> => {
   const connection = connect({
     broker: account.broker as BrokerId,
     credentials,
-    // Some brokers rotate tokens on every fetch (Questrade) — persist or die.
+    // Some brokers rotate tokens on every fetch (Questrade): persist or die.
     onCredentialsRotated: (next: Record<string, string>) => {
       db.update(accounts)
         .set({ credentialsEnc: encryptJson(next) })
@@ -51,9 +51,17 @@ export const syncAccount = async (accountId: string): Promise<SyncOutcome> => {
       executedAt: trade.executedAt ?? "",
     })),
   );
-  const usable = rows.filter((row) => row.executedAt !== "");
+  const timed = rows.filter((row) => row.executedAt !== "");
+  const untimed = rows.length - timed.length;
 
-  const result = insertExecutions(accountId, usable, "sync");
+  // One odd broker record must not fail the whole sync: invalid rows are
+  // skipped and counted so the account page can report them.
+  const result = insertExecutions(accountId, timed, "sync");
+  if (untimed > 0) {
+    result.skipped += untimed;
+    if (result.skippedReasons.length < 5)
+      result.skippedReasons.push(`${untimed} fill(s) had no usable timestamp.`);
+  }
 
   const equity = snapshot.accounts.reduce((total, a) => total + a.equity, 0);
   const positions = snapshot.accounts.flatMap((a) => a.positions);

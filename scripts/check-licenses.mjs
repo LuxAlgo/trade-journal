@@ -25,6 +25,9 @@ const EXCEPTIONS = {
   // Browser-support data used by the build toolchain (browserslist). Data
   // under an attribution license, not code; attribution ships in the package.
   "caniuse-lite": ["CC-BY-4.0"],
+  // pdf-lib's compression dependency: reviewed MIT and Zlib notices are
+  // preserved together in apps/web/public/licenses/pako.txt.
+  pako: ["(MIT AND Zlib)"],
 };
 
 const allowedExpression = (expression) => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildRoundTrips } from "../src/round-trips";
 import { computeMetrics, realizedR } from "../src/metrics";
-import { computeEdgeScore } from "../src/edge-score";
+import { EDGE_SCORE_VERSION, computeEdgeScore } from "../src/edge-score";
 import { calendarMonth, byWeekday, byDuration } from "../src/aggregate";
 import { dailyStats, drawdown, equityCurve, intradayCurve } from "../src/equity";
 import { dayKeyOf } from "../src/time";
@@ -75,9 +75,45 @@ describe("performance metrics tell the trader the truth about their edge", () =>
     trade.annotations = { stopLoss: 95 };
     expect(realizedR(trade)).toBeCloseTo(2, 6);
   });
+
+  it("a futures trade with a stop loss and a contract multiplier reports its realized R", () => {
+    const trade = buildRoundTrips(
+      [
+        fill("ES", "buy", 2, 5000, "2026-04-01T14:00:00Z", { assetClass: "futures" }),
+        fill("ES", "sell", 2, 5010, "2026-04-01T15:00:00Z", { assetClass: "futures" }),
+      ],
+      { multipliers: { ES: 50 } },
+    )[0]! as AnnotatedTrade;
+    // Stop 5 points away × 2 contracts × $50 per point = $500 risk; made $1,000 → 2R.
+    trade.annotations = { stopLoss: 4995 };
+    expect(realizedR(trade)).toBeCloseTo(2, 6);
+    expect(computeMetrics([trade]).tradesWithRisk).toBe(1);
+  });
+
+  it("a futures trade with no known contract multiplier reports no realized R rather than a wrong one", () => {
+    const trade = buildRoundTrips([
+      fill("ES", "buy", 2, 5000, "2026-04-01T14:00:00Z", { assetClass: "futures" }),
+      fill("ES", "sell", 2, 5010, "2026-04-01T15:00:00Z", { assetClass: "futures" }),
+    ])[0]! as AnnotatedTrade;
+    trade.annotations = { stopLoss: 4995 };
+    expect(realizedR(trade)).toBeNull();
+  });
+
+  it("gross profit and gross loss count every closed trade, including ones labeled breakeven", () => {
+    const [win, loss] = sampleTrades() as AnnotatedTrade[];
+    const nearFlat: AnnotatedTrade = { ...win!, key: "near-flat", netPnl: 3, status: "breakeven" };
+    const m = computeMetrics([win!, loss!, nearFlat]);
+    expect(m.breakevens).toBe(1);
+    expect(m.profitFactor).toBeCloseTo(103 / 50, 6);
+  });
 });
 
 describe("the Edge Score is transparent and refuses to score tiny samples", () => {
+  it("every score is stamped with formula version 2", () => {
+    expect(EDGE_SCORE_VERSION).toBe(2);
+    expect(computeEdgeScore(computeMetrics(sampleTrades())).version).toBe(2);
+  });
+
   it("returns no score below five closed trades but still exposes components", () => {
     const m = computeMetrics(sampleTrades());
     const edge = computeEdgeScore(m);

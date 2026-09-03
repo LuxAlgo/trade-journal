@@ -35,6 +35,8 @@ Two validation tiers:
 | TopstepX                           | fills (Filled only)          | `ContractName`/`ExecutePrice` headers | ✅¹           | ☐         |
 | Webull (orders, both variants)     | fills (Filled only)          | `Status`/`Filled` headers             | ✅ (docs)     | ☐         |
 | DAS Trader Pro                     | fills                        | `Symb`/`B/S` headers                  | ☐             | ☐         |
+| MetaTrader 5 (deals report)        | fills                        | HTML/CSV deal table signature         | ☐ (fixtures)  | ☐         |
+| TradingView (strategy list)        | trades → reconstructed fills | `List of trades` headers              | ☐ (fixtures)  | ☐         |
 | Generic (column mapper)            | fills                        | user-mapped                           | n/a           | n/a       |
 
 ¹ [TradeNote community broker parsers](https://github.com/Eleven-Trading/TradeNote/blob/main/src/utils/brokers.js):

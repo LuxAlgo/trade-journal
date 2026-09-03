@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { postJson, useApi } from "@/lib/use-api";
 import { fmtMoney } from "@/lib/utils";
+import { MonetaryValue, MonetaryField } from "@/components/privacy";
 
 interface AccountRow {
   id: string;
@@ -44,15 +45,22 @@ function Accounts() {
   const { data, refresh } = useApi<{ accounts: AccountRow[] }>("/api/accounts");
   const [syncing, setSyncing] = useState<string | null>(null);
 
-  const action = async (id: string, body: Record<string, unknown>) => {
-    await postJson(`/api/accounts/${id}/actions`, body);
+  const action = async <T = unknown,>(id: string, body: Record<string, unknown>) => {
+    const result = await postJson<T>(`/api/accounts/${id}/actions`, body);
     refresh();
+    return result;
   };
 
   const sync = async (id: string) => {
     setSyncing(id);
     try {
-      await action(id, { action: "sync" });
+      const { sync: outcome } = await action<{
+        sync: { inserted: number; skipped: number; skippedReasons: string[] };
+      }>(id, { action: "sync" });
+      if (outcome.skipped > 0)
+        alert(
+          `Sync finished with ${outcome.inserted} new fills. ${outcome.skipped} broker record(s) were skipped: ${outcome.skippedReasons.join(" ")}`,
+        );
     } catch (error) {
       alert(error instanceof Error ? error.message : "Sync failed");
     } finally {
@@ -71,17 +79,19 @@ function Accounts() {
         )}
         {data?.accounts.map((account) => (
           <Card key={account.id} className={account.archivedAt ? "opacity-60" : undefined}>
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
-                {account.name}
-                <Badge variant="secondary">{account.kind}</Badge>
+            <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
+              <CardTitle className="min-w-0 flex-1 text-base font-semibold normal-case tracking-normal text-foreground">
+                <span className="block break-words">{account.name}</span>
+                <Badge variant="secondary" className="mt-1.5 mr-2">
+                  {account.kind}
+                </Badge>
                 {account.broker && (
                   <span className="text-xs font-normal text-muted-foreground">
                     {account.broker}
                   </span>
                 )}
               </CardTitle>
-              <div className="flex items-center gap-1">
+              <div className="ml-auto flex shrink-0 items-center gap-1">
                 {account.kind === "sync" && (
                   <Button
                     variant="ghost"
@@ -129,34 +139,38 @@ function Accounts() {
               {account.snapshot && (
                 <div className="text-sm">
                   Broker equity:{" "}
-                  <span className="tnum font-medium">{fmtMoney(account.snapshot.equity)}</span>
+                  <span className="tnum font-medium">
+                    <MonetaryValue>{fmtMoney(account.snapshot.equity)}</MonetaryValue>
+                  </span>
                   <span className="ml-2 text-xs text-muted-foreground">
                     {account.snapshot.positions.length} open positions · synced{" "}
                     {account.lastSyncAt?.slice(0, 16).replace("T", " ")}
                   </span>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="text-xs text-muted-foreground">
                     Initial balance (anchors drawdown %)
                   </label>
-                  <Input
-                    defaultValue={account.initialBalance || ""}
-                    placeholder="0"
-                    inputMode="decimal"
-                    onBlur={async (event) => {
-                      const value = Number(event.target.value || 0);
-                      if (value !== account.initialBalance) {
-                        await postJson(
-                          `/api/accounts/${account.id}`,
-                          { initialBalance: value },
-                          "PATCH",
-                        );
-                        refresh();
-                      }
-                    }}
-                  />
+                  <MonetaryField>
+                    <Input
+                      defaultValue={account.initialBalance || ""}
+                      placeholder="0"
+                      inputMode="decimal"
+                      onBlur={async (event) => {
+                        const value = Number(event.target.value || 0);
+                        if (value !== account.initialBalance) {
+                          await postJson(
+                            `/api/accounts/${account.id}`,
+                            { initialBalance: value },
+                            "PATCH",
+                          );
+                          refresh();
+                        }
+                      }}
+                    />
+                  </MonetaryField>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Profit calculation</label>
@@ -182,7 +196,7 @@ function Accounts() {
                   </Select>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   size="sm"

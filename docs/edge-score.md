@@ -1,4 +1,4 @@
-# The Edge Score (v1)
+# The Edge Score (v2)
 
 An open, versioned composite of trading performance from 0 to 100. Closed-source journals sell
 an opaque score; this one is a pinned formula anyone can read, verify, and recompute
@@ -27,9 +27,14 @@ combined with fixed weights:
 
 ## Versioning
 
-The formula is pinned as `EDGE_SCORE_VERSION = 1` and every score carries its version.
-Changing any threshold or weight is a breaking change and bumps the version; historical
-scores stay comparable within a version.
+The formula is pinned as `EDGE_SCORE_VERSION = 2` and every score carries its version.
+Changing any threshold, weight, or input definition is a breaking change and bumps the
+version; historical scores stay comparable within a version.
+
+- **v2**: gross profit and gross loss (the profit factor inputs) now sum the positive and
+  negative net P&L of every closed trade, regardless of whether a trade is labeled
+  "breakeven" by a tolerance band. Identical to v1 when the breakeven tolerance is zero.
+- **v1**: initial release.
 
 ## Honest limitations
 

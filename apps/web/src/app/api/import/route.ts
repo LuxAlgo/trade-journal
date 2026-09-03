@@ -17,21 +17,28 @@ interface ImportBody {
   /** Column mapping when auto-detection found nothing. */
   mapping?: GenericMapping;
   timeZone?: string;
+  fileName?: string;
+  symbol?: string;
 }
 
 /**
- * One endpoint, two steps. Preview parses and reports what WOULD be imported —
+ * One endpoint, two steps. Preview parses and reports what WOULD be imported;
  * nothing is guessed silently, exactly because the file formats in the wild
  * drift. Commit inserts with dedup, so re-importing the same file is a no-op.
  */
 export const POST = handler(async (request: Request) => {
   const body = (await request.json()) as ImportBody;
-  if (!body.content) return bad("content is required");
+  if (typeof body.content !== "string" || !body.content) return bad("content is required");
+  if (!["preview", "commit"].includes(body.mode)) return bad("mode must be preview or commit");
+  if (body.symbol !== undefined && (typeof body.symbol !== "string" || body.symbol.length > 100))
+    return bad("Invalid symbol");
+  if (body.fileName !== undefined && typeof body.fileName !== "string")
+    return bad("Invalid filename");
   const timeZone = body.timeZone ?? getTimeZone();
 
   const parsed = body.mapping
     ? parseWithMapping(body.content, body.mapping, { timeZone })
-    : parseAuto(body.content, { timeZone });
+    : parseAuto(body.content, { timeZone, fileName: body.fileName, symbol: body.symbol });
 
   if (!parsed) {
     return ok({
@@ -61,16 +68,29 @@ export const POST = handler(async (request: Request) => {
         ),
       },
       warnings: parsed.warnings,
+      errors: parsed.errors,
+      needsSymbol: parsed.needsSymbol,
     });
   }
 
   if (!body.accountId) return bad("accountId is required to commit");
+  if (parsed.errors?.length) return bad(parsed.errors.join(" "));
+  if (parsed.executions.length === 0) return bad("No executions to import");
   const result = insertExecutions(
     body.accountId,
     parsed.executions as ImportedExecution[],
     "import",
   );
-  return ok({ detected: parsed.format, ...result, warnings: parsed.warnings });
+  // Invalid rows are skipped with a warning rather than failing the whole file.
+  const warnings = [
+    ...(parsed.warnings ?? []),
+    ...(result.skipped > 0
+      ? [
+          `${result.skipped} row(s) were skipped because they could not be journaled: ${result.skippedReasons.join(" ")}`,
+        ]
+      : []),
+  ];
+  return ok({ detected: parsed.format, ...result, warnings });
 });
 
 /** The import page lists what auto-detection understands. */

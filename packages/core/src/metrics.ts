@@ -1,5 +1,6 @@
-import type { AnnotatedTrade, RoundTrip } from "./types";
-import { dailyStats, drawdown, equityCurve } from "./equity";
+import type { AnnotatedTrade } from "./types";
+import { dailyStats, drawdown, equityCurve, type DayStats, type EquityPoint } from "./equity";
+import { tradeR } from "./analysis";
 
 export interface MetricsOptions {
   timeZone?: string;
@@ -56,27 +57,34 @@ const mean = (values: number[]): number | null =>
 
 /** Realized R multiple: net P&L over the dollar risk implied by the annotated stop. */
 export const realizedR = (trade: AnnotatedTrade): number | null => {
-  const stop = trade.annotations?.stopLoss;
-  if (stop === undefined || trade.status === "open") return null;
-  const riskPerUnit = Math.abs(trade.avgEntry - stop);
-  if (riskPerUnit <= 0 || trade.quantity <= 0) return null;
-  return trade.netPnl / (riskPerUnit * trade.quantity);
+  return tradeR(trade);
 };
 
 export const computeMetrics = (
   trades: AnnotatedTrade[],
   options: MetricsOptions = {},
+): TradeMetrics =>
+  metricsFromOverview(
+    trades,
+    options,
+    dailyStats(trades, options.timeZone ?? "UTC"),
+    equityCurve(trades),
+  );
+
+const metricsFromOverview = (
+  trades: AnnotatedTrade[],
+  options: MetricsOptions,
+  days: DayStats[],
+  curve: EquityPoint[],
 ): TradeMetrics => {
-  const timeZone = options.timeZone ?? "UTC";
   const closed = trades.filter((t) => t.status !== "open");
   const wins = closed.filter((t) => t.status === "win");
   const losses = closed.filter((t) => t.status === "loss");
   const breakevens = closed.filter((t) => t.status === "breakeven");
 
-  const grossProfit = wins.reduce((total, t) => total + t.netPnl, 0);
-  const grossLoss = Math.abs(losses.reduce((total, t) => total + t.netPnl, 0));
+  const grossProfit = closed.reduce((total, t) => total + Math.max(0, t.netPnl), 0);
+  const grossLoss = closed.reduce((total, t) => total - Math.min(0, t.netPnl), 0);
 
-  const days = dailyStats(closed, timeZone);
   const winningDays = days.filter((d) => d.netPnl > 0).length;
 
   // Streaks over closed trades in close order.
@@ -92,7 +100,6 @@ export const computeMetrics = (
     if (-run > maxLossStreak) maxLossStreak = -run;
   }
 
-  const curve = equityCurve(closed);
   const dd = drawdown(curve, options.initialBalance ?? 0);
 
   const netPnl = closed.reduce((total, t) => total + t.netPnl, 0);
@@ -124,8 +131,8 @@ export const computeMetrics = (
     avgLoss,
     avgWinLossRatio: avgWin !== null && avgLoss !== null && avgLoss > 0 ? avgWin / avgLoss : null,
     expectancy: closed.length > 0 ? netPnl / closed.length : null,
-    largestWin: wins.length > 0 ? Math.max(...wins.map((t) => t.netPnl)) : 0,
-    largestLoss: losses.length > 0 ? Math.min(...losses.map((t) => t.netPnl)) : 0,
+    largestWin: wins.reduce((max, t) => Math.max(max, t.netPnl), 0),
+    largestLoss: losses.reduce((min, t) => Math.min(min, t.netPnl), 0),
     maxWinStreak,
     maxLossStreak,
     currentStreak: run,
@@ -136,7 +143,10 @@ export const computeMetrics = (
     maxDrawdown: dd.maxDrawdown,
     maxDrawdownPct: dd.maxDrawdownPct,
     recoveryFactor: dd.maxDrawdown > 0 ? netPnl / dd.maxDrawdown : null,
-    profitConcentration: totalDayProfit > 0 ? Math.max(...dayProfits) / totalDayProfit : null,
+    profitConcentration:
+      totalDayProfit > 0
+        ? dayProfits.reduce((max, value) => Math.max(max, value), 0) / totalDayProfit
+        : null,
     avgRealizedR: mean(rMultiples),
     tradesWithRisk: rMultiples.length,
   };
@@ -145,12 +155,11 @@ export const computeMetrics = (
 /** Convenience: metrics plus the curves most dashboards need, in one call. */
 export const computeOverview = (trades: AnnotatedTrade[], options: MetricsOptions = {}) => {
   const timeZone = options.timeZone ?? "UTC";
+  const days = dailyStats(trades, timeZone);
+  const equity = equityCurve(trades);
   return {
-    metrics: computeMetrics(trades, options),
-    days: dailyStats(
-      trades.filter((t): t is RoundTrip => t.status !== "open"),
-      timeZone,
-    ),
-    equity: equityCurve(trades),
+    metrics: metricsFromOverview(trades, options, days, equity),
+    days,
+    equity,
   };
 };

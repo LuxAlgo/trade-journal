@@ -1,6 +1,11 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { AUTH_COOKIE, passwordConfigured, verifySession } from "./auth";
+
+export class RequestError extends Error {}
+export function requireValue(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new RequestError(message);
+}
 
 export const ok = (data: unknown, init?: ResponseInit) => {
   const headers = new Headers(init?.headers);
@@ -11,12 +16,7 @@ export const ok = (data: unknown, init?: ResponseInit) => {
 export const bad = (message: string, status = 400) =>
   NextResponse.json({ error: message }, { status });
 
-/**
- * Route-handler wrapper: uniform error JSON instead of HTML 500 pages, and the
- * data gate for optional password auth. The middleware only checks that a
- * session cookie is present (its runtime has no Node crypto); the signature is
- * verified here, on every route except those marked `public` (login).
- */
+/** Route-handler wrapper: uniform error JSON instead of HTML 500 pages. */
 export const handler =
   <A extends unknown[]>(
     fn: (...args: A) => Promise<Response> | Response,
@@ -31,6 +31,9 @@ export const handler =
       return await fn(...args);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Internal error";
-      return NextResponse.json({ error: message }, { status: 500 });
+      return NextResponse.json(
+        { error: message },
+        { status: error instanceof RequestError ? 400 : 500 },
+      );
     }
   };

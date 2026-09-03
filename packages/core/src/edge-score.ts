@@ -18,7 +18,15 @@ import type { TradeMetrics } from "./metrics";
  * - consistency:  largest winning day ≤ 15% of total day profits (weight 15)
  */
 
-export const EDGE_SCORE_VERSION = 1;
+/**
+ * Formula history:
+ * - v1: initial release.
+ * - v2: gross profit and gross loss (the profit factor inputs) sum the positive
+ *   and negative net P&L of every closed trade, regardless of whether a trade is
+ *   labeled "breakeven" by a tolerance band. Identical to v1 when the breakeven
+ *   tolerance is zero.
+ */
+export const EDGE_SCORE_VERSION = 2;
 
 export interface EdgeScoreComponents {
   winRate: number;

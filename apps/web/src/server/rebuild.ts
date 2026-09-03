@@ -1,7 +1,8 @@
-import { and, eq, notInArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { buildRoundTrips, type Execution, type ProfitCalcMethod } from "@luxalgo/journal-core";
 import { db, executions, trades, accounts } from "@/db";
-import { getMultipliers } from "./settings";
+import { getMultipliers, getJournalDefaults } from "./settings";
+import { defaultRisk } from "@/lib/journal-defaults";
 
 /**
  * Rebuild the materialized round trips for an account from its executions.
@@ -25,16 +26,26 @@ export const rebuildAccount = (accountId: string): void => {
     executedAt: row.executedAt,
     assetClass: (row.assetClass ?? undefined) as Execution["assetClass"],
     source: row.source,
+    importMetadata: row.importMetadataJson ? JSON.parse(row.importMetadataJson) : undefined,
   }));
 
   const trips = buildRoundTrips(executionInputs, {
     method: account.profitCalcMethod as ProfitCalcMethod,
     multipliers: getMultipliers(),
   });
-  const keys = trips.map((trip) => trip.key);
+  const obsolete = new Set(
+    db
+      .select({ key: trades.key })
+      .from(trades)
+      .where(eq(trades.accountId, accountId))
+      .all()
+      .map((row) => row.key),
+  );
+  const defaults = getJournalDefaults();
 
   db.transaction((tx) => {
     for (const trip of trips) {
+      obsolete.delete(trip.key);
       const computed = {
         accountId: trip.accountId,
         symbol: trip.symbol,
@@ -56,14 +67,22 @@ export const rebuildAccount = (accountId: string): void => {
         durationMs: trip.durationMs ?? null,
       };
       tx.insert(trades)
-        .values({ key: trip.key, ...computed })
+        .values({
+          key: trip.key,
+          ...computed,
+          ...defaultRisk(trip.avgEntry, trip.direction, accountId, trip.symbol, defaults),
+        })
         .onConflictDoUpdate({ target: trades.key, set: computed })
         .run();
     }
-    const vanished =
-      keys.length > 0
-        ? and(eq(trades.accountId, accountId), notInArray(trades.key, keys))
-        : eq(trades.accountId, accountId);
-    tx.delete(trades).where(vanished).run();
+    const vanished = [...obsolete];
+    // Keep each statement below SQLite's bind-parameter limit, even for long histories.
+    for (let i = 0; i < vanished.length; i += 500) {
+      tx.delete(trades)
+        .where(
+          and(eq(trades.accountId, accountId), inArray(trades.key, vanished.slice(i, i + 500))),
+        )
+        .run();
+    }
   });
 };

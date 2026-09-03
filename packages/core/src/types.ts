@@ -11,6 +11,22 @@ export type AssetClass = "equity" | "option" | "futures" | "forex" | "crypto" | 
 
 export type ExecutionSource = "sync" | "import" | "manual";
 
+/** Source facts carried only by the additive history importer. */
+export interface ImportMetadata {
+  id: string;
+  /** Keeps separately reported positions from being netted together. */
+  group?: string;
+  order: number;
+  /** Explicit statement gross P&L for the closing portion of this fill. */
+  reportedGrossPnl?: number;
+  /**
+   * The statement supplied this fill's fee explicitly. Storage layers must keep
+   * `fee` as-is instead of substituting an account default fee. Round-trip
+   * matching does not read this flag; it is a source fact carried through.
+   */
+  preserveFee?: boolean;
+}
+
 export interface Execution {
   id: string;
   accountId: string;
@@ -26,6 +42,7 @@ export interface Execution {
   executedAt: string;
   assetClass?: AssetClass;
   source: ExecutionSource;
+  importMetadata?: ImportMetadata;
 }
 
 /**
@@ -83,6 +100,8 @@ export interface RoundTrip {
   exits: ExitAttribution[];
   /** Milliseconds between open and close (undefined while open). */
   durationMs?: number;
+  /** Currency value of one price point per unit. Required for derivative R statistics. */
+  contractMultiplier?: number;
 }
 
 /** User-authored context attached to a round trip (stored by the app, joined for analytics). */

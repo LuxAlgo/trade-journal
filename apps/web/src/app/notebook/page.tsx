@@ -1,13 +1,17 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
-import { FolderPlus, Plus, Search } from "lucide-react";
+import { Suspense, useRef, useState } from "react";
+import { ArrowLeft, FolderPlus, Plus, Search } from "lucide-react";
 import { FilterBar } from "@/components/filter-bar";
 import { VoiceNote } from "@/components/voice-note";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { RichEditor, type RichEditorHandle } from "@/components/rich-editor";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Attachments } from "@/components/attachments";
+import { ReviewExport } from "@/components/review-export";
+import { useAutosave } from "@/lib/use-autosave";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +41,10 @@ function Notebook() {
   const [folder, setFolder] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [folderOpen, setFolderOpen] = useState(false);
+  const [folderName, setFolderName] = useState("");
+  const [folderError, setFolderError] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const { data, refresh } = useApi<{ notes: NoteRow[]; folders: FolderRow[] }>(
     `/api/notes?folder=${folder}&q=${encodeURIComponent(search)}`,
   );
@@ -52,15 +60,74 @@ function Notebook() {
   };
 
   const createFolder = async () => {
-    const name = prompt("Folder name");
-    if (name) {
-      await postJson("/api/folders", { name });
+    if (creatingFolder || !folderName.trim()) return;
+    setCreatingFolder(true);
+    setFolderError("");
+    try {
+      const result = await postJson<{ id: string }>("/api/folders", { name: folderName });
+      setFolder(result.id);
+      setSelectedId(null);
+      setSearch("");
       refresh();
+      setFolderOpen(false);
+      setFolderName("");
+    } catch (error) {
+      setFolderError(
+        error instanceof Error ? error.message : "Could not create the folder. Try again.",
+      );
+    } finally {
+      setCreatingFolder(false);
     }
   };
 
   return (
     <div>
+      <Dialog open={folderOpen} onOpenChange={(open) => !creatingFolder && setFolderOpen(open)}>
+        <DialogContent>
+          <DialogTitle>New folder</DialogTitle>
+          <DialogDescription>Organize your notes in a named folder.</DialogDescription>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void createFolder();
+            }}
+          >
+            <label className="block space-y-2 text-sm">
+              <span>Folder name</span>
+              <Input
+                autoFocus
+                value={folderName}
+                maxLength={100}
+                required
+                disabled={creatingFolder}
+                onChange={(event) => {
+                  setFolderName(event.target.value);
+                  setFolderError("");
+                }}
+              />
+            </label>
+            {folderError && (
+              <p role="alert" className="text-sm text-destructive">
+                {folderError}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={creatingFolder}
+                onClick={() => setFolderOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creatingFolder || !folderName.trim()}>
+                {creatingFolder ? "Creating…" : "Create folder"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
       <FilterBar
         title="Notebook"
         actions={
@@ -70,8 +137,8 @@ function Notebook() {
           </Button>
         }
       />
-      <div className="grid h-[calc(100vh-3.5rem)] grid-cols-[180px_280px_1fr]">
-        <div className="space-y-0.5 overflow-y-auto border-r p-2">
+      <div className="notebook-workspace" data-note-open={Boolean(selected)}>
+        <div className="notebook-folders min-w-0 space-y-0.5 overflow-y-auto border-r p-2">
           <button
             className={cn(
               "w-full rounded-md px-2.5 py-1.5 text-left text-sm",
@@ -89,7 +156,7 @@ function Notebook() {
               <button
                 key={f.id}
                 className={cn(
-                  "w-full rounded-md px-2.5 py-1.5 text-left text-sm",
+                  "w-full break-words rounded-md px-2.5 py-1.5 text-left text-sm",
                   folder === f.id
                     ? "bg-accent font-medium"
                     : "text-muted-foreground hover:bg-accent/60",
@@ -103,15 +170,47 @@ function Notebook() {
             variant="ghost"
             size="sm"
             className="w-full justify-start text-muted-foreground"
-            onClick={createFolder}
+            onClick={() => {
+              setFolderError("");
+              setFolderOpen(true);
+            }}
           >
             <FolderPlus />
             New folder
           </Button>
         </div>
 
-        <div className="overflow-y-auto border-r">
-          <div className="sticky top-0 border-b bg-background p-2">
+        <div className="notebook-list min-w-0 overflow-y-auto border-r">
+          <div className="sticky top-0 z-[1] space-y-2 border-b bg-background p-2">
+            <div className="flex min-w-0 items-center gap-2 xl:hidden">
+              <select
+                aria-label="Note folder"
+                value={folder}
+                onChange={(event) => setFolder(event.target.value)}
+                className="h-9 min-w-0 flex-1 rounded-lg border bg-card px-2 text-sm"
+              >
+                <option value="all">All notes</option>
+                {data?.folders
+                  .filter((item) => item.id !== "all")
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+              </select>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                aria-label="New folder"
+                onClick={() => {
+                  setFolderError("");
+                  setFolderOpen(true);
+                }}
+              >
+                <FolderPlus />
+              </Button>
+            </div>
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -142,7 +241,19 @@ function Notebook() {
           ))}
         </div>
 
-        <div className="overflow-y-auto p-4">
+        <div className="notebook-editor min-w-0 overflow-y-auto p-3 sm:p-4">
+          {selected && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mb-3 md:hidden"
+              onClick={() => setSelectedId(null)}
+            >
+              <ArrowLeft />
+              Back to notes
+            </Button>
+          )}
           {selected ? (
             <NoteEditor key={selected.id} note={selected} onChanged={refresh} />
           ) : (
@@ -159,39 +270,38 @@ function Notebook() {
 function NoteEditor({ note, onChanged }: { note: NoteRow; onChanged: () => void }) {
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-
-  const save = (nextTitle: string, nextContent: string) => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      void postJson(
-        `/api/notes/${note.id}`,
-        { title: nextTitle, content: nextContent },
-        "PATCH",
-      ).then(onChanged);
-    }, 600);
-  };
+  const [mode, setMode] = useState<"edit" | "preview">(note.content.trim() ? "preview" : "edit");
+  const editor = useRef<RichEditorHandle>(null);
+  const {
+    save: queueSave,
+    status,
+    flush,
+  } = useAutosave(`/api/notes/${note.id}`, "PATCH", onChanged);
+  const save = (title: string, content: string) => queueSave({ title, content });
 
   return (
     <Card className="mx-auto max-w-3xl">
       <CardContent className="space-y-3 pt-4">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Input
             value={title}
             onChange={(event) => {
               setTitle(event.target.value);
               save(event.target.value, content);
             }}
-            className="border-0 px-0 text-lg font-semibold shadow-none focus-visible:ring-0"
+            className="notebook-editor-title border-0 px-0 text-lg font-semibold shadow-none focus-visible:ring-0"
             placeholder="Title"
           />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setMode(mode === "preview" ? "edit" : "preview")}
+          >
+            {mode === "preview" ? "Edit" : "Preview"}
+          </Button>
           <VoiceNote
+            onPrepare={() => editor.current?.focus()}
             onText={(text) => {
               const next = content ? `${content} ${text}` : text;
               setContent(next);
@@ -212,15 +322,25 @@ function NoteEditor({ note, onChanged }: { note: NoteRow; onChanged: () => void 
             Delete
           </Button>
         </div>
-        <Textarea
+        <RichEditor
+          editorRef={editor}
+          mode={mode}
+          onModeChange={setMode}
+          showModeToggle={false}
           value={content}
-          onChange={(event) => {
-            setContent(event.target.value);
-            save(title, event.target.value);
+          onChange={(value) => {
+            setContent(value);
+            save(title, value);
           }}
-          placeholder="Write in Markdown, or dictate…"
-          className="min-h-[60vh] border-0 px-0 font-mono text-[13px] shadow-none focus-visible:ring-0"
         />
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span role="status">{status}</span>
+          <Button variant="ghost" size="sm" onClick={() => void flush()}>
+            Save now
+          </Button>
+        </div>
+        <ReviewExport document={{ title: title || "Journal note", lines: [content] }} />
+        <Attachments type="note" id={note.id} />
       </CardContent>
     </Card>
   );

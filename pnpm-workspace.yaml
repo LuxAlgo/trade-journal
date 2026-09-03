@@ -6,3 +6,7 @@ allowBuilds:
   better-sqlite3: true
 ignoredOptionalDependencies:
   - sharp
+overrides:
+  "next>postcss": "^8.5.26"
+  "tsup>esbuild": "^0.28.1"
+  "bundle-require>esbuild": "^0.28.1"

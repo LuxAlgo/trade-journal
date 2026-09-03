@@ -1,4 +1,5 @@
 "use client";
+import { MonetaryField } from "@/components/privacy";
 
 import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -19,6 +20,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { postJson, useApi } from "@/lib/use-api";
 import { fmtNumber } from "@/lib/utils";
+import { decodeImportFile } from "@/lib/decode-import";
 
 interface BrokerInfo {
   id: string;
@@ -48,6 +50,8 @@ interface PreviewResponse {
   headers?: string[];
   totals?: PreviewTotals;
   warnings?: string[];
+  errors?: string[];
+  needsSymbol?: boolean;
   executions?: {
     symbol: string;
     side: string;
@@ -72,16 +76,16 @@ function ImportView() {
       <div className="mx-auto max-w-3xl p-4">
         <Tabs defaultValue="file">
           <TabsList>
-            <TabsTrigger value="file">
-              <FileUp className="mr-1.5 h-4 w-4" />
+            <TabsTrigger value="file" className="max-sm:px-2 max-sm:text-xs">
+              <FileUp className="mr-1.5 hidden h-4 w-4 min-[420px]:block" />
               File upload
             </TabsTrigger>
-            <TabsTrigger value="sync">
-              <Landmark className="mr-1.5 h-4 w-4" />
+            <TabsTrigger value="sync" className="max-sm:px-2 max-sm:text-xs">
+              <Landmark className="mr-1.5 hidden h-4 w-4 min-[420px]:block" />
               Broker sync
             </TabsTrigger>
-            <TabsTrigger value="manual">
-              <PencilLine className="mr-1.5 h-4 w-4" />
+            <TabsTrigger value="manual" className="max-sm:px-2 max-sm:text-xs">
+              <PencilLine className="mr-1.5 hidden h-4 w-4 min-[420px]:block" />
               Manual
             </TabsTrigger>
           </TabsList>
@@ -113,8 +117,8 @@ function AccountPicker({
   const { data, refresh } = useApi<{ accounts: AccountRow[] }>("/api/accounts");
   const accounts = data?.accounts.filter((account) => !account.archivedAt) ?? [];
   return (
-    <div className="flex items-end gap-2">
-      <div className="flex-1">
+    <div className="flex min-w-0 flex-wrap items-end gap-2">
+      <div className="min-w-0 flex-[1_1_180px]">
         <Label className="mb-1 block text-xs text-muted-foreground">Into account</Label>
         <Select value={value} onValueChange={onChange}>
           <SelectTrigger>
@@ -150,20 +154,55 @@ function FileImport() {
   const [accountId, setAccountId] = useState("");
   const [content, setContent] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
+  const [symbol, setSymbol] = useState("");
+  const [mappingApplied, setMappingApplied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const { data: formatData } = useApi<{ formats: { id: string; label: string }[] }>("/api/import");
 
   const onFile = async (file: File) => {
-    const text = await file.text();
-    setContent(text);
+    setPreview(null);
+    setContent(null);
     setFileName(file.name);
+    setSymbol("");
+    setMapping({});
+    setMappingApplied(false);
+    setError(null);
     setBusy(true);
     try {
+      const text = decodeImportFile(await file.arrayBuffer());
+      setContent(text);
       setPreview(
-        await postJson<PreviewResponse>("/api/import", { mode: "preview", content: text }),
+        await postJson<PreviewResponse>("/api/import", {
+          mode: "preview",
+          content: text,
+          fileName: file.name,
+        }),
       );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Import preview failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const previewWithSymbol = async () => {
+    if (!content || !symbol.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setPreview(
+        await postJson<PreviewResponse>("/api/import", {
+          mode: "preview",
+          content,
+          fileName,
+          symbol,
+        }),
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Import preview failed");
     } finally {
       setBusy(false);
     }
@@ -172,10 +211,14 @@ function FileImport() {
   const previewWithMapping = async () => {
     if (!content) return;
     setBusy(true);
+    setError(null);
     try {
       setPreview(
         await postJson<PreviewResponse>("/api/import", { mode: "preview", content, mapping }),
       );
+      setMappingApplied(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Import preview failed");
     } finally {
       setBusy(false);
     }
@@ -185,14 +228,29 @@ function FileImport() {
     if (!content || !accountId) return;
     setBusy(true);
     try {
-      const result = await postJson<{ inserted: number; duplicates: number }>("/api/import", {
+      const result = await postJson<{
+        inserted: number;
+        duplicates: number;
+        skipped?: number;
+        warnings?: string[];
+      }>("/api/import", {
         mode: "commit",
         content,
         accountId,
-        mapping: preview?.needsMapping ? mapping : undefined,
+        mapping: mappingApplied ? mapping : undefined,
+        fileName,
+        symbol,
       });
-      alert(`Imported ${result.inserted} executions (${result.duplicates} duplicates skipped).`);
+      const skippedNote =
+        result.skipped && result.skipped > 0
+          ? ` ${result.skipped} invalid rows were skipped: ${(result.warnings ?? []).at(-1) ?? ""}`
+          : "";
+      alert(
+        `Imported ${result.inserted} executions (${result.duplicates} duplicates skipped).${skippedNote}`,
+      );
       router.push("/");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Import failed");
     } finally {
       setBusy(false);
     }
@@ -218,6 +276,7 @@ function FileImport() {
             <input
               type="file"
               accept=".csv,.txt,.htm,.html,.tsv"
+              disabled={busy}
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -226,6 +285,32 @@ function FileImport() {
             />
           </label>
 
+          {error && (
+            <p role="alert" className="text-sm text-loss">
+              {error}
+            </p>
+          )}
+          {preview?.needsSymbol && (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="min-w-0 flex-1 text-xs text-muted-foreground">
+                Symbol
+                <Input
+                  value={symbol}
+                  onChange={(event) => setSymbol(event.target.value.toUpperCase())}
+                  placeholder="AAPL, EURUSD…"
+                  className="mt-1"
+                />
+              </label>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={previewWithSymbol}
+                disabled={busy || !symbol.trim()}
+              >
+                Preview
+              </Button>
+            </div>
+          )}
           {preview?.needsMapping && preview.headers && (
             <div className="space-y-2 rounded-md border p-3">
               <p className="text-sm">
@@ -298,8 +383,19 @@ function FileImport() {
                   ⚠ {warning}
                 </p>
               ))}
+              {!preview.needsSymbol &&
+                preview.errors?.map((message, index) => (
+                  <p key={index} role="alert" className="text-xs text-loss">
+                    {message}
+                  </p>
+                ))}
               <AccountPicker value={accountId} onChange={setAccountId} kind="import" />
-              <Button onClick={commit} disabled={!accountId || busy}>
+              <Button
+                onClick={commit}
+                disabled={
+                  !accountId || busy || !!preview.errors?.length || !preview.totals.executions
+                }
+              >
                 {busy ? "Importing…" : "Import"}
               </Button>
             </div>
@@ -469,45 +565,68 @@ function ManualEntry() {
             placeholder="AAPL, ESZ6, BTCUSDT…"
           />
         </div>
-        <div className="space-y-2">
+        <div className="manual-executions space-y-3">
           {legs.map((leg, index) => (
-            <div key={index} className="grid grid-cols-[1fr_88px_90px_90px_80px] gap-2">
-              <Input
-                type="datetime-local"
-                value={leg.datetime}
-                onChange={(event) => setLeg(index, { datetime: event.target.value })}
-              />
-              <Select
-                value={leg.side}
-                onValueChange={(value) => setLeg(index, { side: value as "buy" | "sell" })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="buy">Buy</SelectItem>
-                  <SelectItem value="sell">Sell</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder="qty"
-                inputMode="decimal"
-                value={leg.quantity}
-                onChange={(event) => setLeg(index, { quantity: event.target.value })}
-              />
-              <Input
-                placeholder="price"
-                inputMode="decimal"
-                value={leg.price}
-                onChange={(event) => setLeg(index, { price: event.target.value })}
-              />
-              <Input
-                placeholder="fee"
-                inputMode="decimal"
-                value={leg.fee}
-                onChange={(event) => setLeg(index, { fee: event.target.value })}
-              />
-            </div>
+            <fieldset
+              key={index}
+              className="manual-execution-row grid min-w-0 gap-2 rounded-lg border p-3"
+            >
+              <legend className="px-1 text-xs text-muted-foreground">Execution {index + 1}</legend>
+              <label className="manual-execution-date grid min-w-0 gap-1 text-xs text-muted-foreground">
+                Date & time
+                <Input
+                  type="datetime-local"
+                  value={leg.datetime}
+                  onChange={(event) => setLeg(index, { datetime: event.target.value })}
+                />
+              </label>
+              <div className="grid min-w-0 gap-1 text-xs text-muted-foreground">
+                <span id={`execution-side-${index}`}>Side</span>
+                <Select
+                  value={leg.side}
+                  onValueChange={(value) => setLeg(index, { side: value as "buy" | "sell" })}
+                >
+                  <SelectTrigger aria-labelledby={`execution-side-${index}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="buy">Buy</SelectItem>
+                    <SelectItem value="sell">Sell</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
+                Quantity
+                <Input
+                  placeholder="qty"
+                  inputMode="decimal"
+                  value={leg.quantity}
+                  onChange={(event) => setLeg(index, { quantity: event.target.value })}
+                />
+              </label>
+              <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
+                Price
+                <MonetaryField>
+                  <Input
+                    placeholder="price"
+                    inputMode="decimal"
+                    value={leg.price}
+                    onChange={(event) => setLeg(index, { price: event.target.value })}
+                  />
+                </MonetaryField>
+              </label>
+              <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
+                Fee
+                <MonetaryField>
+                  <Input
+                    placeholder="fee"
+                    inputMode="decimal"
+                    value={leg.fee}
+                    onChange={(event) => setLeg(index, { fee: event.target.value })}
+                  />
+                </MonetaryField>
+              </label>
+            </fieldset>
           ))}
         </div>
         <div className="flex gap-2">

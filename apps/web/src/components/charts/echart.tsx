@@ -1,7 +1,20 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import * as echarts from "echarts";
+import * as echarts from "echarts/core";
+import { BarChart, LineChart } from "echarts/charts";
+import { AxisPointerComponent, GridComponent, TooltipComponent } from "echarts/components";
+import { CanvasRenderer } from "echarts/renderers";
+import type { EChartsOption } from "echarts";
+
+echarts.use([
+  BarChart,
+  LineChart,
+  AxisPointerComponent,
+  GridComponent,
+  TooltipComponent,
+  CanvasRenderer,
+]);
 
 /** Thin ECharts mount: init once, setOption on change, resize with the box. */
 export function EChart({
@@ -9,7 +22,7 @@ export function EChart({
   className,
   height = 280,
 }: {
-  option: echarts.EChartsOption;
+  option: EChartsOption;
   className?: string;
   height?: number;
 }) {
@@ -21,10 +34,24 @@ export function EChart({
     if (!host) return;
     const chart = echarts.init(host);
     chartRef.current = chart;
-    const observer = new ResizeObserver(() => chart.resize());
+    let frame = 0;
+    let width = host.clientWidth,
+      height = host.clientHeight;
+    const observer = new ResizeObserver(([entry]) => {
+      if (!entry || (entry.contentRect.width === width && entry.contentRect.height === height))
+        return;
+      width = entry.contentRect.width;
+      height = entry.contentRect.height;
+      if (!frame)
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          chart.resize();
+        });
+    });
     observer.observe(host);
     return () => {
       observer.disconnect();
+      cancelAnimationFrame(frame);
       chart.dispose();
       chartRef.current = null;
     };

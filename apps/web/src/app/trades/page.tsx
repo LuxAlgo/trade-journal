@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   createSortedRowModel,
   rowSelectionFeature,
@@ -17,6 +17,7 @@ import { ArrowUpDown, Check, Columns3, Download, Tag, Trash2 } from "lucide-reac
 import type { TradeMetrics } from "@luxalgo/journal-core";
 import { FilterBar, useFilters } from "@/components/filter-bar";
 import { Pnl } from "@/components/pnl";
+import { MonetaryValue } from "@/components/privacy";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,12 +67,15 @@ export default function TradesPage() {
 
 function Trades() {
   const { query } = useFilters();
-  const { data, refresh } = useApi<{ trades: TradeRow[]; metrics: TradeMetrics }>(
-    `/api/trades?${query}`,
+  const { data, error, refresh } = useApi<{ trades: TradeRow[]; metrics: TradeMetrics }>(
+    `/api/trades?view=list&${query}`,
   );
   const router = useRouter();
   const [tagInput, setTagInput] = useState("");
   const [showColumns, setShowColumns] = useState(false);
+  const [page, setPage] = useState(0);
+  const pageSize = 50;
+  useEffect(() => setPage(0), [query]);
 
   const columns = useMemo<ColumnDef<typeof features, TradeRow>[]>(
     () => [
@@ -82,7 +86,7 @@ function Trades() {
           <Checkbox
             checked={table.getIsAllRowsSelected()}
             onCheckedChange={(value) => table.toggleAllRowsSelected(value === true)}
-            aria-label="Select all"
+            aria-label="Select all matching trades"
           />
         ),
         cell: ({ row }) => (
@@ -138,7 +142,11 @@ function Trades() {
         id: "avgEntry",
         accessorKey: "avgEntry",
         header: "Entry",
-        cell: ({ getValue }) => <span className="tnum">{fmtNumber(getValue<number>())}</span>,
+        cell: ({ getValue }) => (
+          <span className="tnum">
+            <MonetaryValue>{fmtNumber(getValue<number>())}</MonetaryValue>
+          </span>
+        ),
       },
       {
         id: "avgExit",
@@ -146,7 +154,9 @@ function Trades() {
         header: "Exit",
         cell: ({ getValue }) => (
           <span className="tnum">
-            {getValue<number | null>() === null ? "–" : fmtNumber(getValue<number>()!)}
+            <MonetaryValue>
+              {getValue<number | null>() === null ? "–" : fmtNumber(getValue<number>()!)}
+            </MonetaryValue>
           </span>
         ),
       },
@@ -168,7 +178,9 @@ function Trades() {
         accessorKey: "fees",
         header: "Fees",
         cell: ({ getValue }) => (
-          <span className="tnum text-muted-foreground">{fmtMoney(getValue<number>())}</span>
+          <span className="tnum text-muted-foreground">
+            <MonetaryValue>{fmtMoney(getValue<number>())}</MonetaryValue>
+          </span>
         ),
       },
       {
@@ -242,6 +254,10 @@ function Trades() {
   });
 
   const selectedKeys = table.getSelectedRowModel().rows.map((row) => row.original.key);
+  const sortedRows = table.getRowModel().rows;
+  const pageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const currentPage = Math.min(page, pageCount - 1);
+  const visibleRows = sortedRows.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   const bulk = async (action: string, extra?: Record<string, unknown>) => {
     await postJson("/api/trades/bulk", { keys: selectedKeys, action, ...extra });
     table.resetRowSelection();
@@ -255,7 +271,7 @@ function Trades() {
         title="Trades"
         actions={
           <div className="flex items-center gap-2">
-            <a href={`/api/export?format=csv`} download>
+            <a href={`/api/export?format=csv&${query}`} download>
               <Button variant="outline" size="sm">
                 <Download />
                 CSV
@@ -270,7 +286,7 @@ function Trades() {
       />
       <div className="space-y-3 p-4">
         {m && (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
             <Card>
               <CardHeader>
                 <CardTitle>Net cumulative P&L</CardTitle>
@@ -347,7 +363,7 @@ function Trades() {
               <Button variant="outline" size="sm" onClick={() => bulk("unreview")}>
                 Unreview
               </Button>
-              <div className="flex items-center gap-1">
+              <div className="flex max-w-full flex-wrap items-center gap-1">
                 <Input
                   value={tagInput}
                   onChange={(event) => setTagInput(event.target.value)}
@@ -386,11 +402,18 @@ function Trades() {
           </Card>
         )}
 
-        {!data ? (
+        {error ? (
+          <div role="alert" className="space-y-2 text-sm text-destructive">
+            <p>{error}</p>
+            <Button variant="outline" onClick={refresh}>
+              Try again
+            </Button>
+          </div>
+        ) : !data ? (
           <Skeleton className="h-96" />
         ) : (
           <Card>
-            <div className="relative w-full overflow-x-auto">
+            <div className="relative min-w-0 max-w-full overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   {table.getHeaderGroups().map((headerGroup) => (
@@ -403,7 +426,10 @@ function Trades() {
                           {header.isPlaceholder ? null : header.column.getCanSort() ? (
                             <button
                               className="inline-flex items-center gap-1 hover:text-foreground"
-                              onClick={header.column.getToggleSortingHandler()}
+                              onClick={(event) => {
+                                setPage(0);
+                                header.column.getToggleSortingHandler()?.(event);
+                              }}
                             >
                               <table.FlexRender header={header} />
                               <ArrowUpDown
@@ -422,11 +448,13 @@ function Trades() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.map((row) => (
+                  {visibleRows.map((row) => (
                     <tr
                       key={row.id}
                       className="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/50"
-                      onClick={() => router.push(`/trades/${encodeURIComponent(row.original.key)}`)}
+                      onClick={() =>
+                        router.push(`/trades/${encodeURIComponent(row.original.key)}?${query}`)
+                      }
                     >
                       {row.getVisibleCells().map((cell) => (
                         <td key={cell.id} className="whitespace-nowrap px-2 py-2 align-middle">
@@ -452,6 +480,36 @@ function Trades() {
                 </tbody>
               </table>
             </div>
+            {sortedRows.length > pageSize && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
+                <span>
+                  {currentPage * pageSize + 1}–
+                  {Math.min((currentPage + 1) * pageSize, sortedRows.length)} of{" "}
+                  {fmtNumber(sortedRows.length, 0)} trades
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 0}
+                    onClick={() => setPage(currentPage - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <span>
+                    Page {currentPage + 1} of {pageCount}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage + 1 === pageCount}
+                    onClick={() => setPage(currentPage + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         )}
       </div>

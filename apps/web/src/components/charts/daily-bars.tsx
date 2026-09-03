@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { fmtMoney } from "@/lib/utils";
+import { usePrivacy } from "../privacy";
 import { tooltipStyle, useVizTokens } from "./tokens";
 
 export interface DailyBarDatum {
@@ -25,10 +26,16 @@ export interface DailyBarDatum {
  */
 export function DailyBars({ data, height = 240 }: { data: DailyBarDatum[]; height?: number }) {
   const t = useVizTokens();
+  const privateMode = usePrivacy();
   if (!t) return <div style={{ height }} />;
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }} barCategoryGap="20%">
+      <BarChart
+        key={String(privateMode)}
+        data={data}
+        margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
+        barCategoryGap="20%"
+      >
         <CartesianGrid stroke={t.gridline} strokeWidth={1} vertical={false} />
         <XAxis
           dataKey="date"
@@ -42,12 +49,14 @@ export function DailyBars({ data, height = 240 }: { data: DailyBarDatum[]; heigh
           tickLine={false}
           axisLine={false}
           width={70}
-          tickFormatter={(value: number) => fmtMoney(value).replace(".00", "")}
+          tickFormatter={(value: number) =>
+            privateMode ? "••••" : fmtMoney(value).replace(".00", "")
+          }
         />
         <ReferenceLine y={0} stroke={t.baseline} />
         <Tooltip
           contentStyle={tooltipStyle(t)}
-          formatter={(value) => [fmtMoney(Number(value)), "Net P&L"]}
+          formatter={(value) => [privateMode ? "Hidden" : fmtMoney(Number(value)), "Net P&L"]}
           cursor={{ fill: t.gridline, opacity: 0.4 }}
         />
         <Bar dataKey="netPnl" isAnimationActive={false} maxBarSize={28}>

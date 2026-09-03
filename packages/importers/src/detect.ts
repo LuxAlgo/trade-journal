@@ -13,13 +13,14 @@ import {
 } from "./formats/simple";
 import { thinkorswim } from "./formats/thinkorswim";
 import { tradezella } from "./formats/tradezella";
+import { historyFormat, parseHistory } from "./formats/history";
 import type { ImportFormat, ImportOptions, ParsedImport } from "./types";
 
 /**
  * Detection order matters: content-signature formats (multi-section statements,
  * HTML) go first, then header-signature CSVs from most to least specific.
  */
-export const FORMATS: ImportFormat[] = [
+const LEGACY_FORMATS: ImportFormat[] = [
   metatrader,
   ibkr,
   ibkrFlex,
@@ -34,13 +35,35 @@ export const FORMATS: ImportFormat[] = [
   dastrader,
 ];
 
-export const detectFormat = (content: string): ImportFormat | null => {
+export const FORMATS: ImportFormat[] = [...LEGACY_FORMATS, historyFormat];
+
+interface Route {
+  format: ImportFormat;
+  parsed: ParsedImport;
+}
+
+/**
+ * The single routing decision shared by detectFormat and parseAuto, so the
+ * format reported to the user is always the one whose parser produced the
+ * result. Legacy signatures run first and win when they yield executions; the
+ * history adapters cover newer variants an old broad signature recognizes but
+ * cannot parse (for example MT5 Deals versus MT4 statements). Null means no
+ * documented signature matched: offer the column mapper.
+ */
+const route = (content: string, options: ImportOptions): Route | null => {
   const headers = parseCsv(content)[0] ?? [];
-  return FORMATS.find((format) => format.detect(headers, content)) ?? null;
+  const legacyFormat = LEGACY_FORMATS.find((candidate) => candidate.detect(headers, content));
+  const legacy = legacyFormat ? legacyFormat.parse(content, options) : undefined;
+  if (legacyFormat && legacy?.executions.length) return { format: legacyFormat, parsed: legacy };
+  const history = parseHistory(content, options);
+  if (history) return { format: historyFormat, parsed: history };
+  if (legacyFormat && legacy) return { format: legacyFormat, parsed: legacy };
+  return null;
 };
 
+export const detectFormat = (content: string): ImportFormat | null =>
+  route(content, {})?.format ?? null;
+
 /** Detect and parse in one step; null when no known format matches (offer the column mapper). */
-export const parseAuto = (content: string, options: ImportOptions = {}): ParsedImport | null => {
-  const format = detectFormat(content);
-  return format ? format.parse(content, options) : null;
-};
+export const parseAuto = (content: string, options: ImportOptions = {}): ParsedImport | null =>
+  route(content, options)?.parsed ?? null;
