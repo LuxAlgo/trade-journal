@@ -11,6 +11,7 @@ export const executionHash = (execution: {
   quantity: number;
   price: number;
   executedAt: string;
+  importMetadata?: { id: string; group?: string };
 }): string =>
   createHash("sha256")
     .update(
@@ -20,6 +21,9 @@ export const executionHash = (execution: {
         execution.quantity.toPrecision(12),
         execution.price.toPrecision(12),
         execution.executedAt,
+        ...(execution.importMetadata
+          ? ["history", execution.importMetadata.group ?? "", execution.importMetadata.id]
+          : []),
       ].join("|"),
     )
     .digest("hex")

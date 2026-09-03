@@ -11,6 +11,17 @@ export type AssetClass = "equity" | "option" | "futures" | "forex" | "crypto" | 
 
 export type ExecutionSource = "sync" | "import" | "manual";
 
+/** Source facts carried only by the additive history importer. */
+export interface ImportMetadata {
+  id: string;
+  /** Keeps separately reported positions from being netted together. */
+  group?: string;
+  order: number;
+  /** Explicit statement gross P&L for the closing portion of this fill. */
+  reportedGrossPnl?: number;
+  preserveFee?: boolean;
+}
+
 export interface Execution {
   id: string;
   accountId: string;
@@ -26,6 +37,7 @@ export interface Execution {
   executedAt: string;
   assetClass?: AssetClass;
   source: ExecutionSource;
+  importMetadata?: ImportMetadata;
 }
 
 /**

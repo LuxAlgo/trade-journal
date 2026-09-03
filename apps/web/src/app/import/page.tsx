@@ -20,6 +20,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { postJson, useApi } from "@/lib/use-api";
 import { fmtNumber } from "@/lib/utils";
+import { decodeImportFile } from "@/lib/decode-import";
 
 interface BrokerInfo {
   id: string;
@@ -49,6 +50,8 @@ interface PreviewResponse {
   headers?: string[];
   totals?: PreviewTotals;
   warnings?: string[];
+  errors?: string[];
+  needsSymbol?: boolean;
   executions?: {
     symbol: string;
     side: string;
@@ -151,20 +154,55 @@ function FileImport() {
   const [accountId, setAccountId] = useState("");
   const [content, setContent] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
+  const [symbol, setSymbol] = useState("");
+  const [mappingApplied, setMappingApplied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const { data: formatData } = useApi<{ formats: { id: string; label: string }[] }>("/api/import");
 
   const onFile = async (file: File) => {
-    const text = await file.text();
-    setContent(text);
+    setPreview(null);
+    setContent(null);
     setFileName(file.name);
+    setSymbol("");
+    setMapping({});
+    setMappingApplied(false);
+    setError(null);
     setBusy(true);
     try {
+      const text = decodeImportFile(await file.arrayBuffer());
+      setContent(text);
       setPreview(
-        await postJson<PreviewResponse>("/api/import", { mode: "preview", content: text }),
+        await postJson<PreviewResponse>("/api/import", {
+          mode: "preview",
+          content: text,
+          fileName: file.name,
+        }),
       );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Import preview failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const previewWithSymbol = async () => {
+    if (!content || !symbol.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setPreview(
+        await postJson<PreviewResponse>("/api/import", {
+          mode: "preview",
+          content,
+          fileName,
+          symbol,
+        }),
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Import preview failed");
     } finally {
       setBusy(false);
     }
@@ -173,10 +211,14 @@ function FileImport() {
   const previewWithMapping = async () => {
     if (!content) return;
     setBusy(true);
+    setError(null);
     try {
       setPreview(
         await postJson<PreviewResponse>("/api/import", { mode: "preview", content, mapping }),
       );
+      setMappingApplied(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Import preview failed");
     } finally {
       setBusy(false);
     }
@@ -190,10 +232,14 @@ function FileImport() {
         mode: "commit",
         content,
         accountId,
-        mapping: preview?.needsMapping ? mapping : undefined,
+        mapping: mappingApplied ? mapping : undefined,
+        fileName,
+        symbol,
       });
       alert(`Imported ${result.inserted} executions (${result.duplicates} duplicates skipped).`);
       router.push("/");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Import failed");
     } finally {
       setBusy(false);
     }
@@ -219,6 +265,7 @@ function FileImport() {
             <input
               type="file"
               accept=".csv,.txt,.htm,.html,.tsv"
+              disabled={busy}
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -227,6 +274,32 @@ function FileImport() {
             />
           </label>
 
+          {error && (
+            <p role="alert" className="text-sm text-loss">
+              {error}
+            </p>
+          )}
+          {preview?.needsSymbol && (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="min-w-0 flex-1 text-xs text-muted-foreground">
+                Symbol
+                <Input
+                  value={symbol}
+                  onChange={(event) => setSymbol(event.target.value.toUpperCase())}
+                  placeholder="AAPL, EURUSD…"
+                  className="mt-1"
+                />
+              </label>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={previewWithSymbol}
+                disabled={busy || !symbol.trim()}
+              >
+                Preview
+              </Button>
+            </div>
+          )}
           {preview?.needsMapping && preview.headers && (
             <div className="space-y-2 rounded-md border p-3">
               <p className="text-sm">
@@ -299,8 +372,19 @@ function FileImport() {
                   ⚠ {warning}
                 </p>
               ))}
+              {!preview.needsSymbol &&
+                preview.errors?.map((message, index) => (
+                  <p key={index} role="alert" className="text-xs text-loss">
+                    {message}
+                  </p>
+                ))}
               <AccountPicker value={accountId} onChange={setAccountId} kind="import" />
-              <Button onClick={commit} disabled={!accountId || busy}>
+              <Button
+                onClick={commit}
+                disabled={
+                  !accountId || busy || !!preview.errors?.length || !preview.totals.executions
+                }
+              >
                 {busy ? "Importing…" : "Import"}
               </Button>
             </div>

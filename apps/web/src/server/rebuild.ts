@@ -26,6 +26,7 @@ export const rebuildAccount = (accountId: string): void => {
     executedAt: row.executedAt,
     assetClass: (row.assetClass ?? undefined) as Execution["assetClass"],
     source: row.source,
+    importMetadata: row.importMetadataJson ? JSON.parse(row.importMetadataJson) : undefined,
   }));
 
   const trips = buildRoundTrips(executionInputs, {

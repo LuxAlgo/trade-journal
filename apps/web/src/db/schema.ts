@@ -43,6 +43,7 @@ export const executions = sqliteTable(
     executedAt: text("executed_at").notNull(),
     assetClass: text("asset_class"),
     source: text("source", { enum: ["sync", "import", "manual"] }).notNull(),
+    importMetadataJson: text("import_metadata_json"),
     /** Dedup key: identical fills are inserted once per account. */
     contentHash: text("content_hash").notNull(),
     createdAt: text("created_at").notNull(),

@@ -1,4 +1,4 @@
-import type { AssetClass, TradeDirection } from "@luxalgo/journal-core";
+import type { AssetClass, ImportMetadata, TradeDirection } from "@luxalgo/journal-core";
 
 /** An execution as parsed from a file — the app assigns id/accountId/source on insert. */
 export interface ImportedExecution {
@@ -9,6 +9,7 @@ export interface ImportedExecution {
   fee: number;
   executedAt: string;
   assetClass?: AssetClass;
+  importMetadata?: ImportMetadata;
 }
 
 /**
@@ -34,6 +35,9 @@ export interface ParsedImport {
   /** Rows the parser saw but could not turn into executions. */
   skippedRows: number;
   warnings: string[];
+  /** Missing source facts or malformed/truncated input block a commit. */
+  errors?: string[];
+  needsSymbol?: boolean;
 }
 
 export interface ImportOptions {
@@ -42,6 +46,10 @@ export interface ImportOptions {
    * broker exports are wall-clock local). Defaults to UTC.
    */
   timeZone?: string;
+  /** Used only when the filename explicitly identifies an exchange and symbol. */
+  fileName?: string;
+  /** User-supplied symbol for single-strategy files that omit it. */
+  symbol?: string;
 }
 
 export interface ImportFormat {

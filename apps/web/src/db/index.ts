@@ -16,6 +16,11 @@ const createDb = () => {
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   sqlite.exec(BOOTSTRAP_SQL);
+  // Additive upgrade: existing executions retain their fields and dedup hashes.
+  const executionColumns = sqlite.pragma("table_info(executions)") as { name: string }[];
+  if (!executionColumns.some((column) => column.name === "import_metadata_json")) {
+    sqlite.exec("ALTER TABLE executions ADD COLUMN import_metadata_json TEXT");
+  }
   return drizzle(sqlite, { schema });
 };
 

@@ -23,6 +23,7 @@ export const insertExecutions = (
     "Account not found.",
   );
   for (const row of rows) {
+    const meta = row?.importMetadata;
     requireValue(
       row &&
         typeof row.symbol === "string" &&
@@ -35,6 +36,22 @@ export const insertExecutions = (
         typeof row.executedAt === "string" &&
         Number.isFinite(Date.parse(row.executedAt)),
       "Every execution needs a symbol, buy/sell side, finite positive quantity, price, fee and valid timestamp.",
+    );
+    requireValue(
+      !meta ||
+        (source === "import" &&
+          typeof meta.id === "string" &&
+          meta.id.length > 0 &&
+          meta.id.length <= 2000 &&
+          (meta.group === undefined ||
+            (typeof meta.group === "string" &&
+              meta.group.length > 0 &&
+              meta.group.length <= 2000)) &&
+          Number.isSafeInteger(meta.order) &&
+          meta.order >= 0 &&
+          (meta.reportedGrossPnl === undefined || Number.isFinite(meta.reportedGrossPnl)) &&
+          (meta.preserveFee === undefined || typeof meta.preserveFee === "boolean")),
+      "Invalid imported execution metadata.",
     );
   }
   let inserted = 0;
@@ -53,10 +70,13 @@ export const insertExecutions = (
           side: row.side,
           quantity: row.quantity,
           price: row.price,
-          fee: defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults),
+          fee: row.importMetadata?.preserveFee
+            ? row.fee
+            : defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults),
           executedAt: row.executedAt,
           assetClass: row.assetClass ?? null,
           source,
+          importMetadataJson: row.importMetadata ? JSON.stringify(row.importMetadata) : null,
           contentHash: executionHash(row),
           createdAt,
         })

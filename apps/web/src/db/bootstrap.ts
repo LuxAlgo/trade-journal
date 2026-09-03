@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS executions (
   executed_at TEXT NOT NULL,
   asset_class TEXT,
   source TEXT NOT NULL,
+  import_metadata_json TEXT,
   content_hash TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
