@@ -154,11 +154,7 @@ export function TradeExplorer({ query }: { query: string }) {
     </div>
   );
   return (
-    <section
-      className="space-y-4"
-      aria-labelledby="trade-explorer-title"
-      data-trade-explorer
-    >
+    <section className="space-y-4" aria-labelledby="trade-explorer-title" data-trade-explorer>
       <div>
         <h2 id="trade-explorer-title" className="text-lg font-semibold">
           Trade explorer

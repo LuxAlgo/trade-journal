@@ -22,10 +22,10 @@ server's journal timezone determines closing dates and the initial visible month
 
 ## Chart map and interaction
 
-| View | Question and encoding | Sufficiency and interaction |
-| --- | --- | --- |
-| Daily performance | How do daily results vary? Zero-anchored signed bars, after-fee P&L by closing date. | At least two trading days; one day gets an explicit summary. A dashed five-trading-day rolling mean appears only with at least eight observed trading days; no pre-window values or invented days. Bar selection opens matching trades; a semantic table supplies equivalent keyboard links and exact values. |
-| Weekday performance | Which closing weekdays contribute net gains/losses? Diverging bars on a shared symmetric zero scale and signed values. | All seven weekday positions, no-data rows disabled. Each weekday expands its actual closing dates; date links open matching trades. Small samples are explicitly flagged rather than extending beyond the selected scope. |
+| View                | Question and encoding                                                                                                  | Sufficiency and interaction                                                                                                                                                                                                                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Daily performance   | How do daily results vary? Zero-anchored signed bars, after-fee P&L by closing date.                                   | At least two trading days; one day gets an explicit summary. A dashed five-trading-day rolling mean appears only with at least eight observed trading days; no pre-window values or invented days. Bar selection opens matching trades; a semantic table supplies equivalent keyboard links and exact values. |
+| Weekday performance | Which closing weekdays contribute net gains/losses? Diverging bars on a shared symmetric zero scale and signed values. | All seven weekday positions, no-data rows disabled. Each weekday expands its actual closing dates; date links open matching trades. Small samples are explicitly flagged rather than extending beyond the selected scope.                                                                                     |
 
 Existing product P&L green/red is the intentional domain exception to a neutral
 palette. Signs, zero lines, direct labels, and position also encode polarity.
