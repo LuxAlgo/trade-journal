@@ -1,4 +1,6 @@
 "use client";
+import { OptionSelect } from "@/components/ui/option-select";
+
 import { MonetaryField } from "./privacy";
 import { useEffect, useState } from "react";
 import { useApi, postJson } from "@/lib/use-api";
@@ -22,10 +24,10 @@ export function JournalDefaultSettings() {
   const matchFields = (r: FeeRule | RiskRule, update: (r: FeeRule | RiskRule) => void) => (
     <>
       <Field label="Account">
-        <select
+        <OptionSelect
           className={fieldClass}
           value={r.accountId}
-          onChange={(e) => update({ ...r, accountId: e.target.value })}
+          onValueChange={(next) => update({ ...r, accountId: next })}
         >
           <option value="">All accounts</option>
           {accounts?.accounts.map((a) => (
@@ -33,7 +35,7 @@ export function JournalDefaultSettings() {
               {a.name}
             </option>
           ))}
-        </select>
+        </OptionSelect>
       </Field>
       <Field label="Symbol (blank = all)">
         <input
@@ -70,16 +72,16 @@ export function JournalDefaultSettings() {
             </MonetaryField>
           </Field>
           <Field label="Range unit">
-            <select
+            <OptionSelect
               className={fieldClass}
               value={draft.breakevenMode}
-              onChange={(e) =>
-                setDraft({ ...draft, breakevenMode: e.target.value as "money" | "percent" })
+              onValueChange={(next) =>
+                setDraft({ ...draft, breakevenMode: next as "money" | "percent" })
               }
             >
               <option value="money">Account currency</option>
               <option value="percent">% of entry notional</option>
-            </select>
+            </OptionSelect>
           </Field>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -116,14 +118,14 @@ export function JournalDefaultSettings() {
                     </MonetaryField>
                   </Field>
                   <Field label="Charge per">
-                    <select
+                    <OptionSelect
                       className={fieldClass}
                       value={r.mode}
-                      onChange={(e) => update({ ...r, mode: e.target.value as FeeRule["mode"] })}
+                      onValueChange={(next) => update({ ...r, mode: next as FeeRule["mode"] })}
                     >
                       <option value="execution">Execution</option>
                       <option value="unit">Unit / contract</option>
-                    </select>
+                    </OptionSelect>
                   </Field>
                 </div>
                 <Button
@@ -201,14 +203,14 @@ export function JournalDefaultSettings() {
                     </MonetaryField>
                   </Field>
                   <Field label="Distance unit">
-                    <select
+                    <OptionSelect
                       className={fieldClass}
                       value={r.mode}
-                      onChange={(e) => update({ ...r, mode: e.target.value as RiskRule["mode"] })}
+                      onValueChange={(next) => update({ ...r, mode: next as RiskRule["mode"] })}
                     >
                       <option value="price">Price points</option>
                       <option value="percent">% of entry price</option>
-                    </select>
+                    </OptionSelect>
                   </Field>
                 </div>
                 <Button

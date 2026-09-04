@@ -89,6 +89,28 @@ export interface DrawdownStats {
   peak: number;
 }
 
+export interface RelativeDrawdownPoint {
+  t: string;
+  /** Fall from the running equity peak as a positive fraction. */
+  drawdownPct: number | null;
+}
+
+/** Point-in-time relative drawdown for an underwater chart. */
+export const relativeDrawdownCurve = (
+  curve: EquityPoint[],
+  initialBalance = 0,
+): RelativeDrawdownPoint[] => {
+  let peak = 0;
+  return curve.map((point) => {
+    if (point.cumNetPnl > peak) peak = point.cumNetPnl;
+    const base = initialBalance + peak;
+    return {
+      t: point.t,
+      drawdownPct: base > 0 ? (peak - point.cumNetPnl) / base : null,
+    };
+  });
+};
+
 /** Drawdown over any cumulative curve. `initialBalance` anchors the percentage. */
 export const drawdown = (curve: EquityPoint[], initialBalance = 0): DrawdownStats => {
   let peak = 0;

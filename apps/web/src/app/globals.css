@@ -9,6 +9,7 @@
  * win/loss ships as text chips, markers differ by shape — color only reinforces.
  */
 :root {
+  color-scheme: light;
   --background: #f9f9f7;
   --foreground: #0b0b0b;
   --card: #fcfcfb;
@@ -38,7 +39,7 @@
 
   /* viz tokens (validated: see docs/design.md) */
   --viz-surface: #fcfcfb;
-  --ink-muted: #898781;
+  --ink-muted: #686760;
   --gridline: #e1e0d9;
   --baseline: #c3c2b7;
   --profit: #006300;
@@ -56,6 +57,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #08080a;
   --foreground: #f4f4f4;
   --card: #101013;
@@ -145,16 +147,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Prism gradient, decorative only: hero numbers and small indicator bars.
+/* Prism gradient, decorative only: hero numbers.
  * The value it decorates is always also plain text or geometry. */
 .prism-text {
   background-image: linear-gradient(100deg, var(--prism-from), var(--prism-to));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-.prism-bar {
-  background-image: linear-gradient(180deg, var(--prism-from), var(--prism-to));
 }
 
 /* Hairline top sheen that lifts cards off a near-black canvas. */
@@ -171,8 +170,234 @@
 .journal-main {
   container: journal / inline-size;
 }
+.journal-hover-card {
+  box-shadow:
+    0 12px 32px rgb(0 0 0 / 0.18),
+    0 2px 8px rgb(0 0 0 / 0.1);
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+  overflow-wrap: anywhere;
+}
+.journal-hover-card[data-state="delayed-open"],
+.journal-hover-card[data-state="instant-open"] {
+  animation: journal-hover-in 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.journal-hover-card[data-state="closed"] {
+  animation: journal-hover-out 100ms ease-in;
+}
+.recharts-default-tooltip .recharts-tooltip-label {
+  color: var(--muted-foreground) !important;
+  font-size: 12px;
+  margin-bottom: 4px !important;
+}
+.recharts-default-tooltip .recharts-tooltip-item {
+  color: var(--foreground) !important;
+  font-variant-numeric: tabular-nums;
+}
+body.dashboard-is-dragging .journal-hover-card {
+  visibility: hidden;
+}
+@keyframes journal-hover-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes journal-hover-out {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .journal-hover-card {
+    animation: none !important;
+  }
+}
+.journal-chart-frame {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+.journal-chart-frame .recharts-surface {
+  overflow: hidden;
+}
+.journal-edge-radar :focus {
+  outline: none;
+}
+.journal-edge-radar:has(:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: -3px;
+  border-radius: 6px;
+}
+.journal-chart-frame .recharts-tooltip-wrapper {
+  max-width: 100%;
+  white-space: normal;
+}
+.journal-chart-frame .recharts-area,
+.journal-chart-frame .recharts-bar,
+.journal-chart-frame .recharts-radar,
+.journal-gauge-value,
+.journal-progress-visual {
+  animation: journal-data-reveal 850ms cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
+}
+.journal-gauge svg {
+  max-width: 100%;
+}
+/* Animate plotted data only; report content, controls, axes and grids stay still. */
+.journal-report-section .recharts-line-curve {
+  animation: journal-data-reveal 850ms cubic-bezier(0.25, 0.1, 0.25, 1) backwards;
+}
+.journal-report-section .recharts-scatter-symbol {
+  animation: journal-scatter-reveal 850ms ease-out backwards;
+}
+@keyframes journal-scatter-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .journal-report-section .recharts-line-curve,
+  .journal-report-section .recharts-scatter-symbol {
+    animation: none !important;
+  }
+}
+@keyframes journal-data-reveal {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .journal-chart-frame *,
+  .journal-gauge-value,
+  .journal-progress-visual {
+    animation: none !important;
+  }
+}
 .journal-desktop-sidebar {
   view-transition-name: journal-sidebar;
+  z-index: 40;
+  width: 13rem;
+  transition: width 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: width;
+}
+.journal-desktop-sidebar[data-ready="false"] {
+  transition: none;
+}
+.journal-desktop-sidebar[data-collapsed="true"] {
+  width: 4rem;
+}
+.journal-sidebar-home {
+  width: 100%;
+  overflow: hidden;
+  padding-inline: 1rem;
+  transition: padding 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.journal-sidebar-brand-label,
+.journal-sidebar-label {
+  max-width: 9.5rem;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    max-width 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease-out,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.journal-sidebar-trigger {
+  right: 0;
+  top: 50%;
+  z-index: 10;
+  transform: translate(50%, -50%);
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.journal-sidebar-trigger:hover {
+  transform: translate(50%, -50%) scale(1.06);
+}
+.journal-sidebar-nav-link > svg {
+  flex: 0 0 auto;
+}
+.journal-sidebar-nav-link {
+  min-height: 2.25rem;
+  transition:
+    padding 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    gap 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 160ms ease,
+    background-color 160ms ease;
+}
+.journal-sidebar-footer {
+  max-height: 5rem;
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    max-height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 140ms ease-out,
+    padding 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.journal-sidebar-privacy {
+  display: flex;
+  justify-content: center;
+  transition: padding 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.journal-desktop-sidebar[data-collapsed="true"] .journal-sidebar-home {
+  justify-content: center;
+  padding-inline: 0;
+}
+.journal-desktop-sidebar[data-collapsed="true"] .journal-sidebar-brand-label,
+.journal-desktop-sidebar[data-collapsed="true"] .journal-sidebar-label {
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-0.35rem);
+}
+.journal-desktop-sidebar[data-collapsed="true"] .journal-sidebar-navigation {
+  padding-inline: 0.625rem;
+}
+.journal-desktop-sidebar[data-collapsed="true"] .journal-sidebar-nav-link {
+  justify-content: center;
+  gap: 0;
+  padding-inline: 0;
+}
+.journal-desktop-sidebar[data-collapsed="true"] .journal-sidebar-privacy {
+  padding-inline: 0;
+}
+.journal-desktop-sidebar[data-collapsed="true"] .journal-sidebar-privacy > div {
+  width: auto;
+}
+.journal-desktop-sidebar[data-collapsed="true"] .journal-sidebar-footer {
+  max-height: 0;
+  padding-block: 0;
+  opacity: 0;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .journal-desktop-sidebar,
+  .journal-sidebar-home,
+  .journal-sidebar-brand-label,
+  .journal-sidebar-label,
+  .journal-sidebar-trigger,
+  .journal-sidebar-nav-link,
+  .journal-sidebar-footer,
+  .journal-sidebar-privacy {
+    transition: none !important;
+  }
 }
 .journal-mobile-header {
   view-transition-name: journal-header;
@@ -197,6 +422,155 @@
 }
 .journal-filter-bar {
   top: var(--journal-header-offset, 0px);
+}
+.journal-filter-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  max-height: min(90dvh, 900px);
+  border-radius: 14px;
+  box-shadow:
+    0 24px 80px rgb(0 0 0 / 0.28),
+    0 4px 16px rgb(0 0 0 / 0.12);
+}
+.journal-filter-heading {
+  flex-shrink: 0;
+  gap: 6px;
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.journal-filter-description {
+  max-width: 66ch;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.journal-filter-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.journal-filter-footer {
+  flex-shrink: 0;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--muted) 35%, var(--card));
+}
+.journal-filter-footer button {
+  border-radius: 8px;
+}
+.journal-filter-fields .journal-filter-field {
+  gap: 7px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+.journal-filter-fields input:not([type="checkbox"]),
+.journal-filter-fields [role="combobox"] {
+  height: 38px;
+  padding-inline: 11px;
+  border-radius: 7px;
+  border-color: var(--input);
+  background-color: color-mix(in srgb, var(--background) 65%, var(--card));
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 400;
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background-color 150ms ease;
+  color-scheme: light;
+}
+.dark .journal-filter-fields input,
+.dark .journal-filter-fields [role="combobox"] {
+  color-scheme: dark;
+}
+.journal-filter-fields input.journal-date-input {
+  padding-right: 40px;
+}
+.journal-filter-fields input:not([type="checkbox"]):hover,
+.journal-filter-fields [role="combobox"]:hover {
+  border-color: color-mix(in srgb, var(--muted-foreground) 40%, var(--border));
+}
+.journal-filter-fields input:not([type="checkbox"]):focus-visible,
+.journal-filter-fields [role="combobox"]:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 16%, transparent);
+}
+.journal-filter-accounts legend {
+  padding-inline: 6px;
+  font-weight: 500;
+}
+.journal-filter-choice {
+  min-height: 32px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  transition: background-color 150ms ease;
+}
+.journal-filter-choice:hover {
+  background: var(--accent);
+}
+.journal-filter-choice:has([data-state="checked"]) {
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+}
+.journal-filter-advanced {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.journal-filter-advanced summary {
+  padding: 12px;
+  border-radius: 8px;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 150ms ease;
+}
+.journal-filter-advanced summary::-webkit-details-marker {
+  display: none;
+}
+.journal-filter-advanced summary:hover {
+  background: var(--accent);
+}
+.journal-filter-advanced summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.journal-filter-advanced summary svg {
+  transition: transform 180ms ease;
+}
+.journal-filter-advanced[open] summary svg {
+  transform: rotate(180deg);
+}
+.journal-filter-advanced-grid,
+.journal-filter-weekdays {
+  margin: 0;
+  padding: 0 12px 12px;
+}
+@media (max-width: 479px) {
+  .journal-filter-heading {
+    padding: 20px 16px 16px;
+  }
+  .journal-filter-body {
+    padding: 16px;
+  }
+  .journal-filter-footer {
+    padding: 12px 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .journal-filter-dialog,
+  .journal-filter-fields * {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 .journal-header-actions > .flex {
   flex-wrap: wrap;
@@ -310,41 +684,37 @@
   .dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .dashboard-grid-card:not([data-card-size="small"]) {
-    grid-column: span 2;
+  .dashboard-grid-card {
+    grid-column: span var(--dashboard-span-compact, 1);
   }
 }
-@container dashboard (min-width: 760px) {
+@container dashboard (min-width: 960px) {
   .dashboard-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
-  .dashboard-grid-card[data-card-size="small"] {
-    grid-column: span 2;
-  }
-  .dashboard-grid-card[data-card-size="medium"] {
-    grid-column: span 3;
-  }
-  .dashboard-grid-card[data-card-size="wide"],
-  .dashboard-grid-card[data-card-size="full"] {
-    grid-column: span 6;
+  .dashboard-grid-card {
+    grid-column: span var(--dashboard-span-tablet, 6);
   }
 }
 @container dashboard (min-width: 1060px) {
   .dashboard-grid {
     grid-template-columns: repeat(15, minmax(0, 1fr));
   }
-  .dashboard-grid-card[data-card-size="small"] {
-    grid-column: span 3;
+  .dashboard-grid-card {
+    grid-column: span var(--dashboard-span-desktop, 15);
   }
-  .dashboard-grid-card[data-card-size="medium"] {
-    grid-column: span 5;
-  }
-  .dashboard-grid-card[data-card-size="wide"] {
-    grid-column: span 10;
-  }
-  .dashboard-grid-card[data-card-size="full"] {
-    grid-column: span 15;
-  }
+}
+
+/* Visual cards consume the row height rather than leaving blank card interiors. */
+.dashboard-visual-card {
+  display: flex;
+  flex-direction: column;
+}
+.dashboard-visual-card-content {
+  display: flex;
+  min-height: 18rem;
+  flex: 1;
+  flex-direction: column;
 }
 .dashboard-layout-option:hover,
 .dashboard-layout-option:focus-visible {
@@ -359,7 +729,7 @@
   border-top: 1px solid var(--border);
 }
 
-/* A compact calendar keeps all seven days visible; weekly totals get their own row. */
+/* The compact calendar keeps all seven days visible; weekly totals get their own row. */
 .journal-calendar {
   container: calendar / inline-size;
 }
@@ -370,6 +740,27 @@
   min-height: 64px;
   padding: 4px 2px;
   font-size: clamp(8px, 2.8cqi, 11px);
+}
+.journal-calendar-day-link {
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    outline-color 160ms ease;
+}
+.journal-calendar-day-link[data-performance="profit"] {
+  --calendar-outline: var(--profit);
+}
+.journal-calendar-day-link[data-performance="loss"] {
+  --calendar-outline: var(--loss);
+}
+.journal-calendar-day-link[data-performance="neutral"] {
+  --calendar-outline: var(--muted-foreground);
+}
+.journal-calendar-day-link:hover,
+.journal-calendar-day-link:focus-visible {
+  outline-color: var(--calendar-outline);
 }
 .journal-calendar-day > :first-child {
   margin-bottom: 4px;
@@ -418,6 +809,61 @@
     gap: 0;
     margin-bottom: 0;
   }
+}
+
+/* One quiet surface for date, selection, and action menus. */
+.journal-menu-surface {
+  border-color: color-mix(in srgb, var(--foreground) 7%, var(--border));
+  box-shadow:
+    0 12px 36px rgb(0 0 0 / 0.18),
+    0 3px 8px rgb(0 0 0 / 0.08),
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+.journal-calendar-nav {
+  display: inline-flex;
+  width: 32px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--muted-foreground);
+}
+.journal-calendar-nav:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.journal-calendar-date {
+  display: inline-flex;
+  width: 100%;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+.journal-calendar-date:hover:not(:disabled) {
+  background: var(--accent);
+}
+.journal-date-outside {
+  color: var(--muted-foreground);
+  opacity: 0.55;
+}
+.journal-date-today:not(.journal-date-selected) .journal-calendar-date {
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-weight: 600;
+}
+.journal-date-selected .journal-calendar-date,
+.journal-date-selected .journal-calendar-date:hover:not(:disabled) {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 600;
+}
+.journal-calendar-date:focus-visible,
+.journal-calendar-nav:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
 }
 
 /* Notes keep the editor mounted when resizing, so unsaved typing is preserved. */
@@ -546,11 +992,11 @@
   transform-origin: var(--radix-popover-content-transform-origin);
 }
 .dashboard-customize-panel[data-state="open"] {
-  animation: dashboard-customize-open 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: journal-overlay-in 160ms ease-out backwards;
 }
 .dashboard-customize-panel[data-state="closed"] {
   pointer-events: none;
-  animation: dashboard-customize-close 190ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: journal-overlay-out 110ms ease-in forwards;
 }
 .dashboard-customize-heading {
   display: flex;
@@ -654,10 +1100,6 @@
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-}
-.dashboard-customize-panel[data-state="open"] .dashboard-customize-option {
-  animation: dashboard-customize-row 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(60ms + var(--option-index, 0) * 22ms);
 }
 .dashboard-customize-card-icon {
   display: inline-flex;
@@ -769,45 +1211,28 @@
   outline: 2px solid var(--brand);
   outline-offset: -2px;
 }
-@keyframes dashboard-customize-open {
-  0% {
-    opacity: 0;
-    transform: translateY(-9px) scale(0.78, 0.56);
-    border-radius: 32px;
-    filter: blur(5px);
-  }
-  65% {
-    opacity: 1;
-    transform: translateY(1px) scale(1.015, 1.01);
-    filter: blur(0);
-  }
-  100% {
-    opacity: 1;
-    transform: none;
-    border-radius: 20px;
-    filter: blur(0);
-  }
+.journal-popup[data-state="open"] {
+  animation: journal-overlay-in 160ms ease-out backwards;
 }
-@keyframes dashboard-customize-close {
-  to {
-    opacity: 0;
-    transform: translateY(-7px) scale(0.93, 0.88);
-    filter: blur(3px);
-  }
+.journal-popup[data-state="closed"] {
+  pointer-events: none;
+  animation: journal-overlay-out 110ms ease-in forwards;
 }
-@keyframes dashboard-customize-row {
+@keyframes journal-overlay-in {
   from {
     opacity: 0;
-    transform: translateY(7px);
-    filter: blur(4px);
   }
   to {
     opacity: 1;
-    transform: none;
-    filter: blur(0);
+  }
+}
+@keyframes journal-overlay-out {
+  to {
+    opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .journal-popup,
   .dashboard-customize-panel,
   .dashboard-customize-panel *,
   .dashboard-customize-chevron {

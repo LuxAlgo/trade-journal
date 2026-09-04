@@ -9,11 +9,13 @@ import type {
   EquityPoint,
   TradeMetrics,
 } from "@luxalgo/journal-core";
+import { relativeDrawdownCurve } from "@luxalgo/journal-core";
 import { CalendarPnl } from "@/components/calendar-pnl";
 import { DailyBars } from "@/components/charts/daily-bars";
 import { EdgeRadar } from "@/components/charts/edge-radar";
 import { EquityArea } from "@/components/charts/equity-area";
 import { Gauge } from "@/components/charts/gauge";
+import { RelativeDrawdownBars } from "@/components/charts/relative-drawdown-bars";
 import { TimeHeatmap } from "@/components/charts/time-heatmap";
 import {
   ArrowUpDown,
@@ -35,7 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { HelpHint, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn, fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
 
@@ -48,6 +50,7 @@ interface Bucket {
 
 interface StatsPayload {
   metrics: TradeMetrics;
+  initialBalance: number;
   edgeScore: EdgeScore;
   days: DayStats[];
   dailyCumulative: EquityPoint[];
@@ -137,7 +140,7 @@ function Dashboard() {
     : null;
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <>
       <FilterBar title="Dashboard" />
       <DashboardLayout
         widgets={[
@@ -145,6 +148,7 @@ function Dashboard() {
             id: "widget-0",
             label: "Net P&L",
             size: "small",
+            layoutGroup: "summary",
             content: (
               <Card className="h-full">
                 <StatHeader
@@ -180,6 +184,7 @@ function Dashboard() {
             id: "widget-1",
             label: "Trade win %",
             size: "small",
+            layoutGroup: "summary",
             content: (
               <Card className="h-full">
                 <StatHeader
@@ -202,6 +207,7 @@ function Dashboard() {
             id: "widget-2",
             label: "Profit factor",
             size: "small",
+            layoutGroup: "summary",
             content: (
               <Card className="h-full">
                 <StatHeader
@@ -228,6 +234,7 @@ function Dashboard() {
             id: "widget-3",
             label: "Day win %",
             size: "small",
+            layoutGroup: "summary",
             content: (
               <Card className="h-full">
                 <StatHeader
@@ -246,6 +253,7 @@ function Dashboard() {
             id: "widget-4",
             label: "Avg win / loss",
             size: "small",
+            layoutGroup: "summary",
             content: (
               <Card className="h-full">
                 <StatHeader
@@ -259,7 +267,7 @@ function Dashboard() {
                   </div>
                   {m.avgWin !== null && m.avgLoss !== null && m.avgWin + m.avgLoss > 0 && (
                     <div
-                      className="mt-2 flex h-1.5 gap-0.5"
+                      className="journal-progress-visual mt-2 flex h-1.5 gap-0.5"
                       role="img"
                       aria-label="Average win vs average loss, to scale"
                     >
@@ -298,10 +306,17 @@ function Dashboard() {
             id: "widget-5",
             label: "Edge Score",
             size: "medium",
+            layoutGroup: "visuals",
             content: (
-              <Card className="h-full">
+              <Card className="dashboard-visual-card h-full">
                 <CardHeader className="flex-row items-center justify-between">
-                  <CardTitle>Edge Score</CardTitle>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <CardTitle>Edge Score</CardTitle>
+                    <HelpHint heading="Edge Score">
+                      A 0–100 score combining win rate, profit factor, average win/loss, drawdown,
+                      recovery, and consistency. Requires at least five closed trades.
+                    </HelpHint>
+                  </div>
                   <span className="text-2xl font-semibold tracking-tight tnum">
                     {edgeScore.score === null ? (
                       "–"
@@ -311,7 +326,7 @@ function Dashboard() {
                     <span className="text-xs text-muted-foreground"> /100</span>
                   </span>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="dashboard-visual-card-content">
                   {edgeScore.score === null ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">
                       Needs 5+ closed trades. The formula is open —{" "}
@@ -326,7 +341,7 @@ function Dashboard() {
                       .
                     </p>
                   ) : (
-                    <EdgeRadar components={edgeScore.components} />
+                    <EdgeRadar components={edgeScore.components} height="100%" />
                   )}
                 </CardContent>
               </Card>
@@ -336,14 +351,22 @@ function Dashboard() {
             id: "widget-6",
             label: "Cumulative P&L",
             size: "medium",
+            layoutGroup: "visuals",
             content: (
-              <Card className="h-full">
-                <CardHeader>
+              <Card className="dashboard-visual-card h-full">
+                <CardHeader className="flex-row items-center justify-between">
                   <CardTitle>Daily net cumulative P&L</CardTitle>
+                  <HelpHint heading="Cumulative P&L">
+                    Running total of net profit and loss over the selected period. The drawdown bars
+                    below show declines from the running equity peak.
+                  </HelpHint>
                 </CardHeader>
                 <CardContent>
                   <EquityArea
                     data={data.dailyCumulative.map((p) => ({ t: p.t, cumNetPnl: p.cumNetPnl }))}
+                  />
+                  <RelativeDrawdownBars
+                    data={relativeDrawdownCurve(data.dailyCumulative, data.initialBalance)}
                   />
                 </CardContent>
               </Card>
@@ -353,13 +376,21 @@ function Dashboard() {
             id: "widget-7",
             label: "Daily P&L",
             size: "medium",
+            layoutGroup: "visuals",
             content: (
-              <Card className="h-full">
-                <CardHeader>
+              <Card className="dashboard-visual-card h-full">
+                <CardHeader className="flex-row items-center justify-between">
                   <CardTitle>Net daily P&L</CardTitle>
+                  <HelpHint heading="Daily P&L">
+                    Net profit or loss for each trading day. Bars above zero are profitable; bars
+                    below zero are losses.
+                  </HelpHint>
                 </CardHeader>
-                <CardContent>
-                  <DailyBars data={data.days.map((d) => ({ date: d.date, netPnl: d.netPnl }))} />
+                <CardContent className="dashboard-visual-card-content">
+                  <DailyBars
+                    data={data.days.map((d) => ({ date: d.date, netPnl: d.netPnl }))}
+                    height="100%"
+                  />
                 </CardContent>
               </Card>
             ),
@@ -368,6 +399,7 @@ function Dashboard() {
             id: "widget-8",
             label: "Calendar",
             size: "wide",
+            layoutGroup: "detail",
             content: (
               <Card className="h-full">
                 <CardHeader className="flex-row items-center justify-between">
@@ -394,6 +426,7 @@ function Dashboard() {
             id: "widget-9",
             label: "Activity",
             size: "medium",
+            layoutGroup: "detail",
             content: (
               <Card className="h-full">
                 <CardHeader>
@@ -469,6 +502,7 @@ function Dashboard() {
             id: "widget-10",
             label: "Max drawdown",
             size: "small",
+            layoutGroup: "secondary",
             content: (
               <Card className="h-full">
                 <StatHeader
@@ -494,6 +528,7 @@ function Dashboard() {
             id: "widget-11",
             label: "Streaks",
             size: "small",
+            layoutGroup: "secondary",
             content: (
               <Card className="h-full">
                 <StatHeader
@@ -520,6 +555,7 @@ function Dashboard() {
             id: "widget-12",
             label: "Expectancy / trade",
             size: "small",
+            layoutGroup: "secondary",
             content: (
               <Card className="h-full">
                 <StatHeader
@@ -546,6 +582,7 @@ function Dashboard() {
             id: "widget-13",
             label: "Avg duration",
             size: "small",
+            layoutGroup: "secondary",
             content: (
               <Card className="h-full">
                 <StatHeader
@@ -566,6 +603,7 @@ function Dashboard() {
             id: "widget-14",
             label: "Best / worst day",
             size: "small",
+            layoutGroup: "secondary",
             content: (
               <Card className="h-full">
                 <StatHeader
@@ -596,10 +634,15 @@ function Dashboard() {
             id: "widget-15",
             label: "Trade time performance",
             size: "full",
+            layoutGroup: "full",
             content: (
               <Card className="h-full">
-                <CardHeader>
+                <CardHeader className="flex-row items-center justify-between">
                   <CardTitle>Trade time performance</CardTitle>
+                  <HelpHint heading="Trade time performance">
+                    Trades grouped by their opening hour. The upper chart shows net P&L; the lower
+                    chart shows trade count.
+                  </HelpHint>
                 </CardHeader>
                 <CardContent>
                   <TimeHeatmap
@@ -615,7 +658,7 @@ function Dashboard() {
           },
         ]}
       />
-    </TooltipProvider>
+    </>
   );
 }
 
@@ -636,7 +679,10 @@ function StatHeader({
         <TooltipTrigger className="cursor-help" aria-label={`About ${title}`}>
           <Icon className="h-3.5 w-3.5 text-muted-foreground/70" />
         </TooltipTrigger>
-        <TooltipContent>{hint}</TooltipContent>
+        <TooltipContent>
+          <div className="mb-1 font-semibold">{title}</div>
+          <div className="text-muted-foreground">{hint}</div>
+        </TooltipContent>
       </Tooltip>
     </CardHeader>
   );

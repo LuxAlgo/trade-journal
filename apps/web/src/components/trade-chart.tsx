@@ -105,7 +105,7 @@ function PriceChart({
       const { Vela, registerNativeIndicator, unregisterNativeIndicator } = vela;
       if (disposed || !hostRef.current) return;
 
-      const dark = document.documentElement.classList.contains("dark");
+      let dark = document.documentElement.classList.contains("dark");
       const sorted = [...executions].sort(
         (a, b) => Date.parse(a.executedAt) - Date.parse(b.executedAt),
       );
@@ -117,9 +117,9 @@ function PriceChart({
       const pad = Math.max(durationMs * 0.35, 15 * 60_000);
       const crypto = looksCrypto(trade);
 
-      const profitColor = "#0ca30c";
+      let profitColor = dark ? "#0ca30c" : "#006300";
       const lossColor = "#d03b3b";
-      const entryColor = trade.direction === "long" ? profitColor : lossColor;
+      let entryColor = trade.direction === "long" ? profitColor : lossColor;
 
       // Engine-free trade painting: a per-mount native indicator that emits
       // arrow labels for each fill plus an entry→exit line with the P&L.
@@ -236,8 +236,24 @@ function PriceChart({
         });
 
       let chart = buildChart(!crypto);
-      chart.addNativeIndicator(type);
+      let indicator = chart.addNativeIndicator(type);
+      const themeObserver = new MutationObserver(() => {
+        const nextDark = document.documentElement.classList.contains("dark");
+        if (dark === nextDark) return;
+        dark = nextDark;
+        profitColor = dark ? "#0ca30c" : "#006300";
+        entryColor = trade.direction === "long" ? profitColor : lossColor;
+        chart.setTheme(dark ? "dark" : "light");
+        // Repaint annotations without recreating the price chart or fetching candles.
+        indicator.remove();
+        indicator = chart.addNativeIndicator(type);
+      });
+      themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
       cleanup = () => {
+        themeObserver.disconnect();
         chart.destroy();
         unregisterNativeIndicator(type);
       };
@@ -266,7 +282,7 @@ function PriceChart({
           if (disposed) return;
           chart.destroy();
           chart = buildChart(true);
-          chart.addNativeIndicator(type);
+          indicator = chart.addNativeIndicator(type);
         }
       }
     })();

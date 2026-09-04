@@ -1,10 +1,28 @@
 import { describe, expect, it } from "vitest";
 import {
+  balancedDashboardSpans,
   moveDashboardCard,
   normalizeArrangement,
   readDashboardPreferences,
   visibleCardIds,
 } from "../src/lib/dashboard-layout";
+import { isInsideDashboardReorderZone } from "../src/lib/dashboard-drag";
+
+describe("dashboard drag stability", () => {
+  const rect = { left: 100, right: 300, top: 200, bottom: 400, width: 200, height: 200 };
+
+  it("ignores the unstable rim around a drop target", () => {
+    expect(isInsideDashboardReorderZone({ x: 101, y: 300 }, rect)).toBe(false);
+    expect(isInsideDashboardReorderZone({ x: 299, y: 300 }, rect)).toBe(false);
+    expect(isInsideDashboardReorderZone({ x: 200, y: 201 }, rect)).toBe(false);
+    expect(isInsideDashboardReorderZone({ x: 200, y: 399 }, rect)).toBe(false);
+  });
+
+  it("accepts deliberate movement into the target", () => {
+    expect(isInsideDashboardReorderZone({ x: 118, y: 218 }, rect)).toBe(true);
+    expect(isInsideDashboardReorderZone({ x: 200, y: 300 }, rect)).toBe(true);
+  });
+});
 
 describe("dashboard layout persistence", () => {
   const ids = ["net", "win", "edge", "calendar", "activity"];
@@ -66,5 +84,28 @@ describe("dashboard layout persistence", () => {
     const current = { order: ids, hidden: ["win"] };
     for (const to of ["net", "win", "not-a-card"])
       expect(moveDashboardCard(current, "net", to)).toBe(current);
+  });
+
+  it("balances responsive rows without reordering cards", () => {
+    const cards = [
+      { id: "a", size: "small" as const, layoutGroup: "summary" },
+      { id: "b", size: "small" as const, layoutGroup: "summary" },
+      { id: "c", size: "small" as const, layoutGroup: "summary" },
+      { id: "chart", size: "medium" as const, layoutGroup: "visuals" },
+    ];
+    expect(balancedDashboardSpans(cards, 6, { small: 2, medium: 2, wide: 4, full: 6 })).toEqual({
+      a: 2,
+      b: 2,
+      c: 2,
+      chart: 6,
+    });
+    expect(
+      balancedDashboardSpans(cards.slice(0, 2), 6, {
+        small: 2,
+        medium: 6,
+        wide: 6,
+        full: 6,
+      }),
+    ).toEqual({ a: 3, b: 3 });
   });
 });

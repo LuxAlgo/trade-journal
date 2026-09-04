@@ -1,4 +1,9 @@
 "use client";
+import { DatePicker } from "@/components/ui/date-picker";
+import { OptionSelect } from "@/components/ui/option-select";
+import { Checkbox } from "@/components/ui/checkbox";
+
+import { HoverHint } from "@/components/ui/tooltip";
 import { Suspense, useState } from "react";
 import { FilterBar } from "@/components/filter-bar";
 import { Field, fieldClass } from "@/components/filter-fields";
@@ -87,13 +92,11 @@ function Progress() {
                 </p>
               </div>
               <Field label="Review date">
-                <input
-                  aria-label="Progress date"
-                  type="date"
-                  className={fieldClass}
+                <DatePicker
+                  label="Progress date"
                   value={selected}
                   max={data?.today}
-                  onChange={(e) => setDate(e.target.value)}
+                  onValueChange={setDate}
                 />
               </Field>
             </div>
@@ -123,17 +126,16 @@ function Progress() {
                   .map((r) => (
                     <div key={r.id} className="flex items-start justify-between gap-2">
                       <label className="flex items-start gap-3 text-sm">
-                        <input
+                        <Checkbox
                           className="mt-1"
-                          type="checkbox"
                           checked={
                             data?.checks.some(
                               (c) => c.ruleId === r.id && c.date === selected && c.done,
                             ) ?? false
                           }
                           disabled={busy || selected > (data?.today ?? "")}
-                          onChange={(e) =>
-                            void act({ ruleId: r.id, date: selected, done: e.target.checked })
+                          onCheckedChange={(checked) =>
+                            void act({ ruleId: r.id, date: selected, done: checked === true })
                           }
                         />
                         {r.title}
@@ -165,19 +167,24 @@ function Progress() {
           <CardContent>
             <div className="grid grid-flow-col grid-rows-7 gap-1 overflow-x-auto">
               {days.map((d) => (
-                <button
+                <HoverHint
                   key={d.date}
-                  aria-label={`${d.date}: ${d.completed}/${d.total} complete`}
-                  title={`${d.date} · ${d.completed}/${d.total}`}
-                  onClick={() => setDate(d.date)}
-                  className={`min-h-7 min-w-7 rounded border ${selected === d.date ? "border-foreground" : "border-transparent"}`}
-                  style={{
-                    background:
-                      d.score === null
-                        ? "var(--muted)"
-                        : `color-mix(in srgb, var(--brand) ${15 + d.score * 75}%, var(--card))`,
-                  }}
-                />
+                  heading={d.date}
+                  content={`${d.completed} of ${d.total} routines completed`}
+                >
+                  <button
+                    key={d.date}
+                    aria-label={`${d.date}: ${d.completed}/${d.total} complete`}
+                    onClick={() => setDate(d.date)}
+                    className={`min-h-7 min-w-7 rounded border ${selected === d.date ? "border-foreground" : "border-transparent"}`}
+                    style={{
+                      background:
+                        d.score === null
+                          ? "var(--muted)"
+                          : `color-mix(in srgb, var(--brand) ${15 + d.score * 75}%, var(--card))`,
+                    }}
+                  />
+                </HoverHint>
               ))}
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
@@ -200,25 +207,24 @@ function Progress() {
               />
             </Field>
             <Field label="When">
-              <select
+              <OptionSelect
                 className={fieldClass}
                 value={stage}
-                onChange={(e) => setStage(e.target.value)}
+                onValueChange={(next) => setStage(next)}
               >
                 {STAGES.map((s) => (
                   <option key={s}>{s}</option>
                 ))}
-              </select>
+              </OptionSelect>
             </Field>
             <div className="flex flex-wrap gap-3">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => (
                 <label key={day} className="flex items-center gap-1 text-xs">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={weekdays.includes(i)}
-                    onChange={(e) =>
+                    onCheckedChange={(checked) =>
                       setWeekdays(
-                        e.target.checked ? [...weekdays, i] : weekdays.filter((n) => n !== i),
+                        checked === true ? [...weekdays, i] : weekdays.filter((n) => n !== i),
                       )
                     }
                   />

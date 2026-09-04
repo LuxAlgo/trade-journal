@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 export interface VizTokens {
   surface: string;
@@ -46,22 +46,44 @@ export const readVizTokens = (): VizTokens => {
  * paints to canvas, which can't — so every chart resolves tokens through this
  * hook and re-resolves when the theme class flips.
  */
-export const useVizTokens = (): VizTokens | null => {
-  const [tokens, setTokens] = useState<VizTokens | null>(null);
-  useEffect(() => {
-    setTokens(readVizTokens());
-    const observer = new MutationObserver(() => setTokens(readVizTokens()));
+let tokens: VizTokens | null = null;
+const listeners = new Set<() => void>();
+let observer: MutationObserver | null = null;
+const getTokens = () => tokens;
+const getServerTokens = () => null;
+function subscribeTokens(listener: () => void) {
+  listeners.add(listener);
+  if (!observer) {
+    const read = () => {
+      const next = readVizTokens();
+      if (JSON.stringify(next) === JSON.stringify(tokens)) return;
+      tokens = next;
+      listeners.forEach((notify) => notify());
+    };
+    observer = new MutationObserver(read);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
-  return tokens;
-};
+    read();
+  }
+  return () => {
+    listeners.delete(listener);
+    if (!listeners.size) {
+      observer?.disconnect();
+      observer = null;
+      tokens = null;
+    }
+  };
+}
+/** Every mounted chart shares one theme observer and one computed-style read. */
+export const useVizTokens = (): VizTokens | null =>
+  useSyncExternalStore(subscribeTokens, getTokens, getServerTokens);
 
 export const tooltipStyle = (t: VizTokens): React.CSSProperties => ({
   background: t.card,
   border: `1px solid ${t.border}`,
-  borderRadius: 8,
-  fontSize: 12,
+  borderRadius: 12,
+  padding: "12px 14px",
+  fontSize: 13,
+  lineHeight: 1.6,
   color: t.foreground,
-  boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+  boxShadow: "0 12px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1)",
 });

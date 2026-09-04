@@ -1,10 +1,16 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { dayKeyOf, FILTER_KEYS, readFilters, type AnalysisFilters } from "@luxalgo/journal-core";
 import { useApi } from "@/lib/use-api";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FilterFields } from "./filter-fields";
 import { SlidersHorizontal } from "lucide-react";
 import { AccountSelector } from "./account-selector";
@@ -47,6 +53,7 @@ export function FilterBar({ title, actions }: { title: string; actions?: React.R
     pathname.startsWith("/journal/");
   const [open, setOpen] = useState(false),
     [draft, setDraft] = useState<AnalysisFilters>({});
+  const filterTitle = useRef<HTMLHeadingElement>(null);
   const count = Object.keys(filters.values).filter((k) => !["from", "to"].includes(k)).length;
   const apply = () => {
     const next = new URLSearchParams(params.toString());
@@ -85,6 +92,7 @@ export function FilterBar({ title, actions }: { title: string; actions?: React.R
             <Button
               variant="outline"
               size="sm"
+              title="Filter by dates, symbols, strategy, outcome, and more. All selected conditions must match."
               onClick={() => {
                 setDraft(filters.values);
                 setOpen(true);
@@ -102,20 +110,36 @@ export function FilterBar({ title, actions }: { title: string; actions?: React.R
         )}
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Filter your journal</DialogTitle>
+        <DialogContent
+          className="journal-filter-dialog sm:max-w-3xl"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            filterTitle.current?.focus();
+          }}
+        >
+          <DialogHeader className="journal-filter-heading">
+            <DialogTitle ref={filterTitle} tabIndex={-1} className="outline-none">
+              Filter your journal
+            </DialogTitle>
+            <DialogDescription className="journal-filter-description">
+              Times use {filters.timeZone}. Dates use the closing day, or opening day for open
+              trades. All selected conditions must match.
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-xs text-muted-foreground">
-            Times use {filters.timeZone}. Dates use the closing day, or opening day for open trades.
-            All selected conditions must match.
-          </p>
-          <FilterFields value={draft} onChange={setDraft} />
-          <div className="flex justify-between">
-            <Button variant="ghost" onClick={() => setDraft({})}>
+          <div className="journal-filter-body">
+            <FilterFields value={draft} onChange={setDraft} />
+          </div>
+          <div className="journal-filter-footer flex items-center justify-between gap-3">
+            <Button
+              variant="ghost"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setDraft({})}
+            >
               Clear filters
             </Button>
-            <Button onClick={apply}>Apply filters</Button>
+            <Button className="min-w-28" onClick={apply}>
+              Apply filters
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

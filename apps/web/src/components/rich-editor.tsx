@@ -4,6 +4,13 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
+import { ChevronDown, FileText } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { fieldClass } from "@/components/filter-fields";
 import { postJson, useApi } from "@/lib/use-api";
 import { formatInlineSelection, remarkRepairSpacedEmphasis } from "@/lib/note-formatting";
@@ -189,24 +196,34 @@ export function RichEditor({
             <Button type="button" size="sm" variant="ghost" onClick={() => setLinkOpen(!linkOpen)}>
               Link trade
             </Button>
-            <select
-              aria-label="Insert note template"
-              className={`${fieldClass} !w-auto max-w-44`}
-              value=""
-              onChange={(e) => {
-                const template = [...BUILT_INS, ...(data?.templates ?? [])].find(
-                  (t) => t.id === e.target.value,
-                );
-                if (template) onChange(value + (value ? "\n\n" : "") + template.content);
-              }}
-            >
-              <option value="">Insert template…</option>
-              {[...BUILT_INS, ...(data?.templates ?? [])].map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-label="Insert note template"
+                  className="gap-2 rounded-lg"
+                >
+                  Insert template…
+                  <ChevronDown className="size-3.5 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" aria-label="Note templates">
+                {[...BUILT_INS, ...(data?.templates ?? [])].map((template) => (
+                  <DropdownMenuItem
+                    key={template.id}
+                    onSelect={() => onChange(value + (value ? "\n\n" : "") + template.content)}
+                  >
+                    <FileText
+                      aria-hidden="true"
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                    />
+                    {template.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               type="button"
               size="sm"

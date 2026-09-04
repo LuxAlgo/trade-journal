@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "./ui/button";
+import { HoverHint } from "./ui/tooltip";
 import { PRIVACY_KEY, LEGACY_LAYOUT_KEY, privacyPreference } from "@/lib/privacy-preference";
 
 const PrivacyContext = createContext({ enabled: true, ready: false, error: "", toggle: () => {} });
@@ -51,22 +52,35 @@ export function PrivacyProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function PrivacyToggle({ compact = false }: { compact?: boolean }) {
+export function PrivacyToggle({
+  compact = false,
+  iconOnly = false,
+}: {
+  compact?: boolean;
+  iconOnly?: boolean;
+}) {
   const { enabled, ready, error, toggle } = useContext(PrivacyContext);
   return (
     <div className={compact ? "relative shrink-0" : "space-y-2"}>
       <Button
-        className={compact ? "h-9 gap-1.5 rounded-xl px-2.5 text-xs" : "w-full justify-start gap-2"}
+        className={
+          iconOnly
+            ? "h-9 w-9 rounded-lg p-0"
+            : compact
+              ? "h-9 gap-1.5 rounded-xl px-2.5 text-xs"
+              : "w-full justify-start gap-2"
+        }
         size="sm"
         variant={enabled ? "secondary" : "outline"}
-        aria-label="Privacy mode"
+        aria-label={`Privacy mode ${enabled ? "on" : "off"}`}
         aria-pressed={enabled}
         disabled={!ready}
         onClick={toggle}
         title="Hide balances, P&L and trade prices across the journal"
       >
-        {enabled ? <EyeOff /> : <Eye />} {compact ? "Privacy" : "Privacy mode"}
-        <span className="ml-auto text-xs">{enabled ? "On" : "Off"}</span>
+        {enabled ? <EyeOff /> : <Eye />}
+        {!iconOnly && (compact ? "Privacy" : "Privacy mode")}
+        {!iconOnly && <span className="ml-auto text-xs">{enabled ? "On" : "Off"}</span>}
       </Button>
       {error && (
         <p
@@ -97,13 +111,15 @@ export function MonetaryField({
 }) {
   const enabled = usePrivacy();
   return enabled && sensitive ? (
-    <div
-      className="flex h-9 items-center rounded-md border px-3 text-sm"
-      aria-label="Monetary value hidden"
-      title="Turn off privacy mode to edit this value"
-    >
-      ••••
-    </div>
+    <HoverHint content="Turn off privacy mode to edit this value">
+      <div
+        className="flex h-9 items-center rounded-md border px-3 text-sm"
+        aria-label="Monetary value hidden"
+        tabIndex={0}
+      >
+        ••••
+      </div>
+    </HoverHint>
   ) : (
     children
   );

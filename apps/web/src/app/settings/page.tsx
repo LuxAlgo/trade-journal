@@ -114,7 +114,7 @@ function Settings() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="ai-settings" className="scroll-mt-24">
           <CardHeader>
             <CardTitle>AI (bring your own key)</CardTitle>
           </CardHeader>

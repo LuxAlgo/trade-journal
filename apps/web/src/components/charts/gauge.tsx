@@ -24,7 +24,7 @@ export function Gauge({
   if (!t) return <div style={{ width: size, height: size / 2 + 18 }} />;
   return (
     <div
-      className="flex flex-col items-center"
+      className="journal-gauge flex min-w-0 flex-col items-center"
       role="img"
       aria-label={`${label}: ${value === null ? "no data" : `${(ratio * 100).toFixed(1)}%`}`}
     >
@@ -46,6 +46,7 @@ export function Gauge({
           d={`M 6 ${size / 2 + 2} A ${radius} ${radius} 0 0 1 ${size - 6} ${size / 2 + 2}`}
           fill="none"
           stroke={`url(#${gradientId})`}
+          className="journal-gauge-value"
           strokeWidth={8}
           strokeLinecap="round"
           strokeDasharray={`${circumference * ratio} ${circumference}`}

@@ -1,4 +1,7 @@
 "use client";
+import { OptionSelect } from "@/components/ui/option-select";
+import { Checkbox } from "@/components/ui/checkbox";
+
 import { Suspense, useState } from "react";
 import { FilterBar } from "@/components/filter-bar";
 import { Field, fieldClass } from "@/components/filter-fields";
@@ -121,10 +124,9 @@ function Missed() {
             onChange={(e) => setSearch(e.target.value)}
           />
           <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={archived}
-              onChange={(e) => setArchived(e.target.checked)}
+              onCheckedChange={(checked) => setArchived(checked === true)}
             />
             Show archived
           </label>
@@ -216,21 +218,21 @@ function Missed() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {formField("symbol", "Symbol")}
               <Field label="Direction">
-                <select
+                <OptionSelect
                   className={fieldClass}
                   value={draft.direction}
-                  onChange={(e) => setDraft({ ...draft, direction: e.target.value })}
+                  onValueChange={(next) => setDraft({ ...draft, direction: next })}
                 >
                   <option value="long">Long</option>
                   <option value="short">Short</option>
-                </select>
+                </OptionSelect>
               </Field>
               {formField("observedAt", "Observed at (device time)", "datetime-local")}
               <Field label="Strategy">
-                <select
+                <OptionSelect
                   className={fieldClass}
                   value={draft.playbookId}
-                  onChange={(e) => setDraft({ ...draft, playbookId: e.target.value })}
+                  onValueChange={(next) => setDraft({ ...draft, playbookId: next })}
                 >
                   <option value="">No strategy</option>
                   {books?.playbooks.map((b) => (
@@ -238,7 +240,7 @@ function Missed() {
                       {b.name}
                     </option>
                   ))}
-                </select>
+                </OptionSelect>
               </Field>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

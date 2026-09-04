@@ -3,7 +3,13 @@ import { buildRoundTrips } from "../src/round-trips";
 import { computeMetrics, realizedR } from "../src/metrics";
 import { EDGE_SCORE_VERSION, computeEdgeScore } from "../src/edge-score";
 import { calendarMonth, byWeekday, byDuration } from "../src/aggregate";
-import { dailyStats, drawdown, equityCurve, intradayCurve } from "../src/equity";
+import {
+  dailyStats,
+  drawdown,
+  equityCurve,
+  intradayCurve,
+  relativeDrawdownCurve,
+} from "../src/equity";
 import { dayKeyOf } from "../src/time";
 import type { AnnotatedTrade } from "../src/types";
 import { fill } from "./helpers";
@@ -56,6 +62,12 @@ describe("performance metrics tell the trader the truth about their edge", () =>
     const dd = drawdown(curve, 1000);
     expect(dd.maxDrawdown).toBe(100);
     expect(dd.maxDrawdownPct).toBeCloseTo(100 / 1150, 6);
+  });
+
+  it("relative drawdown tracks every point below the running equity peak", () => {
+    const curve = equityCurve(sampleTrades());
+    const relative = relativeDrawdownCurve(curve, 1000);
+    expect(relative.map((point) => point.drawdownPct)).toEqual([0, 50 / 1100, 0, 100 / 1150]);
   });
 
   it("a profitable account with zero losing trades reports an infinite profit factor explicitly", () => {

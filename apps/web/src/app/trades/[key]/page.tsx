@@ -1,4 +1,6 @@
 "use client";
+import { AiNotice } from "@/components/ai-notice";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles, Star } from "lucide-react";
@@ -90,6 +92,7 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
   );
   const [aiBusy, setAiBusy] = useState(false);
   const [critique, setCritique] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   if (!data) {
     return (
@@ -135,11 +138,12 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
 
   const askCritique = async () => {
     setAiBusy(true);
+    setAiError(null);
     try {
       const result = await postJson<{ critique: string }>("/api/ai/critique", { key: tradeKey });
       setCritique(result.critique);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "AI critique failed");
+      setAiError(error instanceof Error ? error.message : "AI critique failed");
     } finally {
       setAiBusy(false);
     }
@@ -268,6 +272,15 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
                 {aiBusy ? "Thinking…" : "Critique this trade"}
               </Button>
             </CardHeader>
+            {aiError && (
+              <CardContent>
+                <AiNotice
+                  error={aiError}
+                  onRetry={() => void askCritique()}
+                  onDismiss={() => setAiError(null)}
+                />
+              </CardContent>
+            )}
             {critique && (
               <CardContent>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed">{critique}</p>
@@ -350,10 +363,9 @@ function AnnotationsCard({
             ))}
           </div>
           <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={trade.reviewedAt !== null}
-              onChange={(event) => void onPatch({ reviewed: event.target.checked })}
+              onCheckedChange={(checked) => void onPatch({ reviewed: checked === true })}
             />
             Reviewed
           </label>

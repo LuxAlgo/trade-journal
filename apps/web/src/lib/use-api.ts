@@ -36,16 +36,15 @@ export const useApi = <T>(url: string | null): ApiState<T> => {
         setData(body);
         setDataUrl(url);
         setError(null);
+        setLoading(false);
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
           setError(cause instanceof Error ? cause.message : "Network error");
           setData(null);
           setDataUrl(url);
+          setLoading(false);
         }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
