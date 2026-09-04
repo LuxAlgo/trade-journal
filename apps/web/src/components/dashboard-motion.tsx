@@ -39,7 +39,7 @@ interface CardAnimation {
 }
 
 /** Keep departing cards alive outside the grid until their shrink animation finishes. */
-export function useDashboardGridMotion(visible: string[]) {
+export function useDashboardGridMotion(visible: string[], ready: boolean) {
   const orderKey = JSON.stringify(visible);
   const gridRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -291,7 +291,7 @@ export function useDashboardGridMotion(visible: string[]) {
     });
     observer.observe(grid);
     return () => observer.disconnect();
-  });
+  }, [ready]);
 
   return { gridRef, stageRef, captureLayout, rendered, exiting };
 }

@@ -58,8 +58,28 @@ export function EChart({
   }, []);
 
   useEffect(() => {
-    chartRef.current?.setOption(option, { notMerge: true });
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () =>
+      chartRef.current?.setOption(
+        {
+          ...option,
+          animation: !motion.matches,
+          animationDuration: 850,
+          animationDurationUpdate: 0,
+          animationEasing: "cubicInOut",
+        },
+        { notMerge: true },
+      );
+    apply();
+    motion.addEventListener("change", apply);
+    return () => motion.removeEventListener("change", apply);
   }, [option]);
 
-  return <div ref={hostRef} className={className} style={{ height, width: "100%" }} />;
+  return (
+    <div
+      ref={hostRef}
+      className={className}
+      style={{ height, width: "100%", overflow: "hidden", minWidth: 0 }}
+    />
+  );
 }

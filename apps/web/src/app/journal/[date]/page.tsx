@@ -1,4 +1,5 @@
 "use client";
+import { AiNotice } from "@/components/ai-notice";
 
 import Link from "next/link";
 import { Suspense, use, useEffect, useRef, useState } from "react";
@@ -56,6 +57,7 @@ function JournalDay({ date }: { date: string }) {
   const noteEditor = useRef<RichEditorHandle>(null);
   const { save, status: saving, flush } = useAutosave(`/api/journal/${date}`, "PUT");
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const noteValue = note ?? data?.note ?? "";
   const scheduleSave = (value: string) => {
     setNote(value);
@@ -64,12 +66,13 @@ function JournalDay({ date }: { date: string }) {
 
   const generateRecap = async () => {
     setAiBusy(true);
+    setAiError(null);
     try {
       const result = await postJson<{ recap: string }>(`/api/ai/recap`, { date });
       const merged = noteValue ? `${noteValue}\n\n---\n\n${result.recap}` : result.recap;
       scheduleSave(merged);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "AI recap failed");
+      setAiError(error instanceof Error ? error.message : "AI recap failed");
     } finally {
       setAiBusy(false);
     }
@@ -214,6 +217,15 @@ function JournalDay({ date }: { date: string }) {
             </div>
           </CardHeader>
           <CardContent>
+            {aiError && (
+              <div className="mb-4">
+                <AiNotice
+                  error={aiError}
+                  onRetry={() => void generateRecap()}
+                  onDismiss={() => setAiError(null)}
+                />
+              </div>
+            )}
             {data ? (
               <RichEditor editorRef={noteEditor} value={noteValue} onChange={scheduleSave} />
             ) : error ? (

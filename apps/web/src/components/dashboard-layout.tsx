@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
+  AutoScrollActivator,
   KeyboardSensor,
   MeasuringStrategy,
   PointerSensor,
@@ -23,13 +24,16 @@ import { DashboardCustomizer } from "@/components/dashboard-customizer";
 import { DashboardSavedLayouts } from "@/components/dashboard-saved-layouts";
 import {
   DASHBOARD_LAYOUT_KEY,
+  balancedDashboardSpans,
   moveDashboardCard,
   normalizeArrangement,
   readDashboardPreferences,
   visibleCardIds,
   type DashboardArrangement,
+  type DashboardCardSize,
   type DashboardPreferences,
 } from "@/lib/dashboard-layout";
+import { isInsideDashboardReorderZone } from "@/lib/dashboard-drag";
 import {
   DASHBOARD_MOVE_EASING,
   DashboardDragPreview,
@@ -43,7 +47,8 @@ import {
 interface Widget {
   id: string;
   label: string;
-  size: "small" | "medium" | "wide" | "full";
+  size: DashboardCardSize;
+  layoutGroup: "summary" | "visuals" | "detail" | "secondary" | "full";
   content: ReactNode;
 }
 const collisionDetection: CollisionDetection = (args) =>
@@ -74,6 +79,7 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
   const [draft, setDraft] = useState<DashboardArrangement | null>(null);
   const draftRef = useRef<DashboardArrangement | null>(null);
   const [snapshot, setSnapshot] = useState<DashboardCardSnapshot | null>(null);
+  const snapshotRef = useRef<DashboardCardSnapshot | null>(null);
   const dragInput = useDashboardDragInput();
   const lastReorder = useRef<{ x: number; y: number } | null>(null);
   const reducedMotion = useReducedDashboardMotion();
@@ -142,9 +148,31 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
 
   const current = normalizeArrangement(draft ?? state.current, ids);
   const visible = visibleCardIds(current);
-  const { gridRef, stageRef, captureLayout, rendered, exiting } = useDashboardGridMotion(visible);
+  const { gridRef, stageRef, captureLayout, rendered, exiting } = useDashboardGridMotion(
+    visible,
+    ready,
+  );
   const hiddenCount = ids.length - visible.length;
   const byId = new Map(widgets.map((widget) => [widget.id, widget]));
+  const visibleWidgets = visible.map((id) => byId.get(id)!);
+  const compactSpans = balancedDashboardSpans(visibleWidgets, 2, {
+    small: 1,
+    medium: 2,
+    wide: 2,
+    full: 2,
+  });
+  const tabletSpans = balancedDashboardSpans(visibleWidgets, 6, {
+    small: 2,
+    medium: 2,
+    wide: 4,
+    full: 6,
+  });
+  const desktopSpans = balancedDashboardSpans(visibleWidgets, 15, {
+    small: 3,
+    medium: 5,
+    wide: 10,
+    full: 15,
+  });
   const label = (id: string | number) => byId.get(String(id))?.label ?? "Card";
 
   function move(from: string, to: string) {
@@ -167,6 +195,7 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
     const surface = card?.querySelector<HTMLElement>("[data-dashboard-surface]");
     const preview = surface ? snapshotDashboardCard(surface, activatorEvent) : null;
     dragInput.start(preview);
+    snapshotRef.current = preview;
     setSnapshot(preview);
     draftRef.current = normalizeArrangement(stateRef.current.current, ids);
     setDraft(draftRef.current);
@@ -177,10 +206,16 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
     if (!draftRef.current) return;
     dragInput.moveKeyboard(delta);
     if (!over || active.id === over.id) return;
+    const pointerOrigin = snapshotRef.current?.pointer;
+    if (pointerOrigin) {
+      const movement = dragInput.point.current;
+      const pointer = { x: pointerOrigin.x + movement.x, y: pointerOrigin.y + movement.y };
+      if (!isInsideDashboardReorderZone(pointer, over.rect)) return;
+    }
     // Reflow can move another card beneath a stationary pointer. Only an actual
     // movement may trigger the next reorder, so holding still never oscillates.
     const last = lastReorder.current;
-    if (last && Math.hypot(delta.x - last.x, delta.y - last.y) < 8) return;
+    if (last && Math.hypot(delta.x - last.x, delta.y - last.y) < 24) return;
     const next = moveDashboardCard(draftRef.current, String(active.id), String(over.id));
     if (next === draftRef.current) return;
     captureLayout();
@@ -190,6 +225,7 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
   }
   function clearDrag() {
     dragInput.stop();
+    snapshotRef.current = null;
     draftRef.current = null;
     setDraft(null);
     setActiveId(null);
@@ -314,7 +350,13 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
         key={dragSession}
         sensors={sensors}
         collisionDetection={collisionDetection}
-        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        autoScroll={{
+          activator: AutoScrollActivator.Pointer,
+          acceleration: 4,
+          interval: 12,
+          threshold: { x: 0.05, y: 0.07 },
+        }}
+        measuring={{ droppable: { strategy: MeasuringStrategy.WhileDragging } }}
         onDragStart={startDrag}
         onDragMove={previewDrag}
         onDragOver={previewDrag}
@@ -346,6 +388,11 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
                 <SortableCard
                   key={id}
                   widget={byId.get(id)!}
+                  responsiveSpans={{
+                    compact: compactSpans[id]!,
+                    tablet: tabletSpans[id]!,
+                    desktop: desktopSpans[id]!,
+                  }}
                   edit={edit}
                   exiting={exiting.has(id)}
                   first={visible.indexOf(id) === 0}
@@ -372,6 +419,7 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
 
 function SortableCard({
   widget,
+  responsiveSpans,
   edit,
   exiting,
   first,
@@ -379,6 +427,7 @@ function SortableCard({
   onMove,
 }: {
   widget: Widget;
+  responsiveSpans: { compact: number; tablet: number; desktop: number };
   edit: boolean;
   exiting: boolean;
   first: boolean;
@@ -401,6 +450,13 @@ function SortableCard({
       inert={exiting || undefined}
       aria-label={widget.label}
       className="dashboard-grid-card relative flex min-w-0 flex-col rounded-xl"
+      style={
+        {
+          "--dashboard-span-compact": responsiveSpans.compact,
+          "--dashboard-span-tablet": responsiveSpans.tablet,
+          "--dashboard-span-desktop": responsiveSpans.desktop,
+        } as CSSProperties
+      }
     >
       <div
         data-dashboard-surface

@@ -1,4 +1,6 @@
 "use client";
+import { OptionSelect } from "@/components/ui/option-select";
+
 import { useState } from "react";
 import { useApi, postJson } from "@/lib/use-api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -44,16 +46,15 @@ export function RuleChecklist({
                 className="flex items-center justify-between gap-3 border-t pt-2 text-sm"
               >
                 <span>{r.rule}</span>
-                <select
+                <OptionSelect
                   aria-label={r.rule}
                   className={`${fieldClass} !w-32 shrink-0`}
                   value={r.followed === null ? "unreviewed" : String(r.followed)}
-                  onChange={async (e) => {
+                  onValueChange={async (next) => {
                     try {
                       await postJson(url, {
                         rule: r.rule,
-                        followed:
-                          e.target.value === "unreviewed" ? null : e.target.value === "true",
+                        followed: next === "unreviewed" ? null : next === "true",
                       });
                       refresh();
                       setFailure("");
@@ -65,7 +66,7 @@ export function RuleChecklist({
                   <option value="unreviewed">Not assessed</option>
                   <option value="true">Followed</option>
                   <option value="false">Broken</option>
-                </select>
+                </OptionSelect>
               </label>
             ))}
           </>

@@ -38,6 +38,7 @@
     "next": "^15.5.0",
     "pdf-lib": "^1.17.1",
     "react": "^19.1.0",
+    "react-day-picker": "^9.14.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
     "recharts": "^3.10.1",

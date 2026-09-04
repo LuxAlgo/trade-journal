@@ -1,4 +1,5 @@
 "use client";
+import { OptionSelect } from "@/components/ui/option-select";
 
 import { Suspense, useRef, useState } from "react";
 import { ArrowLeft, FolderPlus, Plus, Search } from "lucide-react";
@@ -183,10 +184,10 @@ function Notebook() {
         <div className="notebook-list min-w-0 overflow-y-auto border-r">
           <div className="sticky top-0 z-[1] space-y-2 border-b bg-background p-2">
             <div className="flex min-w-0 items-center gap-2 xl:hidden">
-              <select
+              <OptionSelect
                 aria-label="Note folder"
                 value={folder}
-                onChange={(event) => setFolder(event.target.value)}
+                onValueChange={(next) => setFolder(next)}
                 className="h-9 min-w-0 flex-1 rounded-lg border bg-card px-2 text-sm"
               >
                 <option value="all">All notes</option>
@@ -197,7 +198,7 @@ function Notebook() {
                       {item.name}
                     </option>
                   ))}
-              </select>
+              </OptionSelect>
               <Button
                 variant="ghost"
                 size="icon"

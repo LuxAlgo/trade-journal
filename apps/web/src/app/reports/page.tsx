@@ -1,5 +1,9 @@
 "use client";
+import { OptionSelect } from "@/components/ui/option-select";
+
+import { HoverHint } from "@/components/ui/tooltip";
 import { Suspense, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   DIMENSIONS,
   type Dimension,
@@ -18,6 +22,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useApi } from "@/lib/use-api";
 import { describeFilters } from "@/lib/filter-description";
 import { fmtDuration } from "@/lib/utils";
+const TradeExplorer = dynamic(
+  () => import("@/components/trade-explorer").then((module) => module.TradeExplorer),
+  {
+    loading: () => (
+      <p role="status" className="py-6 text-sm text-muted-foreground">
+        Loading trade explorer…
+      </p>
+    ),
+  },
+);
+const PerformanceTrendsReport = dynamic(
+  () => import("@/components/performance-trends").then((module) => module.PerformanceTrendsReport),
+  {
+    loading: () => (
+      <p role="status" className="py-6 text-sm text-muted-foreground">
+        Loading performance trends…
+      </p>
+    ),
+  },
+);
 interface Group extends GroupSummary {
   row: string;
   column: string;
@@ -71,17 +95,17 @@ function DimensionSelect({
 }) {
   return (
     <Field label={label}>
-      <select
+      <OptionSelect
         className={fieldClass}
         value={value}
-        onChange={(e) => onChange(e.target.value as Dimension)}
+        onValueChange={(next) => onChange(next as Dimension)}
       >
         {Object.entries(DIMENSIONS).map(([key, label]) => (
           <option key={key} value={key}>
             {label}
           </option>
         ))}
-      </select>
+      </OptionSelect>
     </Field>
   );
 }
@@ -143,20 +167,25 @@ function Breakdown({
                   {columns.map((c) => {
                     const g = cells.get(JSON.stringify([r, c]));
                     return (
-                      <td
+                      <HoverHint
                         key={c}
-                        className="border border-background p-2 text-center tabular-nums"
-                        style={{
-                          background: g
-                            ? `color-mix(in srgb, ${g.netPnl >= 0 ? "var(--profit-fill)" : "var(--loss)"} ${8 + (Math.abs(g.netPnl) / max) * 35}%, transparent)`
-                            : undefined,
-                        }}
-                        title={
+                        content={
                           g ? `${g.trades} trades · Win rate ${percent(g.winRate)}` : "No trades"
                         }
                       >
-                        {g ? <MonetaryValue>{number(g.netPnl)}</MonetaryValue> : "-"}
-                      </td>
+                        <td
+                          key={c}
+                          className="border border-background p-2 text-center tabular-nums"
+                          style={{
+                            background: g
+                              ? `color-mix(in srgb, ${g.netPnl >= 0 ? "var(--profit-fill)" : "var(--loss)"} ${8 + (Math.abs(g.netPnl) / max) * 35}%, transparent)`
+                              : undefined,
+                          }}
+                          tabIndex={0}
+                        >
+                          {g ? <MonetaryValue>{number(g.netPnl)}</MonetaryValue> : "-"}
+                        </td>
+                      </HoverHint>
                     );
                   })}
                 </tr>
@@ -236,7 +265,9 @@ export default function ReportsPage() {
 }
 function Reports() {
   const { query, values } = useFilters();
-  const [mode, setMode] = useState<"overview" | "breakdown" | "cross" | "compare">("overview"),
+  const [mode, setMode] = useState<
+      "overview" | "trends" | "explorer" | "breakdown" | "cross" | "compare"
+    >("overview"),
     [primary, setPrimary] = useState<Dimension>("symbol"),
     [secondary, setSecondary] = useState<Dimension>("weekday");
   const { data, error, loading } = useApi<Analysis>(
@@ -254,6 +285,8 @@ function Reports() {
           {(
             [
               ["overview", "Overview"],
+              ["trends", "Performance trends"],
+              ["explorer", "Trade explorer"],
               ["breakdown", "Breakdowns"],
               ["cross", "Cross-analysis"],
               ["compare", "Compare groups"],
@@ -270,90 +303,100 @@ function Reports() {
             </Button>
           ))}
         </div>
-        {mode === "overview" ? (
-          <ReportOverview query={query} filters={values} />
-        ) : mode === "compare" ? (
-          <Comparison key={query} initial={values} />
-        ) : (
-          <>
-            <Card>
-              <CardHeader>
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                  <div className="flex flex-wrap gap-3">
-                    <DimensionSelect label="Group by" value={primary} onChange={setPrimary} />
-                    {mode === "cross" && (
-                      <DimensionSelect label="Then by" value={secondary} onChange={setSecondary} />
-                    )}
-                  </div>
-                  {data && !multi && (
-                    <ReviewExport
-                      containsFinancialData
-                      document={{
-                        title:
-                          mode === "cross"
-                            ? `${DIMENSIONS[primary]} by ${DIMENSIONS[secondary]}`
-                            : `${DIMENSIONS[primary]} performance`,
-                        subtitle: `${data.timeZone} · ${data.currencies[0] ?? "Account currency"}`,
-                        lines: [
-                          `Filters: ${describeFilters(values, data.accounts, data.playbooks)}`,
-                          `Closed trades: ${data.summary.trades} | Net P&L: ${number(data.summary.netPnl)} | Win rate: ${percent(data.summary.winRate)}`,
-                          "",
-                          ...data.groups.map(
-                            (g) =>
-                              `${labels(data, g.row)}${g.column ? ` / ${labels(data, g.column)}` : ""}: ${g.trades} trades | P&L ${number(g.netPnl)} | Win ${percent(g.winRate)} | Planned ${number(g.avgPlannedR)}R | Realized ${number(g.avgRealizedR)}R | Volume ${number(g.volume)} | Holding time ${fmtDuration(g.avgDurationMs)}`,
-                          ),
-                        ],
-                      }}
-                    />
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                {error ? (
-                  <p role="alert" className="text-destructive">
-                    {error}
-                  </p>
-                ) : loading ? (
-                  <p className="text-sm text-muted-foreground">Loading report…</p>
-                ) : multi ? (
-                  <p className="text-sm">
-                    These accounts use different currencies ({data?.currencies.join(", ")}). Select
-                    accounts with the same currency in Filters to compare monetary results.
-                  </p>
-                ) : data ? (
-                  <Summary data={data} />
-                ) : null}
-              </CardContent>
-            </Card>
-            {data && !multi && !loading && (
+        <div key={mode} className="journal-report-section space-y-4" data-report-section={mode}>
+          {mode === "overview" ? (
+            <ReportOverview query={query} filters={values} />
+          ) : mode === "trends" ? (
+            <PerformanceTrendsReport key={query} query={query} />
+          ) : mode === "explorer" ? (
+            <TradeExplorer key={query} query={query} />
+          ) : mode === "compare" ? (
+            <Comparison key={query} initial={values} />
+          ) : (
+            <>
               <Card>
                 <CardHeader>
-                  <CardTitle>
-                    {mode === "cross"
-                      ? `${DIMENSIONS[primary]} × ${DIMENSIONS[secondary]}`
-                      : `Performance by ${DIMENSIONS[primary].toLowerCase()}`}
-                  </CardTitle>
+                  <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div className="flex flex-wrap gap-3">
+                      <DimensionSelect label="Group by" value={primary} onChange={setPrimary} />
+                      {mode === "cross" && (
+                        <DimensionSelect
+                          label="Then by"
+                          value={secondary}
+                          onChange={setSecondary}
+                        />
+                      )}
+                    </div>
+                    {data && !multi && (
+                      <ReviewExport
+                        containsFinancialData
+                        document={{
+                          title:
+                            mode === "cross"
+                              ? `${DIMENSIONS[primary]} by ${DIMENSIONS[secondary]}`
+                              : `${DIMENSIONS[primary]} performance`,
+                          subtitle: `${data.timeZone} · ${data.currencies[0] ?? "Account currency"}`,
+                          lines: [
+                            `Filters: ${describeFilters(values, data.accounts, data.playbooks)}`,
+                            `Closed trades: ${data.summary.trades} | Net P&L: ${number(data.summary.netPnl)} | Win rate: ${percent(data.summary.winRate)}`,
+                            "",
+                            ...data.groups.map(
+                              (g) =>
+                                `${labels(data, g.row)}${g.column ? ` / ${labels(data, g.column)}` : ""}: ${g.trades} trades | P&L ${number(g.netPnl)} | Win ${percent(g.winRate)} | Planned ${number(g.avgPlannedR)}R | Realized ${number(g.avgRealizedR)}R | Volume ${number(g.volume)} | Holding time ${fmtDuration(g.avgDurationMs)}`,
+                            ),
+                          ],
+                        }}
+                      />
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <Breakdown
-                    data={data}
-                    cross={mode === "cross"}
-                    primary={primary}
-                    secondary={secondary}
-                  />
+                  {error ? (
+                    <p role="alert" className="text-destructive">
+                      {error}
+                    </p>
+                  ) : loading ? (
+                    <p className="text-sm text-muted-foreground">Loading report…</p>
+                  ) : multi ? (
+                    <p className="text-sm">
+                      These accounts use different currencies ({data?.currencies.join(", ")}).
+                      Select accounts with the same currency in Filters to compare monetary results.
+                    </p>
+                  ) : data ? (
+                    <Summary data={data} />
+                  ) : null}
                 </CardContent>
               </Card>
-            )}
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Closed trades only. Dates use the closing day; weekday and entry time use the opening
-              time in {data?.timeZone ?? "your journal timezone"}. Volume is total entry quantity. R
-              uses weighted entry and total entry quantity; missing or invalid risk inputs are
-              excluded from R averages. Derivatives require a configured multiplier for realized R.
-              Multiple tags or mistakes can place a trade in more than one group, so those group
-              totals can overlap.
-            </p>
-          </>
-        )}
+              {data && !multi && !loading && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      {mode === "cross"
+                        ? `${DIMENSIONS[primary]} × ${DIMENSIONS[secondary]}`
+                        : `Performance by ${DIMENSIONS[primary].toLowerCase()}`}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Breakdown
+                      data={data}
+                      cross={mode === "cross"}
+                      primary={primary}
+                      secondary={secondary}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Closed trades only. Dates use the closing day; weekday and entry time use the
+                opening time in {data?.timeZone ?? "your journal timezone"}. Volume is total entry
+                quantity. R uses weighted entry and total entry quantity; missing or invalid risk
+                inputs are excluded from R averages. Derivatives require a configured multiplier for
+                realized R. Multiple tags or mistakes can place a trade in more than one group, so
+                those group totals can overlap.
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

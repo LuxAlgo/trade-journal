@@ -9,6 +9,46 @@ export interface DashboardPreferences {
   layouts: Record<string, DashboardArrangement>;
 }
 
+export type DashboardCardSize = "small" | "medium" | "wide" | "full";
+
+/**
+ * Fill each responsive grid row without changing card order. Any columns left
+ * over before the next card are shared across the cards already in that row.
+ */
+export function balancedDashboardSpans(
+  cards: { id: string; size: DashboardCardSize; layoutGroup?: string }[],
+  columns: number,
+  base: Record<DashboardCardSize, number>,
+): Record<string, number> {
+  const spans: Record<string, number> = {};
+  let row: string[] = [];
+  let used = 0;
+  let group: string | undefined;
+
+  const finishRow = () => {
+    if (!row.length) return;
+    let remaining = columns - used;
+    for (let index = 0; remaining > 0; index++, remaining--)
+      spans[row[index % row.length]!] = (spans[row[index % row.length]!] ?? 0) + 1;
+    row = [];
+    used = 0;
+    group = undefined;
+  };
+
+  for (const card of cards) {
+    const span = Math.min(columns, Math.max(1, base[card.size]));
+    if (row.length && card.layoutGroup !== group) finishRow();
+    if (used + span > columns) finishRow();
+    spans[card.id] = span;
+    row.push(card.id);
+    used += span;
+    group = card.layoutGroup;
+    if (used === columns) finishRow();
+  }
+  finishRow();
+  return spans;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 

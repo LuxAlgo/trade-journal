@@ -1,4 +1,5 @@
 "use client";
+import { HoverHint } from "./ui/tooltip";
 import { useRef, useState } from "react";
 import { Paperclip, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -69,22 +70,23 @@ export function Attachments({
       <div className="grid grid-cols-2 gap-2">
         {data?.attachments.map((a) => (
           <div key={a.id} className="min-w-0 rounded-md border p-2">
-            <a
-              href={`/api/attachments/${a.id}`}
-              target="_blank"
-              rel="noreferrer"
-              className="block"
-              title={a.name}
-            >
-              {a.mime.startsWith("image/") && (
-                <img
-                  src={`/api/attachments/${a.id}`}
-                  alt={a.name}
-                  className="mb-2 h-28 w-full rounded object-contain"
-                />
-              )}
-              <span className="block truncate text-xs underline">{a.name}</span>
-            </a>
+            <HoverHint content={a.name}>
+              <a
+                href={`/api/attachments/${a.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="block"
+              >
+                {a.mime.startsWith("image/") && (
+                  <img
+                    src={`/api/attachments/${a.id}`}
+                    alt={a.name}
+                    className="mb-2 h-28 w-full rounded object-contain"
+                  />
+                )}
+                <span className="block truncate text-xs underline">{a.name}</span>
+              </a>
+            </HoverHint>
             <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
               <span>{Math.round(a.size / 1024)} KB</span>
               <Button

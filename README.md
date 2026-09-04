@@ -39,6 +39,13 @@ pnpm dev
 
 Requirements: Node 22+, pnpm. First run creates the SQLite database by itself. No migration tool, no setup wizard, no account.
 
+For smooth everyday use or UI reviews, stop the development server and run `pnpm preview`.
+This builds the app once, then serves the optimized production version at the same address,
+using the same local data. Unlike `pnpm dev`, it does not compile each page on its first
+visit or hot-reload code edits. After code changes, stop it and rerun `pnpm preview` to
+rebuild; use `pnpm start` to reuse an existing build. Switch back to `pnpm dev` when editing.
+Run only one mode at a time, since development and production share the build directory.
+
 ### Docker
 
 ```bash

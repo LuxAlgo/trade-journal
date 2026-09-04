@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import Loading from "@/app/loading";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn, fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
 
@@ -57,9 +58,11 @@ const features = tableFeatures({
   sortFns,
 });
 
+const EMPTY_TRADES: TradeRow[] = [];
+
 export default function TradesPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<Loading />}>
       <Trades />
     </Suspense>
   );
@@ -84,7 +87,13 @@ function Trades() {
         enableSorting: false,
         header: ({ table }) => (
           <Checkbox
-            checked={table.getIsAllRowsSelected()}
+            checked={
+              table.getIsAllRowsSelected()
+                ? true
+                : table.getIsSomeRowsSelected()
+                  ? "indeterminate"
+                  : false
+            }
             onCheckedChange={(value) => table.toggleAllRowsSelected(value === true)}
             aria-label="Select all matching trades"
           />
@@ -245,7 +254,7 @@ function Trades() {
   const table = useTable({
     features,
     columns,
-    data: data?.trades ?? [],
+    data: data?.trades ?? EMPTY_TRADES,
     getRowId: (row) => row.key,
     initialState: {
       sorting: [{ id: "closedAt", desc: true }],
