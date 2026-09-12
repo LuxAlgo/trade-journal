@@ -12,6 +12,7 @@ import {
   computeEdgeScore,
   computeOverview,
   dailyCumulativeFromDays,
+  dayKeyOf,
 } from "@luxalgo/journal-core";
 import { asc } from "drizzle-orm";
 import { accounts, db, playbooks } from "@/db";
@@ -35,9 +36,9 @@ export const GET = handler(async (request: Request) => {
   const { metrics, days, equity } = computeOverview(trades, { timeZone, initialBalance });
   const accountCurrencies = new Map(accountRows.map((a) => [a.id, a.currency]));
 
-  const now = new Date();
-  const calendarYear = Number(url.searchParams.get("calYear") ?? now.getUTCFullYear());
-  const calendarMonthNum = Number(url.searchParams.get("calMonth") ?? now.getUTCMonth() + 1);
+  const today = dayKeyOf(new Date().toISOString(), timeZone);
+  const calendarYear = Number(url.searchParams.get("calYear") ?? today.slice(0, 4));
+  const calendarMonthNum = Number(url.searchParams.get("calMonth") ?? today.slice(5, 7));
 
   return ok({
     timeZone,

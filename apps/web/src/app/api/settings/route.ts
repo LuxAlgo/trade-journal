@@ -4,6 +4,7 @@ import { handler, ok, requireValue } from "@/server/api";
 import {
   getMultipliers,
   getTimeZone,
+  getImportTimeZone,
   aiKeyEnvironment,
   aiModelSetting,
   getAiProvider,
@@ -12,10 +13,12 @@ import {
   setSetting,
 } from "@/server/settings";
 import { AI_PROVIDERS, AI_PROVIDER_NAMES, isAiProvider, type AiProvider } from "@/lib/ai-settings";
+import { isTimeZone } from "@/lib/timezone";
 
 export const GET = handler(() =>
   ok({
     timeZone: getTimeZone(),
+    importTimeZone: getImportTimeZone(),
     multipliers: getMultipliers(),
     ...getAiSettings(),
   }),
@@ -23,6 +26,7 @@ export const GET = handler(() =>
 
 interface SettingsBody {
   timeZone?: string;
+  importTimeZone?: string;
   multipliers?: Record<string, number>;
   /** Set to a key string to store (encrypted), or null to clear. Absent = unchanged. */
   anthropicKey?: string | null;
@@ -59,14 +63,12 @@ export const PATCH = handler(async (request: Request) => {
       `${AI_PROVIDER_NAMES[id]} uses an environment key. Update or remove it on the server.`,
     );
   }
-  if (body.timeZone !== undefined) {
-    let valid = false;
-    try {
-      new Intl.DateTimeFormat("en", { timeZone: body.timeZone }).format();
-      valid = true;
-    } catch {}
-    requireValue(valid && typeof body.timeZone === "string", "Enter a valid IANA timezone.");
-  }
+  for (const key of ["timeZone", "importTimeZone"] as const)
+    if (body[key] !== undefined)
+      requireValue(
+        isTimeZone(body[key]),
+        `Enter a valid IANA ${key === "timeZone" ? "display" : "import"} timezone.`,
+      );
   if (body.multipliers !== undefined)
     requireValue(
       body.multipliers &&
@@ -76,7 +78,12 @@ export const PATCH = handler(async (request: Request) => {
         ),
       "Contract multipliers must be positive numbers.",
     );
-  if (body.timeZone !== undefined) setSetting("timeZone", body.timeZone);
+  db.transaction(() => {
+    // A display-only change must not silently alter the legacy import default.
+    if (body.timeZone !== undefined || body.importTimeZone !== undefined)
+      setSetting("importTimeZone", body.importTimeZone ?? getImportTimeZone());
+    if (body.timeZone !== undefined) setSetting("timeZone", body.timeZone);
+  });
   if (body.multipliers !== undefined)
     db.transaction(() => {
       setSetting("multipliers", JSON.stringify(body.multipliers));

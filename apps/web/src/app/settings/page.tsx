@@ -8,12 +8,13 @@ import { Download } from "lucide-react";
 import { FilterBar } from "@/components/filter-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { TimeZonePicker } from "@/components/timezone-picker";
 import { Label } from "@/components/ui/label";
 import { postJson, useApi } from "@/lib/use-api";
 
 interface SettingsPayload {
   timeZone: string;
+  importTimeZone: string;
   multipliers: Record<string, number>;
 }
 
@@ -28,6 +29,7 @@ export default function SettingsPage() {
 function Settings() {
   const { data, refresh } = useApi<SettingsPayload>("/api/settings");
   const [timeZone, setTimeZone] = useState("");
+  const [importTimeZone, setImportTimeZone] = useState("");
   const [multipliers, setMultipliers] = useState("");
   const [saved, setSaved] = useState(false);
   const [failure, setFailure] = useState("");
@@ -35,6 +37,7 @@ function Settings() {
   useEffect(() => {
     if (data) {
       setTimeZone(data.timeZone);
+      setImportTimeZone(data.importTimeZone);
       setMultipliers(
         Object.entries(data.multipliers)
           .map(([symbol, multiplier]) => `${symbol}=${multiplier}`)
@@ -52,7 +55,11 @@ function Settings() {
       }
     }
     try {
-      await postJson("/api/settings", { timeZone, multipliers: parsedMultipliers }, "PATCH");
+      await postJson(
+        "/api/settings",
+        { timeZone, importTimeZone, multipliers: parsedMultipliers },
+        "PATCH",
+      );
       setFailure("");
     } catch (e) {
       setFailure(e instanceof Error ? e.message : "Save failed");
@@ -75,20 +82,44 @@ function Settings() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">
-                Timezone (IANA) — your trading day is bucketed in this zone
+              <Label
+                htmlFor="display-timezone"
+                className="mb-1 block text-xs text-muted-foreground"
+              >
+                Display timezone (IANA)
               </Label>
-              <Input
+              <TimeZonePicker
+                id="display-timezone"
+                label="Display timezone"
                 value={timeZone}
-                onChange={(event) => setTimeZone(event.target.value)}
-                placeholder="America/New_York"
+                onValueChange={setTimeZone}
+                disabled={!data}
               />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Trade times, calendars, journal days, and analytics use this timezone.
+              </p>
               <button
                 className="mt-1 text-xs text-muted-foreground underline"
                 onClick={() => setTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone)}
               >
                 Use this device's timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone})
               </button>
+            </div>
+            <div>
+              <Label htmlFor="import-timezone" className="mb-1 block text-xs text-muted-foreground">
+                Default import timezone (IANA)
+              </Label>
+              <TimeZonePicker
+                id="import-timezone"
+                label="Default import timezone"
+                value={importTimeZone}
+                onValueChange={setImportTimeZone}
+                disabled={!data}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Use your broker statement's timezone for timestamps without an offset. You can
+                override it for each file. Changing this setting affects future imports only.
+              </p>
             </div>
             <div>
               <Label className="mb-1 block text-xs text-muted-foreground">
@@ -110,7 +141,9 @@ function Settings() {
                 {failure}
               </p>
             )}
-            <Button onClick={save}>{saved ? "Saved ✓" : "Save"}</Button>
+            <Button onClick={save} disabled={!data}>
+              {saved ? "Saved ✓" : "Save"}
+            </Button>
           </CardContent>
         </Card>
 

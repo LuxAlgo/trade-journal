@@ -38,6 +38,7 @@ import { useAutosave } from "@/lib/use-autosave";
 import { postJson, useApi } from "@/lib/use-api";
 import { fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
 import { tradeKeyFromSegment } from "@/lib/trade-links";
+import { formatTimestamp } from "@/lib/timezone";
 
 interface TradeDetail {
   riskAmount: number | null;
@@ -87,9 +88,11 @@ export default function TradePage({ params }: { params: Promise<{ key: string }>
 }
 
 function TradeView({ tradeKey }: { tradeKey: string }) {
-  const { data, error, refresh } = useApi<{ trade: TradeDetail; executions: ExecutionRow[] }>(
-    `/api/trades/${encodeURIComponent(tradeKey)}`,
-  );
+  const { data, error, refresh } = useApi<{
+    trade: TradeDetail;
+    executions: ExecutionRow[];
+    timeZone: string;
+  }>(`/api/trades/${encodeURIComponent(tradeKey)}`);
   const [aiBusy, setAiBusy] = useState(false);
   const [critique, setCritique] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -110,7 +113,7 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
       </div>
     );
   }
-  const { trade, executions } = data;
+  const { trade, executions, timeZone } = data;
 
   const patch = async (body: Record<string, unknown>) => {
     if (Object.keys(body).length)
@@ -133,7 +136,10 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
         pnl: exit.grossPnl - (totalExitQty > 0 ? trade.fees * (exit.quantity / totalExitQty) : 0),
       }))
       .sort((a, b) => Date.parse(a.t) - Date.parse(b.t))
-      .map((event) => ({ t: event.t.slice(11, 16), cumNetPnl: (cum += event.pnl) }));
+      .map((event) => ({
+        t: formatTimestamp(event.t, timeZone).slice(11, 16),
+        cumNetPnl: (cum += event.pnl),
+      }));
   })();
 
   const askCritique = async () => {
@@ -211,6 +217,7 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
             <Card>
               <CardHeader>
                 <CardTitle>Running P&L</CardTitle>
+                <p className="text-xs text-muted-foreground">Times in {timeZone}</p>
               </CardHeader>
               <CardContent>
                 <EquityArea data={runningPnl} height={180} />
@@ -221,6 +228,7 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
           <Card>
             <CardHeader>
               <CardTitle>Executions</CardTitle>
+              <p className="text-xs text-muted-foreground">Times in {timeZone}</p>
             </CardHeader>
             <CardContent>
               <Table>
@@ -239,7 +247,7 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
                     .map((execution) => (
                       <TableRow key={execution.id}>
                         <TableCell className="text-muted-foreground">
-                          {execution.executedAt.replace("T", " ").slice(0, 19)}
+                          {formatTimestamp(execution.executedAt, timeZone)}
                         </TableCell>
                         <TableCell>
                           <span className={execution.side === "buy" ? "text-profit" : "text-loss"}>

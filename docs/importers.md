@@ -62,13 +62,59 @@ selections beyond the defaults.
 - Quoted fields, embedded commas/newlines, BOM, `;`/tab delimiters (RFC 4180 parser,
   zero dependencies)
 - `$1,234.56`, `(45.20)` negatives, European `1.234,56` decimals
-- Naive timestamps interpreted in the **user's timezone** (DST-safe two-pass
+- Naive timestamps interpreted in the **statement's timezone** (DST-safe two-pass
   conversion), explicit offsets honored as-is
 - TradeZella P&L reconciliation: when stated net P&L differs from price-implied gross
   minus commissions, the difference is folded into fees so imported history agrees with
   the trader's old numbers to the cent (skipped when a contract multiplier makes the
   price-implied gross meaningless)
-- Content-hash dedup on insert: re-importing the same file is a no-op
+- Content-hash dedup on insert: re-importing the same file with the same timezone is a no-op
+
+## Statement and display timezones
+
+In **Settings → Journal**, set **Display timezone** to the zone you want for trade
+times, analytics, calendars and journal days. Set **Default import timezone** to
+the zone used by your broker's statement. On **Import → File upload**, you can
+override the **Statement timezone** for an individual file without changing either
+saved setting. The preview shows the first five executions in your display zone;
+check these before importing. Changing the statement timezone requires a new preview.
+
+All three timezone fields use a searchable picker. Search by city or timezone,
+then select a result. The list includes the runtime's primary timezone names and
+UTC. Existing aliases remain available; if a valid full timezone name is absent
+from the main list, searching its exact name offers it as a selectable result.
+Search text is not saved until you select a valid option.
+
+For example, use `Europe/Helsinki` for a Helsinki-based MT5 statement and
+`America/Asuncion` for your journal. The synthetic
+[`mt5-timezone.html`](samples/mt5-timezone.html) has an entry at July 5, 2026, 04:00
+and an exit at 04:30 in Helsinki. These are stored as 01:00 and 01:30 UTC and appear
+as **July 4, 22:00 and 22:30** in Asunción, including in the trade list and journal.
+Timestamps with an explicit offset or `Z` retain that instant regardless of the
+statement timezone. Manual entry continues to use the device timezone.
+
+Existing installations initially use their previous timezone as the import
+default. Saving a display-only timezone change preserves that previous import
+default. Neither setting rewrites stored executions.
+
+### Correcting an earlier import
+
+Changing the import timezone does not repair existing timestamps. Re-importing
+with a different timezone creates different execution hashes and can add duplicate
+trades. Before correcting data:
+
+1. Make a full copy of the data directory with the app stopped, as described in
+   [Export and backup](../README.md#export-and-backup), and retain the original statement.
+2. Import into a separate test account with the correct statement timezone first.
+   Verify the preview, execution times and journal day against the original report.
+3. In the affected account, select and delete only the trades from the incorrect
+   import, then import the original statement with the verified timezone. Trade
+   deletion removes its executions and annotations; preserve notes, tags and linked
+   material separately before deleting. For mixed or overlapping imports, reconcile
+   which executions belong to the affected trades before deleting them.
+
+There is no automatic bulk time shift: files can use different zones, explicit
+offsets, and daylight-saving rules. A fixed hour adjustment is not reliable.
 
 ## Sample file
 

@@ -9,7 +9,7 @@ import type {
   EquityPoint,
   TradeMetrics,
 } from "@luxalgo/journal-core";
-import { relativeDrawdownCurve } from "@luxalgo/journal-core";
+import { dayKeyOf, relativeDrawdownCurve } from "@luxalgo/journal-core";
 import { CalendarPnl } from "@/components/calendar-pnl";
 import { DailyBars } from "@/components/charts/daily-bars";
 import { EdgeRadar } from "@/components/charts/edge-radar";
@@ -50,6 +50,7 @@ interface Bucket {
 }
 
 interface StatsPayload {
+  timeZone: string;
   metrics: TradeMetrics;
   initialBalance: number;
   edgeScore: EdgeScore;
@@ -491,7 +492,7 @@ function DashboardContent({
                           </span>
                           <span className="dashboard-activity-detail flex items-center">
                             <span className="text-xs text-muted-foreground">
-                              {trade.closedAt?.slice(0, 10)}
+                              {trade.closedAt && dayKeyOf(trade.closedAt, data.timeZone)}
                             </span>
                             <Pnl value={trade.netPnl} />
                           </span>

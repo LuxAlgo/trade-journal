@@ -20,7 +20,12 @@ import {
 } from "@/db";
 import { readFilters } from "@luxalgo/journal-core";
 import { queryTrades } from "@/server/trades-query";
-import { getJournalDefaults, getMultipliers, getTimeZone } from "@/server/settings";
+import {
+  getJournalDefaults,
+  getMultipliers,
+  getTimeZone,
+  getImportTimeZone,
+} from "@/server/settings";
 import { handler, ok } from "@/server/api";
 import { attachmentExportRecord, EXPORT_ATTACHMENTS_NOTE } from "@/lib/export-format";
 
@@ -92,7 +97,11 @@ export const GET = handler(async (request: Request) => {
     propReceipts: db.select().from(propReceipts).all(),
     propAudit: db.select().from(propAudit).all(),
     journalDefaults: getJournalDefaults(),
-    settings: { timeZone: getTimeZone(), multipliers: getMultipliers() },
+    settings: {
+      timeZone: getTimeZone(),
+      importTimeZone: getImportTimeZone(),
+      multipliers: getMultipliers(),
+    },
     // Metadata only: attachment binaries stay in the data directory.
     attachments: db
       .select({

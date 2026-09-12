@@ -5,6 +5,7 @@ import { bad, handler, ok, requireValue } from "@/server/api";
 import { deleteExecutionsForTrades, listExecutions } from "@/server/executions";
 import { nowIso } from "@/server/ids";
 import { getTradeByKey, rowToTrade } from "@/server/trades-query";
+import { getTimeZone } from "@/server/settings";
 
 type Params = { params: Promise<{ key: string }> };
 
@@ -15,6 +16,7 @@ export const GET = handler(async (_request: Request, { params }: Params) => {
   const trade = rowToTrade(row);
   const fills = listExecutions(row.accountId, trade.executionIds);
   return ok({
+    timeZone: getTimeZone(),
     trade: {
       ...row,
       status: trade.status,

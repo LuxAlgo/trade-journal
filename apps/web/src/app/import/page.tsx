@@ -21,6 +21,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { postJson, useApi } from "@/lib/use-api";
 import { decodeImportFile } from "@/lib/decode-import";
+import { formatTimestamp, isTimeZone } from "@/lib/timezone";
+import { dayKeyOf } from "@luxalgo/journal-core";
+import { TimeZonePicker } from "@/components/timezone-picker";
 
 interface BrokerInfo {
   id: string;
@@ -39,6 +42,7 @@ interface PreviewTotals {
 
 interface PreviewResponse {
   detected: string | null;
+  timeZone: string;
   needsMapping?: boolean;
   headers?: string[];
   totals?: PreviewTotals;
@@ -117,8 +121,18 @@ function FileImport() {
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const { data: formatData } = useApi<{ formats: { id: string; label: string }[] }>("/api/import");
+  const { data: settingsData, error: settingsError } = useApi<{
+    timeZone: string;
+    importTimeZone: string;
+  }>("/api/settings");
+  const [statementTimeZone, setStatementTimeZone] = useState<string | null>(null);
+  const timeZone = statementTimeZone ?? settingsData?.importTimeZone ?? "";
+  const validTimeZone = isTimeZone(timeZone);
+  const displayTimeZone = settingsData?.timeZone ?? "UTC";
 
   const onFile = async (file: File) => {
+    if (!validTimeZone) return;
+    setStatementTimeZone(timeZone);
     setPreview(null);
     setContent(null);
     setFileName(file.name);
@@ -135,6 +149,7 @@ function FileImport() {
           mode: "preview",
           content: text,
           fileName: file.name,
+          timeZone,
         }),
       );
     } catch (cause) {
@@ -144,8 +159,8 @@ function FileImport() {
     }
   };
 
-  const previewWithSymbol = async () => {
-    if (!content || !symbol.trim()) return;
+  const previewFile = async () => {
+    if (!content || !validTimeZone) return;
     setBusy(true);
     setError(null);
     try {
@@ -155,6 +170,7 @@ function FileImport() {
           content,
           fileName,
           symbol,
+          timeZone,
         }),
       );
     } catch (cause) {
@@ -165,12 +181,17 @@ function FileImport() {
   };
 
   const previewWithMapping = async () => {
-    if (!content) return;
+    if (!content || !validTimeZone) return;
     setBusy(true);
     setError(null);
     try {
       setPreview(
-        await postJson<PreviewResponse>("/api/import", { mode: "preview", content, mapping }),
+        await postJson<PreviewResponse>("/api/import", {
+          mode: "preview",
+          content,
+          mapping,
+          timeZone,
+        }),
       );
       setMappingApplied(true);
     } catch (cause) {
@@ -181,7 +202,7 @@ function FileImport() {
   };
 
   const commit = async () => {
-    if (!content || !accountId) return;
+    if (!content || !accountId || !preview) return;
     setBusy(true);
     try {
       const result = await postJson<{
@@ -196,6 +217,8 @@ function FileImport() {
         mapping: mappingApplied ? mapping : undefined,
         fileName,
         symbol,
+        // Commit with the exact parsing zone used by the reviewed preview.
+        timeZone: preview.timeZone,
       });
       const skippedNote =
         result.skipped && result.skipped > 0
@@ -221,6 +244,40 @@ function FileImport() {
           <CardTitle>Upload a statement or export</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div>
+            <Label
+              htmlFor="statement-timezone"
+              className="mb-1 block text-xs text-muted-foreground"
+            >
+              Statement timezone (IANA)
+            </Label>
+            <TimeZonePicker
+              id="statement-timezone"
+              label="Statement timezone"
+              value={timeZone}
+              disabled={busy || !settingsData}
+              describedBy="statement-timezone-help"
+              onValueChange={(zone) => {
+                setStatementTimeZone(zone);
+                setPreview(null);
+                setMappingApplied(false);
+              }}
+            />
+            <p id="statement-timezone-help" className="mt-1 text-xs text-muted-foreground">
+              Choose the timezone used by your broker's statement. Timestamps with an explicit
+              offset keep that offset. Your journal displays times in {displayTimeZone}.
+            </p>
+            {timeZone && !validTimeZone && (
+              <p role="alert" className="mt-1 text-xs text-loss">
+                Enter a valid IANA timezone, such as Europe/Helsinki.
+              </p>
+            )}
+            {settingsError && (
+              <p role="alert" className="mt-1 text-xs text-loss">
+                {settingsError}
+              </p>
+            )}
+          </div>
           <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center hover:border-ring">
             <FileUp className="h-6 w-6 text-muted-foreground" />
             <span className="text-sm">{fileName || "Drop or choose a CSV / HTML statement"}</span>
@@ -232,7 +289,7 @@ function FileImport() {
             <input
               type="file"
               accept=".csv,.txt,.htm,.html,.tsv"
-              disabled={busy}
+              disabled={busy || !settingsData || !validTimeZone}
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -240,6 +297,11 @@ function FileImport() {
               }}
             />
           </label>
+          {content && !preview && (
+            <Button onClick={previewFile} disabled={busy || !validTimeZone} variant="outline">
+              {busy ? "Reading…" : "Preview file"}
+            </Button>
+          )}
 
           {error && (
             <p role="alert" className="text-sm text-loss">
@@ -260,7 +322,7 @@ function FileImport() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={previewWithSymbol}
+                onClick={previewFile}
                 disabled={busy || !symbol.trim()}
               >
                 Preview
@@ -325,7 +387,8 @@ function FileImport() {
                 <span className="text-muted-foreground">· {preview.totals.symbols} symbols</span>
                 {preview.totals.from && (
                   <span className="text-muted-foreground">
-                    · {preview.totals.from.slice(0, 10)} → {preview.totals.to?.slice(0, 10)}
+                    · {dayKeyOf(preview.totals.from, displayTimeZone)} →{" "}
+                    {preview.totals.to && dayKeyOf(preview.totals.to, displayTimeZone)}
                   </span>
                 )}
                 {preview.totals.skippedRows > 0 && (
@@ -334,6 +397,30 @@ function FileImport() {
                   </span>
                 )}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Statement timezone: {preview.timeZone}. Preview times: {displayTimeZone}.
+              </p>
+              {!!preview.executions?.length && (
+                <div className="space-y-1 border-t pt-2 text-xs">
+                  {preview.executions.slice(0, 5).map((execution, index) => (
+                    <div key={index} className="flex flex-wrap gap-x-3">
+                      <span>
+                        {execution.symbol} · {execution.side.toUpperCase()}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {formatTimestamp(execution.executedAt, displayTimeZone)}
+                      </span>
+                    </div>
+                  ))}
+                  {preview.totals.executions > 5 && (
+                    <p className="text-muted-foreground">Showing the first 5 executions.</p>
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Correcting a previous import? Remove the affected trades before importing again with
+                a different timezone to avoid duplicates. Back up your data first.
+              </p>
               {preview.warnings?.map((warning, index) => (
                 <p key={index} className="text-xs text-muted-foreground">
                   ⚠ {warning}

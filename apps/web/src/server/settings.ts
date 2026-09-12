@@ -34,6 +34,9 @@ export const deleteSetting = (key: string): void => {
 /** Journal display timezone (IANA), default UTC. */
 export const getTimeZone = (): string => getSetting("timeZone") ?? "UTC";
 
+/** Preserve the legacy parsing default until a separate import zone is saved. */
+export const getImportTimeZone = (): string => getSetting("importTimeZone") ?? getTimeZone();
+
 /** Per-symbol contract multipliers for futures/options P&L. */
 export const getMultipliers = (): Record<string, number> => {
   const raw = getSetting("multipliers");

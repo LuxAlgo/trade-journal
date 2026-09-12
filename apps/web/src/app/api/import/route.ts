@@ -6,9 +6,10 @@ import {
   type GenericMapping,
   type ImportedExecution,
 } from "@luxalgo/journal-importers";
-import { bad, handler, ok } from "@/server/api";
+import { bad, handler, ok, requireValue } from "@/server/api";
 import { insertExecutions } from "@/server/executions";
-import { getTimeZone } from "@/server/settings";
+import { getImportTimeZone } from "@/server/settings";
+import { isTimeZone } from "@/lib/timezone";
 
 interface ImportBody {
   mode: "preview" | "commit";
@@ -34,7 +35,9 @@ export const POST = handler(async (request: Request) => {
     return bad("Invalid symbol");
   if (body.fileName !== undefined && typeof body.fileName !== "string")
     return bad("Invalid filename");
-  const timeZone = body.timeZone ?? getTimeZone();
+  if (body.timeZone !== undefined)
+    requireValue(isTimeZone(body.timeZone), "Enter a valid IANA statement timezone.");
+  const timeZone = body.timeZone ?? getImportTimeZone();
 
   const parsed = body.mapping
     ? parseWithMapping(body.content, body.mapping, { timeZone })
@@ -43,6 +46,7 @@ export const POST = handler(async (request: Request) => {
   if (!parsed) {
     return ok({
       detected: null,
+      timeZone,
       headers: readHeaders(body.content),
       needsMapping: true,
     });
@@ -52,6 +56,7 @@ export const POST = handler(async (request: Request) => {
     const symbols = [...new Set(parsed.executions.map((e) => e.symbol))];
     return ok({
       detected: parsed.format,
+      timeZone,
       needsMapping: false,
       executions: parsed.executions.slice(0, 50),
       totals: {

@@ -14,7 +14,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { ArrowUpDown, Check, Columns3, Download, Tag, Trash2 } from "lucide-react";
-import type { TradeMetrics } from "@luxalgo/journal-core";
+import { dayKeyOf, type TradeMetrics } from "@luxalgo/journal-core";
 import { FilterBar, useFilters } from "@/components/filter-bar";
 import { Pnl } from "@/components/pnl";
 import { MonetaryValue } from "@/components/privacy";
@@ -70,10 +70,13 @@ export default function TradesPage() {
 
 function Trades() {
   const { query } = useFilters();
-  const { data, error, refresh } = useApi<{ trades: TradeRow[]; metrics: TradeMetrics }>(
-    `/api/trades?view=list&${query}`,
-  );
+  const { data, error, refresh } = useApi<{
+    trades: TradeRow[];
+    metrics: TradeMetrics;
+    timeZone: string;
+  }>(`/api/trades?view=list&${query}`);
   const router = useRouter();
+  const timeZone = data?.timeZone ?? "UTC";
   const [tagInput, setTagInput] = useState("");
   const [showColumns, setShowColumns] = useState(false);
   const [page, setPage] = useState(0);
@@ -113,7 +116,7 @@ function Trades() {
         header: "Close date",
         cell: ({ getValue }) => (
           <span className="text-muted-foreground">
-            {(getValue<string | null>() ?? "open").slice(0, 10)}
+            {getValue<string | null>() ? dayKeyOf(getValue<string>(), timeZone) : "open"}
           </span>
         ),
       },
@@ -248,7 +251,7 @@ function Trades() {
           ),
       },
     ],
-    [],
+    [timeZone],
   );
 
   const table = useTable({
