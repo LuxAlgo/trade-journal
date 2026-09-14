@@ -27,6 +27,7 @@ beforeEach(() => {
   db.delete(settings).run();
   vi.stubEnv("ANTHROPIC_API_KEY", "");
   vi.stubEnv("OPENAI_API_KEY", "");
+  vi.stubEnv("COMPATIBLE_API_KEY", "");
   vi.stubEnv("JOURNAL_PASSWORD", "");
   vi.stubGlobal(
     "fetch",
@@ -279,5 +280,92 @@ describe("AI provider requests through the real SDK adapters", () => {
     const result = runAi("Fixture").catch((error) => error as Error);
     await vi.runAllTimersAsync();
     expect(((await result) as Error).message).toContain("AI rate limit");
+  });
+});
+
+describe("OpenAI-compatible services", () => {
+  it("keeps compatible credentials encrypted and separate across provider switches", async () => {
+    await save({
+      aiProvider: "compatible",
+      compatibleBaseURL: "https://example.com/v1/",
+      compatibleKey: "fixture-private-compatible",
+      aiModel: "vendor/model",
+    });
+    expect(getAiKey("compatible")).toBe("fixture-private-compatible");
+    expect(JSON.stringify(db.select().from(settings).all())).not.toContain(
+      "fixture-private-compatible",
+    );
+    expect(await state()).toMatchObject({
+      aiProvider: "compatible",
+      aiConnections: { compatible: { baseURL: "https://example.com/v1", model: "vendor/model" } },
+    });
+    expect(JSON.stringify(await state())).not.toContain("fixture-private-compatible");
+    const exported = await exportData(new Request("http://localhost/api/export"));
+    expect(await exported.text()).not.toContain(getSetting("compatibleKeyEnc")!);
+    await save({ aiProvider: "openai", openaiKey: "fixture-openai" });
+    expect(getAiModel("compatible")).toBe("vendor/model");
+    await save({ aiProvider: "compatible" });
+    vi.stubEnv("COMPATIBLE_API_KEY", "fixture-env");
+    expect(getAiKey("compatible")).toBe("fixture-env");
+    expect((await save({ compatibleKey: null })).status).toBe(400);
+    vi.stubEnv("COMPATIBLE_API_KEY", "");
+    await save({ compatibleKey: null });
+    expect(getAiKey("openai")).toBe("fixture-openai");
+    await expect(runAi("Fixture")).rejects.toThrow("API key");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed endpoints before persisting any part of a request", async () => {
+    for (const compatibleBaseURL of [
+      "",
+      "ftp://example.com",
+      "https://user:pass@example.com",
+      "https://example.com?key=secret",
+      "https://example.com#fragment",
+      "https://exa mple.com",
+      42,
+      null,
+    ]) {
+      expect((await save({ timeZone: "UTC", compatibleBaseURL })).status).toBe(400);
+      expect(db.select().from(settings).all()).toHaveLength(0);
+    }
+    expect((await save({ aiProvider: "compatible", compatibleKey: "fixture" })).status).toBe(400);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("sends only the compatible key to the custom Chat Completions endpoint", async () => {
+    await save({
+      aiProvider: "compatible",
+      compatibleBaseURL: "https://example.com/api/v4/",
+      compatibleKey: "fixture-compatible",
+      openaiKey: "fixture-openai",
+      aiModel: "vendor/model",
+    });
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        id: "chatcmpl_fixture",
+        object: "chat.completion",
+        created: 1,
+        model: "vendor/model",
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: "Compatible reflection" },
+            finish_reason: "stop",
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    expect(await runAi("Fixture question", 700)).toBe("Compatible reflection");
+    const [url, init] = (fetcher.mock.calls as unknown as [string, RequestInit][])[0]!;
+    expect(url).toBe("https://example.com/api/v4/chat/completions");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer fixture-compatible");
+    expect(JSON.stringify(init)).not.toContain("fixture-openai");
+    const body = JSON.parse(init.body as string);
+    expect(body.model).toBe("vendor/model");
+    expect(body.max_tokens ?? body.max_completion_tokens).toBe(700);
+    expect(JSON.stringify(body.messages)).toContain("Fixture question");
   });
 });

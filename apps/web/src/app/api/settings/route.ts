@@ -8,11 +8,18 @@ import {
   aiKeyEnvironment,
   aiModelSetting,
   getAiProvider,
+  getCompatibleBaseURL,
   getAiSettings,
   setAiKey,
   setSetting,
 } from "@/server/settings";
-import { AI_PROVIDERS, AI_PROVIDER_NAMES, isAiProvider, type AiProvider } from "@/lib/ai-settings";
+import {
+  AI_PROVIDERS,
+  AI_PROVIDER_NAMES,
+  isAiProvider,
+  isAiBaseURL,
+  type AiProvider,
+} from "@/lib/ai-settings";
 import { isTimeZone } from "@/lib/timezone";
 
 export const GET = handler(() =>
@@ -31,6 +38,8 @@ interface SettingsBody {
   /** Set to a key string to store (encrypted), or null to clear. Absent = unchanged. */
   anthropicKey?: string | null;
   openaiKey?: string | null;
+  compatibleKey?: string | null;
+  compatibleBaseURL?: string;
   aiProvider?: AiProvider;
   aiModel?: string;
 }
@@ -39,8 +48,18 @@ export const PATCH = handler(async (request: Request) => {
   const body = (await request.json()) as SettingsBody;
   requireValue(body && typeof body === "object" && !Array.isArray(body), "Enter valid settings.");
   if (body.aiProvider !== undefined)
-    requireValue(isAiProvider(body.aiProvider), "Choose Anthropic or OpenAI.");
+    requireValue(isAiProvider(body.aiProvider), "Choose a supported AI provider.");
   const provider = body.aiProvider ?? getAiProvider();
+  if (body.compatibleBaseURL !== undefined)
+    requireValue(
+      isAiBaseURL(body.compatibleBaseURL),
+      "Enter an HTTP(S) base URL without credentials, query, or fragment.",
+    );
+  if (body.aiProvider === "compatible")
+    requireValue(
+      isAiBaseURL(body.compatibleBaseURL ?? getCompatibleBaseURL()),
+      "Enter a valid compatible base URL.",
+    );
   if (body.aiModel !== undefined)
     requireValue(
       typeof body.aiModel === "string" &&
@@ -95,6 +114,8 @@ export const PATCH = handler(async (request: Request) => {
       const key = body[`${id}Key`];
       if (key !== undefined) setAiKey(id, key);
     }
+    if (body.compatibleBaseURL !== undefined)
+      setSetting("compatibleBaseURL", body.compatibleBaseURL.trim().replace(/\/+$/, ""));
     if (body.aiProvider !== undefined) setSetting("aiProvider", body.aiProvider);
     if (body.aiModel !== undefined) setSetting(aiModelSetting(provider), body.aiModel.trim());
   });

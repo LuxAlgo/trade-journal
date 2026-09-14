@@ -19,6 +19,7 @@ export function AiSettings() {
   const { data, error, loading, refresh } = useApi<AiSettingsPayload>("/api/settings");
   const [provider, setProvider] = useState<AiProvider>("anthropic");
   const [model, setModel] = useState(AI_DEFAULT_MODELS.anthropic);
+  const [baseURL, setBaseURL] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState("");
@@ -28,6 +29,7 @@ export function AiSettings() {
     if (!data) return;
     setProvider(data.aiProvider);
     setModel(data.aiModel);
+    setBaseURL(data.aiConnections.compatible.baseURL ?? "");
   }, [data]);
 
   const connection = data?.aiConnections[provider];
@@ -49,6 +51,7 @@ export function AiSettings() {
           : {
               aiProvider: provider,
               aiModel: model.trim(),
+              ...(provider === "compatible" ? { compatibleBaseURL: baseURL.trim() } : {}),
               ...(apiKey.trim() ? { [`${provider}Key`]: apiKey.trim() } : {}),
             },
         "PATCH",
@@ -70,8 +73,9 @@ export function AiSettings() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Use Anthropic or OpenAI for recaps, trade critiques, and “ask your journal”. Your key is
-          encrypted at rest. AI requests go from your server directly to the provider you select.
+          Use Anthropic, OpenAI, or an OpenAI-compatible service for recaps, trade critiques, and
+          “ask your journal”. Your key is encrypted at rest. AI requests go from your server
+          directly to the provider you select.
         </p>
         {data && (
           <p className="text-xs text-muted-foreground">
@@ -89,6 +93,7 @@ export function AiSettings() {
               onValueChange={(value) => {
                 const next = value as AiProvider;
                 setProvider(next);
+                setBaseURL(data?.aiConnections.compatible.baseURL ?? "");
                 setModel(data?.aiConnections[next].model ?? AI_DEFAULT_MODELS[next]);
                 setApiKey("");
                 setSaved("");
@@ -120,6 +125,27 @@ export function AiSettings() {
           Use a text model available to your provider account. Each provider keeps its own model and
           key.
         </p>
+        {provider === "compatible" && (
+          <div className="space-y-1">
+            <Label htmlFor="ai-base-url">Base URL</Label>
+            <Input
+              id="ai-base-url"
+              value={baseURL}
+              disabled={disabled}
+              placeholder="https://your-provider.example/v1"
+              onChange={(event) => {
+                setBaseURL(event.target.value);
+                setSaved("");
+              }}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <p className="text-xs text-muted-foreground">
+              Enter the API base address, without /chat/completions. Your key and journal context
+              will be sent to this service using Chat Completions.
+            </p>
+          </div>
+        )}
         <div className="space-y-1">
           <Label htmlFor="ai-api-key">{name} API key</Label>
           <Input
@@ -143,7 +169,7 @@ export function AiSettings() {
           />
           <p className="text-xs text-muted-foreground">
             {environment
-              ? `Using ${provider === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY"} from the server environment. Change or remove that variable on the server to update the key.`
+              ? `Using ${provider === "compatible" ? "COMPATIBLE_API_KEY" : provider === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY"} from the server environment. Change or remove that variable on the server to update the key.`
               : connection?.configured
                 ? "Leave blank to keep your saved key, or enter a replacement."
                 : "Add your API key, then save to use this provider."}
@@ -161,7 +187,12 @@ export function AiSettings() {
         )}
         <div className="flex flex-wrap gap-2">
           <Button
-            disabled={disabled || !model.trim() || (!apiKey.trim() && !connection?.configured)}
+            disabled={
+              disabled ||
+              !model.trim() ||
+              (provider === "compatible" && !baseURL.trim()) ||
+              (!apiKey.trim() && !connection?.configured)
+            }
             onClick={() => save()}
           >
             {busy ? "Saving…" : "Save AI settings"}

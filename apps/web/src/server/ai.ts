@@ -1,8 +1,8 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { APICallError, RetryError, generateText } from "ai";
-import { getAiKey, getAiModel, getAiProvider } from "./settings";
-import { AI_PROVIDER_NAMES } from "@/lib/ai-settings";
+import { getAiKey, getAiModel, getAiProvider, getCompatibleBaseURL } from "./settings";
+import { AI_PROVIDER_NAMES, isAiBaseURL } from "@/lib/ai-settings";
 
 /**
  * BYO-key AI. Self-hosted means YOUR key on YOUR box: the key is read from the
@@ -27,12 +27,17 @@ export const runAi = async (prompt: string, maxOutputTokens = 1200): Promise<str
     );
   }
   const model = getAiModel(provider);
+  const baseURL = provider === "compatible" ? getCompatibleBaseURL() : undefined;
+  if (provider === "compatible" && (!isAiBaseURL(baseURL) || !model))
+    throw new Error("AI is not configured — add a base URL and model ID in Settings.");
   try {
     const result = await generateText({
       model:
         provider === "openai"
           ? createOpenAI({ apiKey }).responses(model)
-          : createAnthropic({ apiKey })(model),
+          : provider === "compatible"
+            ? createOpenAI({ apiKey, baseURL }).chat(model)
+            : createAnthropic({ apiKey })(model),
       ...(provider === "openai" ? { providerOptions: { openai: { store: false } } } : {}),
       system: SYSTEM,
       prompt,
