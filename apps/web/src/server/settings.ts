@@ -49,8 +49,12 @@ export const getMultipliers = (): Record<string, number> => {
 };
 
 export const aiKeyEnvironment = (provider: AiProvider): string | null =>
-  (provider === "openai" ? process.env.OPENAI_API_KEY : process.env.ANTHROPIC_API_KEY)?.trim() ||
-  null;
+  (provider === "compatible"
+    ? process.env.COMPATIBLE_API_KEY
+    : provider === "openai"
+      ? process.env.OPENAI_API_KEY
+      : process.env.ANTHROPIC_API_KEY
+  )?.trim() || null;
 
 /** Provider keys are stored separately and encrypted like broker credentials. */
 export const getAiKey = (provider: AiProvider): string | null => {
@@ -82,7 +86,10 @@ export const getAiProvider = (): AiProvider => {
 };
 
 export const aiModelSetting = (provider: AiProvider): string =>
-  provider === "anthropic" ? "aiModel" : "openaiModel";
+  provider === "anthropic" ? "aiModel" : `${provider}Model`;
+
+export const getCompatibleBaseURL = (): string =>
+  getSetting("compatibleBaseURL")?.trim().replace(/\/+$/, "") ?? "";
 
 export const getAiModel = (provider: AiProvider): string =>
   getSetting(aiModelSetting(provider))?.trim() || AI_DEFAULT_MODELS[provider];
@@ -97,8 +104,13 @@ export const getAiSettings = (): AiSettingsPayload => {
         ? ("saved" as const)
         : null,
     model: getAiModel(provider),
+    ...(provider === "compatible" ? { baseURL: getCompatibleBaseURL() } : {}),
   });
-  const aiConnections = { anthropic: connection("anthropic"), openai: connection("openai") };
+  const aiConnections = {
+    anthropic: connection("anthropic"),
+    openai: connection("openai"),
+    compatible: connection("compatible"),
+  };
   return {
     aiProvider,
     aiConfigured: aiConnections[aiProvider].configured,

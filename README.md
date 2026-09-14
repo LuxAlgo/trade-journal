@@ -89,6 +89,22 @@ Choose **Add trade** on the dashboard to open the entry form. Select or create a
 
 The optional **Notes** field supports Markdown and saves with the trade. When adding fills to an existing position, new notes append to its existing notes. After saving, the dashboard refreshes automatically. The same form is available under **Import → Manual**.
 
+## Custom AI services
+
+In **Settings → AI**, choose **OpenAI Compatible** and enter:
+
+- **Base URL**: your service's API base address (for example `https://open.bigmodel.cn/api/paas/v4` for Zhipu's standard API). Do not append `/chat/completions`.
+- **Model ID**: the exact text model ID available to your account.
+- **API key**: your service's key, stored encrypted separately from OpenAI and Anthropic keys.
+
+This provider uses Chat Completions; native OpenAI continues to use Responses and native Anthropic is unchanged. HTTP endpoints are also accepted for local model servers. Requests send your key and journal context directly to the address you configure. Compatibility depends on the service's Chat Completions implementation.
+
+Optionally pass `COMPATIBLE_API_KEY` in the Docker service environment; it overrides the saved compatible key. Configure the URL and model in Settings. Saving does not contact the provider or validate account access.
+
+Zhipu's Coding Plan is not a general-purpose API subscription for self-hosted applications; use a standard API account for this integration, subject to the provider's current terms.
+
+After pulling this change, rebuild your Docker image with `docker compose up -d --build`.
+
 ## Why this exists
 
 A trade journal is two things: a **verified record** of what you actually did, and the **reflection** that turns that record into better trading. Trade Journal keeps the record on your own machine and opens the reflection layer to any tool you choose, including your own AI.
