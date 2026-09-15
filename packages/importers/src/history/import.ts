@@ -433,6 +433,16 @@ export function importTradeHistory(rawText: string, options: ImportOptions = {})
         break; // registry order is the tiebreak; detections are signature-exact
       }
     }
+    // The generic alias mapper IS claimable when the headers fully resolve
+    // into a complete trade shape (see its detect(): NT8 Strategy Analyzer
+    // exports, broker round-trip reports). Only fall through to the
+    // designated-fallback path when no adapter claimed the table.
+    if (match === null) {
+      const genericDetection = genericCsvAdapter.detect(table);
+      if (genericDetection !== null) {
+        match = { adapter: genericCsvAdapter, signals: genericDetection.signals };
+      }
+    }
     if (match === null) {
       issues.push(
         issue(
