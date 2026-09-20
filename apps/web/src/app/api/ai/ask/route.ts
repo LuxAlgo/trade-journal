@@ -11,8 +11,8 @@ import {
 } from "@luxalgo/journal-core";
 import { bad, handler, ok } from "@/server/api";
 import { runAi } from "@/server/ai";
-import { getTimeZone } from "@/server/settings";
 import { queryTrades } from "@/server/trades-query";
+import { accountContext, readAiRequest } from "@/server/ai-scope";
 
 const bucketBlock = (title: string, buckets: BucketStats[]): string =>
   buckets.length === 0
@@ -29,15 +29,16 @@ const bucketBlock = (title: string, buckets: BucketStats[]): string =>
  * own aggregates. The same questions an agent can ask through the MCP tools.
  */
 export const POST = handler(async (request: Request) => {
-  const { question } = (await request.json()) as { question?: string };
-  if (!question) return bad("question is required");
-  const timeZone = getTimeZone();
+  const scope = readAiRequest(await request.json(), "question");
+  const { question, timeZone, filters } = scope;
 
-  const { trades } = queryTrades();
-  if (trades.length === 0) return bad("The journal is empty — import trades first");
+  const { trades } = queryTrades(filters);
+  if (trades.length === 0) return bad("No trades match the selected accounts and filters");
   const m = computeMetrics(trades, { timeZone });
 
   const context = [
+    scope.context,
+    accountContext(trades, scope),
     `Overall: net ${m.netPnl.toFixed(2)} over ${m.closedTrades} closed trades (${m.tradingDays} days), win rate ${m.winRate === null ? "n/a" : `${(m.winRate * 100).toFixed(1)}%`}, profit factor ${m.profitFactorIsInfinite ? "inf" : (m.profitFactor?.toFixed(2) ?? "n/a")}, avg win ${m.avgWin?.toFixed(2) ?? "n/a"}, avg loss ${m.avgLoss?.toFixed(2) ?? "n/a"}, max drawdown ${m.maxDrawdown.toFixed(2)}, day win rate ${m.dayWinRate === null ? "n/a" : `${(m.dayWinRate * 100).toFixed(0)}%`}, fees ${m.fees.toFixed(2)}.`,
     bucketBlock("By symbol (top 12)", bySymbol(trades).slice(0, 12)),
     bucketBlock("By weekday", byWeekday(trades, timeZone)),
@@ -58,5 +59,5 @@ ${context}
 Question: ${question}`,
   );
 
-  return ok({ answer });
+  return ok({ answer, scope: scope.scope });
 });
