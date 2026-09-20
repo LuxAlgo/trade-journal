@@ -13,7 +13,12 @@ const scratch = mkdtempSync(join(tmpdir(), "journal-history-test-"));
 process.env.JOURNAL_DATA_DIR = scratch;
 // Exercise upgrading an existing database, not only creation of a fresh schema.
 const oldDb = new Database(join(scratch, "journal.db"));
-oldDb.exec(BOOTSTRAP_SQL.replace("  import_metadata_json TEXT,\n", ""));
+oldDb.exec(
+  BOOTSTRAP_SQL.split("CREATE TABLE IF NOT EXISTS import_sources")[0]!.replace(
+    "  import_metadata_json TEXT,\n",
+    "",
+  ),
+);
 oldDb.exec(
   "INSERT INTO accounts(id,name,kind,created_at) VALUES ('legacy','Existing','manual','2026-01-01')",
 );
@@ -51,6 +56,13 @@ afterAll(() => {
 
 describe("history imports use the existing preview, commit and rebuild pipeline", () => {
   it("adds storage metadata to an existing database without removing its account", () => {
+    for (const table of ["import_sources", "import_source_aliases", "import_batches"]) {
+      expect(
+        db.$client
+          .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?")
+          .get(table),
+      ).toBeTruthy();
+    }
     expect(db.select().from(accounts).where(eq(accounts.id, "legacy")).get()?.name).toBe(
       "Existing",
     );

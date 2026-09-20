@@ -11,7 +11,7 @@ export type AssetClass = "equity" | "option" | "futures" | "forex" | "crypto" | 
 
 export type ExecutionSource = "sync" | "import" | "manual";
 
-/** Source facts carried only by the additive history importer. */
+/** Source identity and reported facts carried by statement importers. */
 export interface ImportMetadata {
   id: string;
   /** Keeps separately reported positions from being netted together. */
@@ -25,6 +25,15 @@ export interface ImportMetadata {
    * matching does not read this flag; it is a source fact carried through.
    */
   preserveFee?: boolean;
+  /** Persisted provenance for reviewed NinjaTrader executions. Labels are not identity. */
+  ninjaTrader?: {
+    sourceId: string;
+    instrument: string;
+    executionId?: string;
+    effect?: "entry" | "exit" | "reverse";
+    sequence?: number;
+    reportedFee?: number;
+  };
 }
 
 export interface Execution {

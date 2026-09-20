@@ -26,7 +26,15 @@ const wallClockAsUtc = (utcMs: number, timeZone: string): number => {
   const parts = offsetFormatter(timeZone).formatToParts(new Date(utcMs));
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? "0");
   const hour = get("hour") === 24 ? 0 : get("hour");
-  return Date.UTC(get("year"), get("month") - 1, get("day"), hour, get("minute"), get("second"));
+  return Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    hour,
+    get("minute"),
+    get("second"),
+    new Date(utcMs).getUTCMilliseconds(),
+  );
 };
 
 /** Interpret a naive wall-clock timestamp (UTC-ms encoding) as a moment in `timeZone`. */
@@ -60,6 +68,7 @@ interface NaiveParts {
   hour: number;
   minute: number;
   second: number;
+  millisecond: number;
 }
 
 const toNaive = (value: string): NaiveParts | null => {
@@ -75,12 +84,13 @@ const toNaive = (value: string): NaiveParts | null => {
       hour: Number(flexMatch[4]),
       minute: Number(flexMatch[5]),
       second: Number(flexMatch[6]),
+      millisecond: 0,
     };
   }
 
   // ISO-ish: 2026-01-05 14:30:00 / 2026.01.05 14:30 / 2026-01-05T14:30:00
   let match = text.match(
-    /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?/,
+    /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[T ,]+(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?$/,
   );
   if (match) {
     return {
@@ -90,16 +100,18 @@ const toNaive = (value: string): NaiveParts | null => {
       hour: Number(match[4] ?? 0),
       minute: Number(match[5] ?? 0),
       second: Number(match[6] ?? 0),
+      millisecond: Number((match[7] ?? "").padEnd(3, "0")),
     };
   }
 
   // US: 01/05/2026 2:30:00 PM  (also 1/5/26)
   match = text.match(
-    /^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})(?:[, ]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?)?/,
+    /^(\d{1,2})[-/](\d{1,2})[-/](\d{2}|\d{4})(?:[, ]+(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?\s*(AM|PM|am|pm)?)?$/,
   );
   if (match) {
     let hour = Number(match[4] ?? 0);
-    const meridiem = match[7]?.toUpperCase();
+    const meridiem = match[8]?.toUpperCase();
+    if (meridiem && (hour < 1 || hour > 12)) return null;
     if (meridiem === "PM" && hour < 12) hour += 12;
     if (meridiem === "AM" && hour === 12) hour = 0;
     const year = Number(match[3]!.length === 2 ? `20${match[3]}` : match[3]);
@@ -110,18 +122,20 @@ const toNaive = (value: string): NaiveParts | null => {
       hour,
       minute: Number(match[5] ?? 0),
       second: Number(match[6] ?? 0),
+      millisecond: Number((match[7] ?? "").padEnd(3, "0")),
     };
   }
 
   // "Jan 5, 2026 14:30"
   match = text.match(
-    /^([A-Za-z]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})(?:[, ]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm)?)?/,
+    /^([A-Za-z]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})(?:[, ]+(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?\s*(AM|PM|am|pm)?)?$/,
   );
   if (match) {
     const month = MONTHS[match[1]!.slice(0, 3).toLowerCase()];
     if (!month) return null;
     let hour = Number(match[4] ?? 0);
-    const meridiem = match[7]?.toUpperCase();
+    const meridiem = match[8]?.toUpperCase();
+    if (meridiem && (hour < 1 || hour > 12)) return null;
     if (meridiem === "PM" && hour < 12) hour += 12;
     if (meridiem === "AM" && hour === 12) hour = 0;
     return {
@@ -131,6 +145,7 @@ const toNaive = (value: string): NaiveParts | null => {
       hour,
       minute: Number(match[5] ?? 0),
       second: Number(match[6] ?? 0),
+      millisecond: Number((match[7] ?? "").padEnd(3, "0")),
     };
   }
 
@@ -164,8 +179,19 @@ export const parseTimestamp = (value: string | undefined, timeZone = "UTC"): str
     naive.hour,
     naive.minute,
     naive.second,
+    naive.millisecond,
   );
   if (Number.isNaN(naiveUtcMs)) return null;
+  const normalized = new Date(naiveUtcMs);
+  if (
+    normalized.getUTCFullYear() !== naive.year ||
+    normalized.getUTCMonth() !== naive.month - 1 ||
+    normalized.getUTCDate() !== naive.day ||
+    normalized.getUTCHours() !== naive.hour ||
+    normalized.getUTCMinutes() !== naive.minute ||
+    normalized.getUTCSeconds() !== naive.second
+  )
+    return null;
   const utcMs = timeZone === "UTC" ? naiveUtcMs : naiveToUtc(naiveUtcMs, timeZone);
   return new Date(utcMs).toISOString();
 };

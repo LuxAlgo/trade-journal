@@ -176,4 +176,22 @@ CREATE TABLE IF NOT EXISTS prop_audit (
  after_json TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS prop_audit_entity ON prop_audit(entity_type, entity_id);
+
+CREATE TABLE IF NOT EXISTS import_sources (
+ id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+ format TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS import_source_aliases (
+ id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+ format TEXT NOT NULL, alias_key TEXT NOT NULL,
+ source_id TEXT NOT NULL REFERENCES import_sources(id) ON DELETE CASCADE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS import_source_alias_unique ON import_source_aliases(account_id, format, alias_key);
+CREATE TABLE IF NOT EXISTS import_batches (
+ id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+ format TEXT NOT NULL, fingerprint TEXT NOT NULL, raw_hash TEXT NOT NULL, time_zone TEXT NOT NULL,
+ source_ids_json TEXT NOT NULL, from_time TEXT NOT NULL, to_time TEXT NOT NULL,
+ snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS import_batch_unique ON import_batches(account_id, format, fingerprint);
 `;

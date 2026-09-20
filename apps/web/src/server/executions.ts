@@ -100,6 +100,10 @@ export const insertExecutions = (
     "Account not found.",
   );
   const { usable, skipped, skippedReasons } = partitionExecutions(rows, source);
+  requireValue(
+    !usable.some((row) => row.ninjaTrader || row.importMetadata?.group?.startsWith("ninjatrader")),
+    "NinjaTrader fills require the reviewed import endpoint.",
+  );
   let inserted = 0;
   let duplicates = 0;
   const createdAt = nowIso();
@@ -107,6 +111,29 @@ export const insertExecutions = (
   const note = manualNotes?.trim() ? manualNotes : undefined;
 
   db.transaction((tx) => {
+    if (source === "import") {
+      const existingHashes = new Set(
+        tx
+          .select({ hash: executions.contentHash })
+          .from(executions)
+          .where(and(eq(executions.accountId, accountId), eq(executions.source, "import")))
+          .all()
+          .map((row) => row.hash),
+      );
+      for (const row of usable) {
+        if (existingHashes.has(executionHash(row))) continue;
+        const candidates = [row.legacyExecutedAt, row.executedAt.replace(/\.\d{3}Z$/, ".000Z")];
+        requireValue(
+          !candidates.some(
+            (executedAt) =>
+              executedAt &&
+              executedAt !== row.executedAt &&
+              existingHashes.has(executionHash({ ...row, executedAt })),
+          ),
+          "Matching imported fills have timestamps from an older parser or indistinguishable whole-second executions. Import the complete corrected history into a new journal account and compare it before retiring the old account; nothing was saved.",
+        );
+      }
+    }
     const noteExecutionIds = new Set<string>();
     for (const row of usable) {
       const id = newId();

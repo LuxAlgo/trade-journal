@@ -10,6 +10,8 @@ import { bad, handler, ok, requireValue } from "@/server/api";
 import { insertExecutions } from "@/server/executions";
 import { getImportTimeZone } from "@/server/settings";
 import { isTimeZone } from "@/lib/timezone";
+import type { ImportReviewOptions } from "@/lib/import-review";
+import { previewNinjaTraderImport, commitNinjaTraderImport } from "@/server/ninjatrader-import";
 
 interface ImportBody {
   mode: "preview" | "commit";
@@ -20,6 +22,7 @@ interface ImportBody {
   timeZone?: string;
   fileName?: string;
   symbol?: string;
+  review?: ImportReviewOptions;
 }
 
 /**
@@ -75,17 +78,20 @@ export const POST = handler(async (request: Request) => {
       warnings: parsed.warnings,
       errors: parsed.errors,
       needsSymbol: parsed.needsSymbol,
+      reconciliation:
+        parsed.format === "ninjatrader" && body.accountId
+          ? previewNinjaTraderImport(body.accountId, parsed, body.content, timeZone, body.review)
+          : undefined,
     });
   }
 
   if (!body.accountId) return bad("accountId is required to commit");
   if (parsed.errors?.length) return bad(parsed.errors.join(" "));
   if (parsed.executions.length === 0) return bad("No executions to import");
-  const result = insertExecutions(
-    body.accountId,
-    parsed.executions as ImportedExecution[],
-    "import",
-  );
+  const result =
+    parsed.format === "ninjatrader"
+      ? commitNinjaTraderImport(body.accountId, parsed, body.content, timeZone, body.review)
+      : insertExecutions(body.accountId, parsed.executions as ImportedExecution[], "import");
   // Invalid rows are skipped with a warning rather than failing the whole file.
   const warnings = [
     ...(parsed.warnings ?? []),
