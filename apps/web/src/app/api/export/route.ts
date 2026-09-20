@@ -17,6 +17,9 @@ import {
   propEntries,
   propReceipts,
   propAudit,
+  importSources,
+  importSourceAliases,
+  importBatches,
 } from "@/db";
 import { readFilters } from "@luxalgo/journal-core";
 import { queryTrades } from "@/server/trades-query";
@@ -82,6 +85,9 @@ export const GET = handler(async (request: Request) => {
       .all()
       .map(({ credentialsEnc: _omitted, ...safe }) => safe),
     executions: db.select().from(executions).all(),
+    importSources: db.select().from(importSources).all(),
+    importSourceAliases: db.select().from(importSourceAliases).all(),
+    importBatches: db.select().from(importBatches).all(),
     trades: db.select().from(trades).all(),
     journalDays: db.select().from(journalDays).all(),
     notes: db.select().from(notes).all(),

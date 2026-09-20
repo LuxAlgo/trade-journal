@@ -35,22 +35,7 @@ export const tradingview = makeFillsFormat({
   normalizeSymbol: (symbol) => symbol.split(":").pop()!.trim().toUpperCase(),
 });
 
-/** NinjaTrader executions grid export. */
-export const ninjatrader = makeFillsFormat({
-  id: "ninjatrader",
-  label: "NinjaTrader (executions export)",
-  required: [["instrument"], ["action"], ["price"]],
-  columns: {
-    symbol: ["instrument"],
-    side: ["action"],
-    quantity: ["quantity", "qty"],
-    price: ["price"],
-    fees: [["commission"]],
-    timestamp: ["time"],
-  },
-  // "ES 03-26" → "ES"
-  normalizeSymbol: (symbol) => symbol.split(" ")[0]!.trim().toUpperCase(),
-});
+export { ninjatrader } from "./ninjatrader";
 
 /**
  * Tradovate orders export. Real files (cross-checked against TradeNote's

@@ -9,6 +9,54 @@ import {
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 
+export const importSources = sqliteTable("import_sources", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id")
+    .notNull()
+    .references(() => accounts.id, { onDelete: "cascade" }),
+  format: text("format").notNull(),
+  name: text("name").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+export const importSourceAliases = sqliteTable(
+  "import_source_aliases",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    format: text("format").notNull(),
+    aliasKey: text("alias_key").notNull(),
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => importSources.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("import_source_alias_unique").on(table.accountId, table.format, table.aliasKey),
+  ],
+);
+export const importBatches = sqliteTable(
+  "import_batches",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    format: text("format").notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    rawHash: text("raw_hash").notNull(),
+    timeZone: text("time_zone").notNull(),
+    sourceIdsJson: text("source_ids_json").notNull(),
+    fromTime: text("from_time").notNull(),
+    toTime: text("to_time").notNull(),
+    snapshotJson: text("snapshot_json").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("import_batch_unique").on(table.accountId, table.format, table.fingerprint),
+  ],
+);
+
 /** One journal account = one broker/platform's trades (TradeZella's model, kept). */
 export const accounts = sqliteTable("accounts", {
   id: text("id").primaryKey(),

@@ -23,6 +23,8 @@ import { postJson, useApi } from "@/lib/use-api";
 import { decodeImportFile } from "@/lib/decode-import";
 import { formatTimestamp, isTimeZone } from "@/lib/timezone";
 import { dayKeyOf } from "@luxalgo/journal-core";
+import { ImportReconciliation } from "@/components/import-reconciliation";
+import type { ImportReview, ImportReviewOptions } from "@/lib/import-review";
 import { TimeZonePicker } from "@/components/timezone-picker";
 
 interface BrokerInfo {
@@ -41,6 +43,7 @@ interface PreviewTotals {
 }
 
 interface PreviewResponse {
+  reconciliation?: ImportReview;
   detected: string | null;
   timeZone: string;
   needsMapping?: boolean;
@@ -112,6 +115,20 @@ function ImportView() {
 function FileImport() {
   const router = useRouter();
   const [accountId, setAccountId] = useState("");
+  const [reviewOptions, setReviewOptions] = useState<ImportReviewOptions>({});
+  const changeReview = (options: ImportReviewOptions) => {
+    setReviewOptions(options);
+    setPreview((current) =>
+      current
+        ? {
+            ...current,
+            reconciliation: current.reconciliation
+              ? { ...current.reconciliation, token: null }
+              : undefined,
+          }
+        : null,
+    );
+  };
   const [content, setContent] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
   const [symbol, setSymbol] = useState("");
@@ -136,6 +153,7 @@ function FileImport() {
     setPreview(null);
     setContent(null);
     setFileName(file.name);
+    setReviewOptions({});
     setSymbol("");
     setMapping({});
     setMappingApplied(false);
@@ -148,6 +166,8 @@ function FileImport() {
         await postJson<PreviewResponse>("/api/import", {
           mode: "preview",
           content: text,
+          accountId: accountId || undefined,
+          review: {},
           fileName: file.name,
           timeZone,
         }),
@@ -168,6 +188,8 @@ function FileImport() {
         await postJson<PreviewResponse>("/api/import", {
           mode: "preview",
           content,
+          accountId: accountId || undefined,
+          review: reviewOptions,
           fileName,
           symbol,
           timeZone,
@@ -208,10 +230,12 @@ function FileImport() {
       const result = await postJson<{
         inserted: number;
         duplicates: number;
+        corrected?: number;
         skipped?: number;
         warnings?: string[];
       }>("/api/import", {
         mode: "commit",
+        review: { ...reviewOptions, previewToken: preview.reconciliation?.token ?? undefined },
         content,
         accountId,
         mapping: mappingApplied ? mapping : undefined,
@@ -225,9 +249,9 @@ function FileImport() {
           ? ` ${result.skipped} invalid rows were skipped: ${(result.warnings ?? []).at(-1) ?? ""}`
           : "";
       alert(
-        `Imported ${result.inserted} executions (${result.duplicates} duplicates skipped).${skippedNote}`,
+        `Imported ${result.inserted} executions (${result.duplicates} duplicates skipped, ${result.corrected ?? 0} fee corrections).${skippedNote}`,
       );
-      router.push("/");
+      router.push(`/?accounts=${encodeURIComponent(accountId)}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Import failed");
     } finally {
@@ -418,8 +442,9 @@ function FileImport() {
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                Correcting a previous import? Remove the affected trades before importing again with
-                a different timezone to avoid duplicates. Back up your data first.
+                {preview.detected === "ninjatrader"
+                  ? "Recovering an older NinjaTrader import or correcting its timezone? Import the complete history into a new journal account, then compare totals. Keep the original account and its reviews until you have verified the recovery."
+                  : "Correcting a previous import? Remove the affected trades before importing again with a different timezone to avoid duplicates. Back up your data first."}
               </p>
               {preview.warnings?.map((warning, index) => (
                 <p key={index} className="text-xs text-muted-foreground">
@@ -432,11 +457,36 @@ function FileImport() {
                     {message}
                   </p>
                 ))}
-              <AccountPicker value={accountId} onChange={setAccountId} kind="import" />
+              <fieldset disabled={busy}>
+                <AccountPicker
+                  value={accountId}
+                  onChange={(id) => {
+                    setAccountId(id);
+                    setReviewOptions({});
+                    setPreview((current) =>
+                      current ? { ...current, reconciliation: undefined } : null,
+                    );
+                  }}
+                  kind="import"
+                />
+              </fieldset>
+              {preview.detected === "ninjatrader" && accountId && (
+                <ImportReconciliation
+                  review={preview.reconciliation}
+                  options={reviewOptions}
+                  onChange={changeReview}
+                  onReview={previewFile}
+                  busy={busy}
+                />
+              )}
               <Button
                 onClick={commit}
                 disabled={
-                  !accountId || busy || !!preview.errors?.length || !preview.totals.executions
+                  !accountId ||
+                  busy ||
+                  !!preview.errors?.length ||
+                  !preview.totals.executions ||
+                  (preview.detected === "ninjatrader" && !preview.reconciliation?.token)
                 }
               >
                 {busy ? "Importing…" : "Import"}
@@ -464,13 +514,13 @@ function BrokerConnect() {
     setBusy(true);
     setError(null);
     try {
-      await postJson("/api/accounts", {
+      const created = await postJson<{ id: string }>("/api/accounts", {
         name: name || broker.displayName,
         kind: "sync",
         broker: broker.id,
         credentials,
       });
-      router.push("/");
+      router.push(`/?accounts=${encodeURIComponent(created.id)}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connection failed");
     } finally {

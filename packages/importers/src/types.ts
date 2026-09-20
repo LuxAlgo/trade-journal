@@ -8,8 +8,21 @@ export interface ImportedExecution {
   price: number;
   fee: number;
   executedAt: string;
+  /** Previous parser timestamp, only for detecting an unsafe reimport after a parsing fix. */
+  legacyExecutedAt?: string;
   assetClass?: AssetClass;
   importMetadata?: ImportMetadata;
+  /** Untrusted export labels are resolved to saved source IDs by the import review. */
+  ninjaTrader?: {
+    sourceKey: string;
+    account: string;
+    connection: string;
+    instrument: string;
+    executionId?: string;
+    effect?: "entry" | "exit" | "reverse";
+    sequence?: number;
+    reportedFee?: number;
+  };
 }
 
 /**

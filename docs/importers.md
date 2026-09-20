@@ -30,7 +30,7 @@ Two validation tiers:
 | Interactive Brokers (activity CSV) | fills                        | `Trades,Header` section rows          | ☐             | ☐         |
 | Interactive Brokers (Flex Query)   | fills                        | `ClientAccountID`/`Date/Time` headers | ✅¹           | ☐         |
 | ThinkorSwim / Schwab (statement)   | fills                        | `Account Trade History` section       | ✅¹           | ☐         |
-| NinjaTrader                        | fills                        | `Instrument`/`Action` headers         | ✅¹           | ☐         |
+| NinjaTrader                        | fills                        | `Instrument`/`Action` headers         | ✅¹           | ✅ (#10)  |
 | Tradovate                          | fills (Filled only)          | `Contract`/`B/S`/`Fill Time` headers  | ✅¹           | ☐         |
 | TopstepX                           | fills (Filled only)          | `ContractName`/`ExecutePrice` headers | ✅¹           | ☐         |
 | Webull (orders, both variants)     | fills (Filled only)          | `Status`/`Filled` headers             | ✅ (docs)     | ☐         |
@@ -69,6 +69,90 @@ selections beyond the defaults.
   the trader's old numbers to the cent (skipped when a contract multiplier makes the
   price-implied gross meaningless)
 - Content-hash dedup on insert: re-importing the same file with the same timezone is a no-op
+
+## NinjaTrader execution exports
+
+Each source account gets a saved identity inside the selected journal account.
+Copy-traded positions and full contracts stay separate, even when their fills are
+identical or their displayed symbols share a root such as `ES`. Account/connection
+labels become aliases for that identity. If a later export renames or omits them,
+map it to its existing source in the preview; choose **Create a separate source
+account** only for a different account. Saved aliases cannot be reassigned.
+
+When available, include the **ID** column from NinjaTrader's
+[Executions grid](https://ninjatrader.com/support/helpGuides/nt8/executions_tab.htm).
+It identifies an execution; **Order ID** can be shared by several partial fills.
+`Execution ID` is also recognized. Native IDs are scoped to the saved source.
+Re-exporting an execution adds no fill. Changed commissions are shown as corrections
+and require explicit approval. Changed price, quantity, direction, instrument,
+timestamp, or ordering facts stop the import for separate reconciliation.
+
+Without execution IDs, the importer preserves the count of identical fills.
+Re-importing the same file, or changing its row order, adds no fills. A changed
+overlapping export requires confirmation that it contains **all executions for
+each source contract between its first and last timestamp**. It must retain every
+previously imported fill in that interval; the importer never silently deletes
+missing fills. Do not confirm completeness for a partial selection. An exact
+repeated export and a new set of indistinguishable fills cannot be told apart
+without more source information. Keep execution-ID columns consistent across
+exports or recover the complete history in a new journal account.
+
+CSV display order is not treated as execution chronology. Timestamp ties require
+an unambiguous order from Entry/Exit facts or a reliable numeric `Sequence` /
+`Execution Sequence` column. Execution IDs are not assumed to be sequential.
+Ambiguous fills and exits with missing opening history stop the import. Invalid
+rows and malformed commission values also stop it, rather than rebuilding
+positions from an incomplete file. A blank commission uses configured default
+fees (or zero); an explicit zero stays zero.
+
+Configure a positive contract multiplier for each exact imported futures symbol
+in **Settings → Journal**, then review again. For the anonymized
+[issue #10](https://github.com/LuxAlgo/trade-journal/issues/10) fixture, `MNQZ6=2`
+produces five closed trades, 26 executions, and $5,265 before fees. Setting only
+`MNQ=2` does not apply to `MNQZ6`; the new import is blocked until its multiplier
+is configured. The sample supplies no commissions, so default fees can change
+net P&L. This fixture validates the full row counts and arithmetic; it does not
+prove the completeness or execution sequence of every possible broker export.
+
+The review shows new fills, duplicates, proposed fee corrections, source mappings,
+contract multipliers, and the destination account's resulting closed-trade P&L
+and open/closed trade counts. Saving recomputes this plan in one transaction. If
+the file, review choices, account, journal, or relevant settings changed since
+preview, review it again. A failure rolls back fills, corrections, mappings and
+import history together. Source mappings and import history are included in the
+full JSON data export. Keep the statement timezone consistent with prior imports;
+a changed timezone requires recovery into a new journal account.
+
+### Previously imported NinjaTrader files
+
+The old importer could discard real executions and source-account identity.
+Re-importing with new identities on top of those surviving fills would double-count
+them. Matching legacy fills therefore block the new import before any writes.
+Import the complete original export into a **new journal account**, compare totals,
+and select that account when reviewing the recovered trades. The old account and
+its annotations remain unchanged. Do not include both old and recovered accounts
+in aggregate reports. There is no automatic transfer of annotations from an old
+merged position to its separate source-account positions.
+
+The regression fixture is the reporter's anonymized CSV in
+`packages/importers/tests/fixtures/ninjatrader-copy-trades.csv`; the expected result
+treats its identical rows as separate executions, as stated by the reporter.
+
+## Timestamp parsing upgrades
+
+IBKR activity timestamps such as `2026-01-05, 09:30:00` retain the time after the
+comma. Offset-free ISO, US and named-month timestamps retain up to three fractional
+second digits; unsupported precision, trailing garbage and invalid calendar/time
+values are rejected instead of silently losing part of the value. Explicit UTC
+offsets remain authoritative.
+
+Earlier imports may have stored IBKR timestamps at local midnight or dropped
+fractional seconds. Reimports that match those earlier representations are blocked
+before any writes: recover the complete corrected history in a new account and
+compare totals and reviews. The same guard conservatively stops indistinguishable
+whole-second fills; it does not guess whether they are legacy rows or genuine new
+executions. Manual entry and broker sync are not subject to this file-import guard.
+Existing timestamps are not automatically rewritten.
 
 ## Statement and display timezones
 

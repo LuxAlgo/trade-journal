@@ -53,6 +53,9 @@ export const ibkr: ImportFormat = {
       const quantitySigned = parseMoney(row[col("quantity")]);
       const price = parseMoney(row[col("tprice")] ?? row[col("price")]);
       const executedAt = parseTimestamp(row[col("datetime")], options.timeZone);
+      // Older ISO-ish parsing stopped at the comma and stored local midnight.
+      const legacyDate = row[col("datetime")]?.match(/^(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}),/);
+      const legacyExecutedAt = legacyDate ? parseTimestamp(legacyDate[1], options.timeZone) : null;
       const fee = Math.abs(parseMoney(row[col("commfee")] ?? row[col("commission")]) || 0);
       const assetClass = ASSET_MAP[headerKey(row[col("assetcategory")] ?? "")];
 
@@ -73,6 +76,7 @@ export const ibkr: ImportFormat = {
         price,
         fee: Number.isFinite(fee) ? fee : 0,
         executedAt,
+        ...(legacyExecutedAt && legacyExecutedAt !== executedAt ? { legacyExecutedAt } : {}),
         assetClass,
       });
     }
