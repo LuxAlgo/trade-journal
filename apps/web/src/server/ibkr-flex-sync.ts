@@ -271,17 +271,26 @@ const reconcileClosingTrades = (
 };
 
 const deduplicateNormalizedTrades = (rows: ImportedExecution[]): ImportedExecution[] => {
-  const seen = new Set<string>();
+  const seenBrokerIds = new Set<string>();
+  const seenFallbacks = new Set<string>();
   return rows.filter((row) => {
-    const key = [
+    const broker = row.importMetadata?.broker;
+    const brokerId = broker?.transactionId ?? broker?.tradeId ?? broker?.executionId;
+    if (brokerId) {
+      const key = `${broker?.accountId ?? ""}|${brokerId}`;
+      if (seenBrokerIds.has(key)) return false;
+      seenBrokerIds.add(key);
+      return true;
+    }
+    const fallback = [
       row.symbol,
       row.side,
       row.quantity.toPrecision(12),
       row.price.toPrecision(12),
       row.executedAt,
     ].join("|");
-    if (seen.has(key)) return false;
-    seen.add(key);
+    if (seenFallbacks.has(fallback)) return false;
+    seenFallbacks.add(fallback);
     return true;
   });
 };

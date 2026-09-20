@@ -107,4 +107,62 @@ describe("one odd broker record does not fail the whole sync", () => {
       broker: { tradeId: "t1", strategyGroupId: "ibkr-order:U1:order-1" },
     });
   });
+
+  it("deduplicates one IBKR transaction across XML import and live sync", () => {
+    const flex: ImportedExecution = {
+      ...good,
+      importMetadata: {
+        id: "ibkr-trade:U1:transaction-1",
+        group: "ibkr-account:U1",
+        order: 0,
+        preserveFee: true,
+        broker: {
+          provider: "ibkr-flex",
+          kind: "trade",
+          accountId: "U1",
+          transactionId: "transaction-1",
+        },
+      },
+    };
+
+    expect(insertExecutions("broker", [flex], "import")).toMatchObject({
+      inserted: 1,
+      duplicates: 0,
+    });
+    expect(insertExecutions("broker", [flex], "sync")).toMatchObject({
+      inserted: 0,
+      duplicates: 1,
+    });
+    expect(db.select().from(executions).all()).toHaveLength(1);
+  });
+
+  it("migrates a legacy sync hash when XML later supplies the broker ID", () => {
+    expect(insertExecutions("broker", [good], "sync")).toMatchObject({ inserted: 1 });
+    const uploaded: ImportedExecution = {
+      ...good,
+      importMetadata: {
+        id: "ibkr-trade:U1:transaction-1",
+        group: "ibkr-account:U1",
+        order: 0,
+        preserveFee: true,
+        broker: {
+          provider: "ibkr-flex",
+          kind: "trade",
+          accountId: "U1",
+          transactionId: "transaction-1",
+        },
+      },
+    };
+
+    expect(insertExecutions("broker", [uploaded], "import")).toMatchObject({
+      inserted: 0,
+      duplicates: 1,
+    });
+    const saved = db.select().from(executions).all();
+    expect(saved).toHaveLength(1);
+    expect(JSON.parse(saved[0]!.importMetadataJson!)).toMatchObject({
+      id: "ibkr-trade:U1:transaction-1",
+      broker: { transactionId: "transaction-1" },
+    });
+  });
 });

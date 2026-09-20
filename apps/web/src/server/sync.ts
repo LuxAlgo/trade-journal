@@ -7,6 +7,7 @@ import { decryptJson, encryptJson } from "./crypto";
 import { nowIso } from "./ids";
 import { insertExecutions, normalizeStoredOptionExecutions, type InsertResult } from "./executions";
 import { parseIbkrFlexSync, type IbkrFlexSyncResult } from "./ibkr-flex-sync";
+import { getImportTimeZone } from "./settings";
 
 /** All broker connectivity goes through @luxalgo/broker-sdk, never direct API code. */
 export { listBrokers };
@@ -59,7 +60,10 @@ export const syncAccount = async (accountId: string): Promise<SyncOutcome> => {
 
   const ibkr =
     account.broker === "ibkr-flex" && ibkrStatementXml
-      ? parseIbkrFlexSync(ibkrStatementXml, new Date(snapshot.fetchedAt))
+      ? parseIbkrFlexSync(ibkrStatementXml, {
+          now: new Date(snapshot.fetchedAt),
+          timeZone: getImportTimeZone(),
+        })
       : undefined;
   const warnings = [...(ibkr?.warnings ?? [])];
   if (account.broker === "ibkr-flex" && !ibkrStatementXml) {
