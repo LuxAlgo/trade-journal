@@ -36,6 +36,7 @@ export const tradingview = makeFillsFormat({
 });
 
 export { ninjatrader } from "./ninjatrader";
+export { ibkrFlex } from "./ibkr-flex";
 
 /**
  * Tradovate orders export. Real files (cross-checked against TradeNote's
@@ -78,26 +79,6 @@ export const topstepx = makeFillsFormat({
     timestamp: ["filledat"],
   },
   rowFilter: (row) => !("status" in row) || /filled/i.test(row["status"] ?? ""),
-});
-
-/**
- * Interactive Brokers Flex Query export (distinct from the activity statement):
- * ClientAccountID, Symbol, Date/Time ("YYYYMMDD;HHmmss"), Buy/Sell, Quantity,
- * Price, Commission (negative), AssetClass, Code. Cross-checked against
- * TradeNote's community parser.
- */
-export const ibkrFlex = makeFillsFormat({
-  id: "ibkr-flex",
-  label: "Interactive Brokers (Flex Query)",
-  required: [["clientaccountid"], ["datetime"], ["buysell"]],
-  columns: {
-    symbol: ["symbol"],
-    side: ["buysell"],
-    quantity: ["quantity"],
-    price: ["price", "tradeprice"],
-    fees: [["commission", "ibcommission"]],
-    timestamp: ["datetime"],
-  },
 });
 
 /**

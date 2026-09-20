@@ -170,6 +170,31 @@ describe("round trips: a trade is one position cycle, flat to flat", () => {
     expect(trips[0]!.contractMultiplier).toBe(50);
   });
 
+  it("an option contract uses a 100 multiplier so premium P&L is in dollars", () => {
+    const trips = buildRoundTrips([
+      fill("AAPL 17JAN25 150 C", "buy", 1, 2.5, "2026-01-05T14:30:00Z", { assetClass: "option" }),
+      fill("AAPL 17JAN25 150 C", "sell", 1, 3.5, "2026-01-05T15:30:00Z", { assetClass: "option" }),
+    ]);
+    expect(trips).toHaveLength(1);
+    expect(trips[0]!.grossPnl).toBe(100);
+    expect(trips[0]!.contractMultiplier).toBe(100);
+    expect(trips[0]!.avgEntry).toBe(2.5);
+  });
+
+  it("stock and option fills on the same underlying never net together", () => {
+    const trips = buildRoundTrips([
+      fill("AAPL", "buy", 100, 185, "2026-01-05T14:30:00Z", { assetClass: "equity" }),
+      fill("AAPL 17JAN25 150 C", "buy", 1, 2.5, "2026-01-05T14:31:00Z", { assetClass: "option" }),
+      fill("AAPL", "sell", 100, 186, "2026-01-05T15:30:00Z", { assetClass: "equity" }),
+      fill("AAPL 17JAN25 150 C", "sell", 1, 2, "2026-01-05T15:31:00Z", { assetClass: "option" }),
+    ]);
+    expect(trips).toHaveLength(2);
+    const stock = trips.find((trade) => trade.symbol === "AAPL")!;
+    const option = trips.find((trade) => trade.symbol === "AAPL 17JAN25 150 C")!;
+    expect(stock.grossPnl).toBe(100);
+    expect(option.grossPnl).toBe(-50);
+  });
+
   it("a symbol without a configured multiplier leaves the trade's contract multiplier unset", () => {
     const trips = buildRoundTrips(
       [

@@ -1,3 +1,4 @@
+import { resolveContractMultiplier } from "./options";
 import type {
   Execution,
   ExitAttribution,
@@ -174,9 +175,9 @@ export const buildRoundTrips = (
     group.sort(compareExecutions);
     const { accountId, symbol } = group[0]!;
     const importGroup = group[0]!.importMetadata?.group;
-    const contractMultiplier = options.multipliers?.[symbol];
-    const multiplier = contractMultiplier ?? 1;
     const assetClass = group.find((e) => e.assetClass)?.assetClass;
+    const contractMultiplier = resolveContractMultiplier(symbol, assetClass, options.multipliers);
+    const multiplier = contractMultiplier ?? 1;
 
     let cycle: OpenCycle | null = null;
 

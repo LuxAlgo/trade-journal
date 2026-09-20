@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./options";
 export * from "./round-trips";
 export * from "./metrics";
 export * from "./equity";

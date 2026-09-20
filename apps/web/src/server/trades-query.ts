@@ -1,5 +1,10 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { matchesFilters, type AnalysisFilters, type AnnotatedTrade } from "@luxalgo/journal-core";
+import {
+  matchesFilters,
+  resolveContractMultiplier,
+  type AnalysisFilters,
+  type AnnotatedTrade,
+} from "@luxalgo/journal-core";
 import { getTimeZone, getMultipliers, getJournalDefaults } from "./settings";
 import { db, trades } from "@/db";
 
@@ -19,10 +24,14 @@ const parseJsonArray = (value: string | null): string[] => {
 
 const context = () => ({ multipliers: getMultipliers(), defaults: getJournalDefaults() });
 export const rowToTrade = (row: TradeRow, config = context()): AnnotatedTrade => {
-  const multiplier = config.multipliers[row.symbol];
+  const multiplier = resolveContractMultiplier(
+    row.symbol,
+    (row.assetClass ?? undefined) as AnnotatedTrade["assetClass"],
+    config.multipliers,
+  );
   const defaults = config.defaults;
   const missingMultiplier =
-    multiplier == null && ["futures", "option", "forex", "cfd"].includes(row.assetClass ?? "");
+    multiplier == null && ["futures", "forex", "cfd"].includes(row.assetClass ?? "");
   const notional = missingMultiplier
     ? 0
     : Math.abs(row.avgEntry * row.quantity * (multiplier ?? 1));

@@ -2,13 +2,15 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import type { ImportedExecution } from "@luxalgo/journal-importers";
 
 const originalDir = process.env.JOURNAL_DATA_DIR;
 const scratch = mkdtempSync(join(tmpdir(), "journal-storage-test-"));
 process.env.JOURNAL_DATA_DIR = scratch;
 const { db, accounts, executions, trades } = await import("../src/db");
-const { insertExecutions } = await import("../src/server/executions");
+const { insertExecutions, normalizeStoredOptionExecutions } =
+  await import("../src/server/executions");
 const { rebuildAccount } = await import("../src/server/rebuild");
 const { POST } = await import("../src/app/api/executions/route");
 const { GET: getTrade } = await import("../src/app/api/trades/[key]/route");
@@ -88,6 +90,58 @@ describe("execution storage preserves a coherent journal", () => {
     expect(insertExecutions("test", rows, "manual")).toMatchObject({ inserted: 0, duplicates: 2 });
     expect(db.select().from(executions).all()).toHaveLength(2);
     expect(db.select().from(trades).all()[0]?.netPnl).toBe(20);
+  });
+
+  it("merges legacy OCC and canonical option fills from repeated broker syncs", () => {
+    const common = {
+      side: "buy" as const,
+      quantity: 1,
+      price: 0.62,
+      fee: 1.55,
+      executedAt: "2026-04-10T14:30:00Z",
+    };
+    insertExecutions(
+      "test",
+      [
+        { ...common, symbol: "SPXW  260410C06865000" },
+        { ...common, symbol: "SPXW 10APR26 6865 C", assetClass: "option" },
+      ],
+      "sync",
+    );
+    expect(db.select().from(executions).all()).toHaveLength(2);
+    expect(db.select().from(trades).all()).toHaveLength(2);
+    const legacyTrade = db
+      .select()
+      .from(trades)
+      .all()
+      .find((trade) => trade.symbol.includes("260410C"))!;
+    db.update(trades)
+      .set({ notes: "Keep the pre-migration review", tagsJson: '["spread"]' })
+      .where(eq(trades.key, legacyTrade.key))
+      .run();
+
+    expect(normalizeStoredOptionExecutions("test")).toEqual({
+      normalized: 0,
+      duplicatesRemoved: 1,
+    });
+    expect(db.select().from(executions).all()).toEqual([
+      expect.objectContaining({
+        symbol: "SPXW 10APR26 6865 C",
+        assetClass: "option",
+      }),
+    ]);
+    expect(db.select().from(trades).all()).toEqual([
+      expect.objectContaining({
+        symbol: "SPXW 10APR26 6865 C",
+        assetClass: "option",
+        notes: "Keep the pre-migration review",
+        tagsJson: '["spread"]',
+      }),
+    ]);
+    expect(normalizeStoredOptionExecutions("test")).toEqual({
+      normalized: 0,
+      duplicatesRemoved: 0,
+    });
   });
 
   it("saves Markdown notes with manual trades and preserves them through a rebuild and retry", async () => {

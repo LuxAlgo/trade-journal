@@ -244,12 +244,11 @@ function FileImport() {
         // Commit with the exact parsing zone used by the reviewed preview.
         timeZone: preview.timeZone,
       });
-      const skippedNote =
-        result.skipped && result.skipped > 0
-          ? ` ${result.skipped} invalid rows were skipped: ${(result.warnings ?? []).at(-1) ?? ""}`
-          : "";
+      const warningNote = result.warnings?.length
+        ? `\n\nWarnings:\n${result.warnings.join("\n")}`
+        : "";
       alert(
-        `Imported ${result.inserted} executions (${result.duplicates} duplicates skipped, ${result.corrected ?? 0} fee corrections).${skippedNote}`,
+        `Imported ${result.inserted} executions (${result.duplicates} duplicates skipped, ${result.skipped ?? 0} invalid rows skipped, ${result.corrected ?? 0} fee corrections).${warningNote}`,
       );
       router.push(`/?accounts=${encodeURIComponent(accountId)}`);
     } catch (cause) {
@@ -304,7 +303,9 @@ function FileImport() {
           </div>
           <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center hover:border-ring">
             <FileUp className="h-6 w-6 text-muted-foreground" />
-            <span className="text-sm">{fileName || "Drop or choose a CSV / HTML statement"}</span>
+            <span className="text-sm">
+              {fileName || "Drop or choose a CSV / XML / HTML statement"}
+            </span>
             <span className="text-xs text-muted-foreground">
               Auto-detected:{" "}
               {formatData?.formats.map((format) => format.label.split(" (")[0]).join(", ")} —
@@ -312,7 +313,7 @@ function FileImport() {
             </span>
             <input
               type="file"
-              accept=".csv,.txt,.htm,.html,.tsv"
+              accept=".csv,.xml,.txt,.htm,.html,.tsv"
               disabled={busy || !settingsData || !validTimeZone}
               className="hidden"
               onChange={(event) => {

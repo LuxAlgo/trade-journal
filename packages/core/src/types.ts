@@ -11,6 +11,32 @@ export type AssetClass = "equity" | "option" | "futures" | "forex" | "crypto" | 
 
 export type ExecutionSource = "sync" | "import" | "manual";
 
+/** Broker-specific source facts retained without changing normalized fill math. */
+export interface BrokerExecutionMetadata {
+  provider: "ibkr-flex";
+  kind: "trade" | "option-lifecycle";
+  accountId?: string;
+  tradeId?: string;
+  transactionId?: string;
+  executionId?: string;
+  orderId?: string;
+  brokerageOrderId?: string;
+  orderReference?: string;
+  relatedTradeId?: string;
+  relatedTransactionId?: string;
+  conid?: string;
+  openCloseIndicator?: string;
+  notes?: string;
+  transactionType?: string;
+  /** Shared combo/order identity, or a conservative structural fallback. */
+  strategyGroupId?: string;
+  /** Broker-reported facts retained for audit; not substituted into P&L blindly. */
+  realizedPnl?: number;
+  proceeds?: number;
+  basis?: number;
+  settlementPriceSource?: "trade-price" | "proceeds" | "realized-pnl-basis";
+}
+
 /** Source identity and reported facts carried by statement importers. */
 export interface ImportMetadata {
   id: string;
@@ -25,6 +51,7 @@ export interface ImportMetadata {
    * matching does not read this flag; it is a source fact carried through.
    */
   preserveFee?: boolean;
+  broker?: BrokerExecutionMetadata;
   /** Persisted provenance for reviewed NinjaTrader executions. Labels are not identity. */
   ninjaTrader?: {
     sourceId: string;

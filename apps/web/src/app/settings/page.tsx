@@ -133,8 +133,9 @@ function Settings() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Saving multipliers recalculates existing trade P&L from fills and preserves
-              annotations.
+              Equity and index options default to 100 shares per contract. List a symbol here to
+              override that, or to set futures point values. Saving recalculates existing trade P&L
+              from fills and preserves annotations.
             </p>
             {failure && (
               <p role="alert" className="text-xs text-destructive">

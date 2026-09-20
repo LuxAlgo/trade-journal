@@ -12,6 +12,7 @@ import { getImportTimeZone } from "@/server/settings";
 import { isTimeZone } from "@/lib/timezone";
 import type { ImportReviewOptions } from "@/lib/import-review";
 import { previewNinjaTraderImport, commitNinjaTraderImport } from "@/server/ninjatrader-import";
+import { isIbkrFlexXml, parseIbkrFlexXmlImport } from "@/server/ibkr-flex-sync";
 
 interface ImportBody {
   mode: "preview" | "commit";
@@ -44,7 +45,9 @@ export const POST = handler(async (request: Request) => {
 
   const parsed = body.mapping
     ? parseWithMapping(body.content, body.mapping, { timeZone })
-    : parseAuto(body.content, { timeZone, fileName: body.fileName, symbol: body.symbol });
+    : isIbkrFlexXml(body.content)
+      ? parseIbkrFlexXmlImport(body.content, timeZone)
+      : parseAuto(body.content, { timeZone, fileName: body.fileName, symbol: body.symbol });
 
   if (!parsed) {
     return ok({
@@ -105,4 +108,11 @@ export const POST = handler(async (request: Request) => {
 });
 
 /** The import page lists what auto-detection understands. */
-export const GET = handler(() => ok({ formats: FORMATS.map(({ id, label }) => ({ id, label })) }));
+export const GET = handler(() =>
+  ok({
+    formats: [
+      { id: "ibkr-flex-xml", label: "Interactive Brokers (Flex Query XML)" },
+      ...FORMATS.map(({ id, label }) => ({ id, label })),
+    ],
+  }),
+);

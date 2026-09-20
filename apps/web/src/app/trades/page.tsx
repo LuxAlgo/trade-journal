@@ -32,6 +32,7 @@ interface TradeRow {
   key: string;
   accountId: string;
   symbol: string;
+  contractMultiplier: number | null;
   direction: "long" | "short";
   status: string;
   openedAt: string;
@@ -180,8 +181,10 @@ function Trades() {
       },
       {
         id: "roi",
-        accessorFn: (row) =>
-          row.avgEntry * row.quantity > 0 ? row.netPnl / (row.avgEntry * row.quantity) : 0,
+        accessorFn: (row) => {
+          const entryNotional = row.avgEntry * row.quantity * (row.contractMultiplier ?? 1);
+          return entryNotional > 0 ? row.netPnl / entryNotional : 0;
+        },
         header: "Net ROI",
         cell: ({ getValue }) => <span className="tnum">{fmtPercent(getValue<number>(), 2)}</span>,
       },

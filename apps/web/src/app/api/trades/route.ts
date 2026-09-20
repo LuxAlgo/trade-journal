@@ -18,6 +18,7 @@ export const GET = handler(async (request: Request) => {
       const { notes, exitsJson, executionIdsJson, tagsJson, mistakesJson, ...summary } = row;
       return {
         ...(listView ? summary : row),
+        contractMultiplier: trades[index]!.contractMultiplier ?? null,
         tags: trades[index]!.annotations?.tags ?? [],
         mistakes: trades[index]!.annotations?.mistakes ?? [],
         reviewed: row.reviewedAt !== null,
