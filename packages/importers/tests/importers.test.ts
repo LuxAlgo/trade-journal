@@ -181,6 +181,45 @@ U1234567,AAPL,20260105;101500,SELL,-100,187.25,-1.00,STK,C`;
     expect(result.executions).toHaveLength(2);
     expect(result.executions[0]!.executedAt).toBe("2026-01-05T09:31:00.000Z");
     expect(result.executions[0]!.fee).toBe(1);
+    expect(result.executions[0]!.assetClass).toBe("equity");
+  });
+
+  it("an IBKR Flex Query option fill keeps the contract identity and does not net with stock", () => {
+    const csv = `ClientAccountID,Symbol,Date/Time,Buy/Sell,Quantity,TradePrice,IBCommission,AssetClass,Strike,Expiry,Put/Call,UnderlyingSymbol
+U1234567,AAPL,20260105;093100,BUY,1,2.50,-0.65,OPT,150,20260117,C,AAPL
+U1234567,AAPL,20260105;101500,SELL,-1,3.50,-0.65,OPT,150,20260117,C,AAPL
+U1234567,AAPL,20260105;110000,BUY,10,185.00,-1.00,STK,,,`;
+    const result = parseAuto(csv)!;
+    expect(result.format).toBe("ibkr-flex");
+    expect(result.executions.map((row) => row.symbol)).toEqual([
+      "AAPL 17JAN26 150 C",
+      "AAPL 17JAN26 150 C",
+      "AAPL",
+    ]);
+    expect(result.executions[0]!.assetClass).toBe("option");
+    expect(result.executions[2]!.assetClass).toBe("equity");
+    const trips = buildRoundTrips(
+      result.executions.map((row, index) => ({
+        ...row,
+        id: `e${index}`,
+        accountId: "a",
+        source: "import" as const,
+      })),
+    );
+    expect(trips).toHaveLength(2);
+    expect(trips.find((trade) => trade.symbol === "AAPL 17JAN26 150 C")!.grossPnl).toBe(100);
+  });
+
+  it("an IBKR activity statement option ticker is stored as a contract, not the underlying", () => {
+    const csv = `Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code
+Trades,Data,Order,Equity and Index Options,USD,AAPL  250117C00150000,"2026-01-05, 09:31:00",1,2.50,2.50,-250,-0.65,250,0,0,O
+Trades,Data,Order,Equity and Index Options,USD,AAPL  250117C00150000,"2026-01-05, 10:15:00",-1,3.50,3.50,350,-0.65,-250,100,0,C`;
+    const result = parseAuto(csv)!;
+    expect(result.format).toBe("ibkr");
+    expect(result.executions).toHaveLength(2);
+    expect(result.executions[0]!.symbol).toBe("AAPL 17JAN25 150 C");
+    expect(result.executions[0]!.assetClass).toBe("option");
+    expect(result.executions[0]!.quantity).toBe(1);
   });
 
   it("TradeZella time fields with a timezone abbreviation still parse", () => {

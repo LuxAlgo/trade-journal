@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- IBKR Flex XML file upload (`ibkr-flex-xml`) sharing the live-sync parser: option contract identity, expiration/assignment settlement from Cost Basis and Realized P/L, spread grouping metadata, and broker-ID dedup across overlapping files
+- Canonical OCC and IBKR option symbols, with equity/index options defaulting to a 100 multiplier unless Settings overrides the exact symbol
 - Customizable dashboard: drag cards to rearrange, hide and restore them, save named layouts; responsive layout with a mobile navigation drawer
 - Privacy mode that masks monetary values across the app while keeping counts, ratios and chart shapes
 - Markdown notes with formatting toolbar, reusable templates, exact trade links, and image/PDF attachments on trades, days and notebook notes
@@ -34,6 +36,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- IBKR option fills keep contract identity and a 100× multiplier so premium P&L is in dollars, and zero-price BookTrades use Cost Basis and Realized P/L instead of opening reverse $0 legs
+- Grammarly and similar extensions no longer trip a `<body>` hydration mismatch on first load
 - Password protection now verifies the session signature on every API route. Previously, when `JOURNAL_PASSWORD` was set, any request carrying a cookie of the right name was accepted, so a forged cookie could read the journal.
 
 ## [0.1.0] - 2026-09-03

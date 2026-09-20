@@ -29,6 +29,7 @@ Two validation tiers:
 | MetaTrader 4 (HTML statement)      | trades → reconstructed fills | HTML + MetaTrader markers             | ☐             | ☐         |
 | Interactive Brokers (activity CSV) | fills                        | `Trades,Header` section rows          | ☐             | ☐         |
 | Interactive Brokers (Flex Query)   | fills                        | `ClientAccountID`/`Date/Time` headers | ✅¹           | ☐         |
+| Interactive Brokers (Flex XML)     | fills                        | `<FlexQueryResponse>` + `<FlexStatement>` | ☐ (fixtures) | ☐         |
 | ThinkorSwim / Schwab (statement)   | fills                        | `Account Trade History` section       | ✅¹           | ☐         |
 | NinjaTrader                        | fills                        | `Instrument`/`Action` headers         | ✅¹           | ✅ (#10)  |
 | Tradovate                          | fills (Filled only)          | `Contract`/`B/S`/`Fill Time` headers  | ✅¹           | ☐         |
@@ -69,6 +70,60 @@ selections beyond the defaults.
   the trader's old numbers to the cent (skipped when a contract multiplier makes the
   price-implied gross meaningless)
 - Content-hash dedup on insert: re-importing the same file with the same timezone is a no-op
+- Equity and index options default to a 100 multiplier unless **Settings → Journal** lists the exact symbol. OCC (`SPXW  260410C06865000`) and IBKR descriptive (`SPXW 19SEP25 6655 C`) symbols are canonicalized so the same contract does not split into two positions.
+
+## Interactive Brokers Flex Query
+
+IBKR Flex is the path for stocks, equity/index options, and commissions. The same XML parser serves **Accounts → Sync** and **Import → File upload**. CSV Flex exports still go through `@luxalgo/journal-importers`; XML is detected before CSV auto-detect (`ibkr-flex-xml`).
+
+### File upload
+
+**Import → File upload** accepts `.xml` as well as CSV/HTML. A Flex XML file is recognized by `<FlexQueryResponse>` plus at least one `<FlexStatement>`. Overlapping date ranges are safe: fills dedupe on IBKR `transactionID` (then `tradeID` / `ibExecID`), not on price/quantity/time, so economically identical partial fills stay distinct. Two IBKR accounts in one file (or across files imported into the same journal account) stay isolated with `ibkr-account:{accountId}` so their positions are never netted together. Unlike live sync, file import keeps unmatched closing fills so a later overlapping file can complete the round trip.
+
+Do not commit Flex statements, SQLite databases, or `.secret` files; those paths are gitignored.
+
+### Live sync
+
+Read-only Flex Web Service sync still uses `@luxalgo/broker-sdk` for the request. The statement XML is then parsed here so option settlement, contract identity, and broker IDs survive. Sync hashes ignore import metadata, so a later pull can enrich an existing fill in place when the query exposes more fields. Closing fills that have no matching open inside the query window are omitted or clamped so pre-window history cannot open a reverse position.
+
+Parser warnings appear on the Accounts sync alert and on the import commit alert.
+
+### Flex Query sections and fields
+
+In IBKR Account Management, include **Trades**. **Option Exercises, Assignments and Expirations** (`OptionEAE`) is optional: BookTrade rows in Trades already close many expired credit spreads. **Open Positions** helps the parser report expired contracts that still have no closing fill.
+
+Minimum trade fields for stocks, options, and fees:
+
+| Purpose                         | Flex attributes                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------- |
+| Fill identity                   | `symbol`, `buySell`, `quantity`, `tradePrice`, `dateTime`, `ibCommission`       |
+| Option contract                 | `strike`, `expiry`, `putCall`, `underlyingSymbol`, `assetCategory`, `multiplier` |
+| Broker IDs (dedup / spreads)    | `transactionID`, `tradeID`, `ibExecID`, `ibOrderID`                             |
+| Expiration and assignment value | `openCloseIndicator`, `notes`, `cost`, `fifoPnlRealized`                        |
+
+Without Strike, Expiry, and Put/Call, an option fill is stored on the underlying ticker and will net with stock. Activity-statement CSV uses the same contract composition when those columns are present.
+
+### How expiration is valued
+
+IBKR often books expire / assign / exercise as a Trade with `tradePrice="0"`. The journal does not treat that as a $0 settlement when **Cost Basis** and **Realized P/L** are present:
+
+`settlement = |cost − fifoPnlRealized| ÷ (quantity × multiplier)`
+
+Notes such as `Ep` (expire), `A` (assignment), and `Ex` (exercise) are stored for audit. Worthless expiry typically settles at 0; cash-settled assignment/exercise is taken from the broker P&L, not assumed to be 0. If a zero-price close lacks both cost and realized P/L, the fill is skipped and a warning explains that the expiration value could not be determined.
+
+When `OptionEAE` rows are present they close leftover quantity using Trade Price or Proceeds. They cannot invent a value the statement did not report.
+
+### Spreads
+
+Verticals and other combos remain **one round-trip per contract**. Shared `ibOrderID` (or a conservative same-timestamp / underlying / expiry / quantity fallback) is stored as `strategyGroupId` so later UI can group legs. Grouping metadata does not merge P&L into a single spread row in this release.
+
+### Recovering an earlier IBKR import
+
+Option symbols, multipliers, or zero-price expirations imported before this parser can leave duplicate OCC vs descriptive rows or OPEN expired contracts. After upgrading:
+
+1. Back up the data directory with the app stopped.
+2. For a Flex **sync** account, run Sync again; stored option symbols are canonicalized and richer Flex fields update existing fills.
+3. For **file** imports, create a new journal account and import the original XML (or overlapping XML files in date order), then compare closed-trade counts and P&L with IBKR before switching to that account.
 
 ## NinjaTrader execution exports
 

@@ -1,4 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
+import { resolveOptionInstrument, type AssetClass } from "@luxalgo/journal-core";
 import type { ImportedExecution } from "@luxalgo/journal-importers";
 import { db, executions, accounts, trades } from "@/db";
 import { executionHash, newId, nowIso } from "./ids";
@@ -20,6 +21,11 @@ export type ExecutionSource = "sync" | "import" | "manual";
 
 const MAX_SKIP_REASONS = 5;
 
+export interface OptionNormalizationResult {
+  normalized: number;
+  duplicatesRemoved: number;
+}
+
 const isFiniteNumber = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
 /** Plain-language reason a row can't be journaled, or null when the row is valid. */
@@ -36,9 +42,21 @@ export const executionProblem = (row: unknown, source: ExecutionSource): string 
   if (typeof r.executedAt !== "string" || !Number.isFinite(Date.parse(r.executedAt)))
     return `${label}: timestamp is missing or invalid.`;
   const meta = r.importMetadata;
+  const broker = meta?.broker;
+  const brokerOk =
+    broker === undefined ||
+    ((source === "sync" || source === "import") &&
+      broker.provider === "ibkr-flex" &&
+      ["trade", "option-lifecycle"].includes(broker.kind) &&
+      Object.entries(broker).every(
+        ([, value]) =>
+          value === undefined ||
+          (typeof value === "string" && value.length <= 2000) ||
+          (typeof value === "number" && Number.isFinite(value)),
+      ));
   const metaOk =
     !meta ||
-    (source === "import" &&
+    ((source === "import" || source === "sync") &&
       typeof meta.id === "string" &&
       meta.id.length > 0 &&
       meta.id.length <= 2000 &&
@@ -47,7 +65,8 @@ export const executionProblem = (row: unknown, source: ExecutionSource): string 
       Number.isSafeInteger(meta.order) &&
       meta.order >= 0 &&
       (meta.reportedGrossPnl === undefined || Number.isFinite(meta.reportedGrossPnl)) &&
-      (meta.preserveFee === undefined || typeof meta.preserveFee === "boolean"));
+      (meta.preserveFee === undefined || typeof meta.preserveFee === "boolean") &&
+      brokerOk);
   if (!metaOk) return `${label}: invalid imported execution metadata.`;
   return null;
 };
@@ -83,6 +102,131 @@ export const partitionExecutions = (
   return { usable, skipped, skippedReasons };
 };
 
+/**
+ * Upgrade option fills saved before contract normalization was introduced.
+ *
+ * Changing an OCC symbol also changes its dedup hash. If a later broker sync
+ * already inserted the canonical form, keep that row and remove the legacy
+ * twin before rebuilding round trips.
+ */
+export const normalizeStoredOptionExecutions = (accountId: string): OptionNormalizationResult => {
+  const rows = db.select().from(executions).where(eq(executions.accountId, accountId)).all();
+  const annotationMoves = db
+    .select()
+    .from(trades)
+    .where(eq(trades.accountId, accountId))
+    .all()
+    .flatMap((trade) => {
+      const instrument = resolveOptionInstrument({
+        symbol: trade.symbol,
+        assetClass: (trade.assetClass ?? undefined) as AssetClass | undefined,
+      });
+      if (instrument.assetClass !== "option" || instrument.symbol === trade.symbol) return [];
+      const sourcePrefix = `${accountId}|${trade.symbol}|`;
+      if (!trade.key.startsWith(sourcePrefix)) return [];
+      return [
+        {
+          source: trade,
+          targetKey: `${accountId}|${instrument.symbol}|${trade.key.slice(sourcePrefix.length)}`,
+        },
+      ];
+    });
+  const candidates = rows.flatMap((row) => {
+    const instrument = resolveOptionInstrument({
+      symbol: row.symbol,
+      assetClass: (row.assetClass ?? undefined) as AssetClass | undefined,
+    });
+    if (instrument.assetClass !== "option" || instrument.missingContract) return [];
+    const importMetadata = row.importMetadataJson
+      ? (JSON.parse(row.importMetadataJson) as ImportedExecution["importMetadata"])
+      : undefined;
+    const contentHash = executionHash({
+      ...row,
+      symbol: instrument.symbol,
+      ...(row.source === "import" && importMetadata ? { importMetadata } : {}),
+    });
+    return [{ row, symbol: instrument.symbol, contentHash }];
+  });
+
+  const byHash = new Map<string, typeof candidates>();
+  for (const candidate of candidates) {
+    const group = byHash.get(candidate.contentHash);
+    if (group) group.push(candidate);
+    else byHash.set(candidate.contentHash, [candidate]);
+  }
+
+  const duplicateIds: string[] = [];
+  const updates: (typeof candidates)[number][] = [];
+  for (const group of byHash.values()) {
+    // Prefer the already-canonical row so its stable trade key and annotations survive.
+    const keeper =
+      group.find(
+        ({ row, symbol, contentHash }) =>
+          row.symbol === symbol && row.contentHash === contentHash && row.assetClass === "option",
+      ) ?? group[0]!;
+    duplicateIds.push(
+      ...group.filter(({ row }) => row.id !== keeper.row.id).map(({ row }) => row.id),
+    );
+    if (
+      keeper.row.symbol !== keeper.symbol ||
+      keeper.row.contentHash !== keeper.contentHash ||
+      keeper.row.assetClass !== "option"
+    ) {
+      updates.push(keeper);
+    }
+  }
+
+  if (duplicateIds.length === 0 && updates.length === 0) {
+    return { normalized: 0, duplicatesRemoved: 0 };
+  }
+
+  db.transaction((tx) => {
+    for (let index = 0; index < duplicateIds.length; index += 500) {
+      tx.delete(executions)
+        .where(inArray(executions.id, duplicateIds.slice(index, index + 500)))
+        .run();
+    }
+    for (const { row, symbol, contentHash } of updates) {
+      tx.update(executions)
+        .set({ symbol, assetClass: "option", contentHash })
+        .where(eq(executions.id, row.id))
+        .run();
+    }
+  });
+  rebuildAccount(accountId);
+  for (const { source, targetKey } of annotationMoves) {
+    const target = db.select().from(trades).where(eq(trades.key, targetKey)).get();
+    if (!target) continue;
+    const mergeArrayJson = (left: string | null, right: string | null): string | null => {
+      if (!left) return right;
+      if (!right) return left;
+      return JSON.stringify([
+        ...new Set([...(JSON.parse(left) as string[]), ...(JSON.parse(right) as string[])]),
+      ]);
+    };
+    const notes =
+      !target.notes || target.notes === source.notes
+        ? (target.notes ?? source.notes)
+        : source.notes
+          ? `${target.notes}\n\n${source.notes}`
+          : target.notes;
+    db.update(trades)
+      .set({
+        notes,
+        tagsJson: mergeArrayJson(target.tagsJson, source.tagsJson),
+        mistakesJson: mergeArrayJson(target.mistakesJson, source.mistakesJson),
+        playbookId: target.playbookId ?? source.playbookId,
+        rating: target.rating ?? source.rating,
+        stopLoss: target.stopLoss ?? source.stopLoss,
+        profitTarget: target.profitTarget ?? source.profitTarget,
+        reviewedAt: target.reviewedAt ?? source.reviewedAt,
+      })
+      .where(eq(trades.key, targetKey))
+      .run();
+  }
+  return { normalized: updates.length, duplicatesRemoved: duplicateIds.length };
+};
+
 /** Insert fills, rebuild trades, and attach optional manual notes in one transaction. */
 export const insertExecutions = (
   accountId: string,
@@ -106,6 +250,7 @@ export const insertExecutions = (
   );
   let inserted = 0;
   let duplicates = 0;
+  let enriched = 0;
   const createdAt = nowIso();
   const defaults = getJournalDefaults();
   const note = manualNotes?.trim() ? manualNotes : undefined;
@@ -137,7 +282,12 @@ export const insertExecutions = (
     const noteExecutionIds = new Set<string>();
     for (const row of usable) {
       const id = newId();
-      const contentHash = executionHash(row);
+      // Broker metadata can become richer when users add Flex fields. Keep the
+      // original normalized-fill hash so the next sync enriches rather than duplicates.
+      const contentHash = executionHash(
+        source === "sync" ? { ...row, importMetadata: undefined } : row,
+      );
+      const importMetadataJson = row.importMetadata ? JSON.stringify(row.importMetadata) : null;
       const result = tx
         .insert(executions)
         .values({
@@ -153,7 +303,7 @@ export const insertExecutions = (
           executedAt: row.executedAt,
           assetClass: row.assetClass ?? null,
           source,
-          importMetadataJson: row.importMetadata ? JSON.stringify(row.importMetadata) : null,
+          importMetadataJson,
           contentHash,
           createdAt,
         })
@@ -164,6 +314,30 @@ export const insertExecutions = (
         if (note) noteExecutionIds.add(id);
       } else {
         duplicates++;
+        if (source === "sync" && importMetadataJson) {
+          const existing = tx
+            .select({
+              id: executions.id,
+              assetClass: executions.assetClass,
+              importMetadataJson: executions.importMetadataJson,
+            })
+            .from(executions)
+            .where(
+              and(eq(executions.accountId, accountId), eq(executions.contentHash, contentHash)),
+            )
+            .get();
+          if (
+            existing &&
+            (existing.importMetadataJson !== importMetadataJson ||
+              existing.assetClass !== (row.assetClass ?? null))
+          ) {
+            tx.update(executions)
+              .set({ importMetadataJson, assetClass: row.assetClass ?? null })
+              .where(eq(executions.id, existing.id))
+              .run();
+            enriched++;
+          }
+        }
         if (note) {
           const existing = tx
             .select({ id: executions.id })
@@ -176,7 +350,7 @@ export const insertExecutions = (
         }
       }
     }
-    if (inserted > 0) rebuildAccount(accountId);
+    if (inserted > 0 || enriched > 0) rebuildAccount(accountId);
     if (note) {
       const affected = tx
         .select({

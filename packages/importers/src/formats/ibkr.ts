@@ -1,17 +1,9 @@
 import { headerKey, parseCsv } from "../csv";
 import { parseTimestamp } from "../dates";
+import { ibkrAssetClass } from "../ibkr-assets";
 import { parseMoney, parseQuantity } from "../numbers";
-import type { AssetClass } from "@luxalgo/journal-core";
+import { resolveOptionInstrument } from "@luxalgo/journal-core";
 import type { ImportFormat, ImportedExecution, ParsedImport } from "../types";
-
-const ASSET_MAP: Record<string, AssetClass> = {
-  stocks: "equity",
-  equityandindexoptions: "option",
-  futures: "futures",
-  forex: "forex",
-  cryptocurrency: "crypto",
-  cfds: "cfd",
-};
 
 /**
  * Interactive Brokers activity statement CSV. Multi-section file where every
@@ -36,6 +28,10 @@ export const ibkr: ImportFormat = {
       };
     }
     const keys = headerRow.map(headerKey);
+    const cell = (row: string[], name: string) => {
+      const index = keys.indexOf(name);
+      return index >= 0 ? row[index] : undefined;
+    };
     const col = (name: string) => keys.indexOf(name);
 
     const executions: ImportedExecution[] = [];
@@ -49,7 +45,7 @@ export const ibkr: ImportFormat = {
         skippedRows++;
         continue;
       }
-      const symbol = (row[col("symbol")] ?? "").trim().toUpperCase();
+      const symbolRaw = (row[col("symbol")] ?? "").trim();
       const quantitySigned = parseMoney(row[col("quantity")]);
       const price = parseMoney(row[col("tprice")] ?? row[col("price")]);
       const executedAt = parseTimestamp(row[col("datetime")], options.timeZone);
@@ -57,10 +53,18 @@ export const ibkr: ImportFormat = {
       const legacyDate = row[col("datetime")]?.match(/^(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}),/);
       const legacyExecutedAt = legacyDate ? parseTimestamp(legacyDate[1], options.timeZone) : null;
       const fee = Math.abs(parseMoney(row[col("commfee")] ?? row[col("commission")]) || 0);
-      const assetClass = ASSET_MAP[headerKey(row[col("assetcategory")] ?? "")];
+      const instrument = resolveOptionInstrument({
+        symbol: symbolRaw,
+        description: cell(row, "description"),
+        underlying: cell(row, "underlyingsymbol") ?? cell(row, "underlying"),
+        expiry: cell(row, "expiry") ?? cell(row, "lasttradingday"),
+        strike: cell(row, "strike") ?? cell(row, "strikeprice"),
+        right: cell(row, "putcall"),
+        assetClass: ibkrAssetClass(cell(row, "assetcategory") ?? cell(row, "assetclass")),
+      });
 
       if (
-        !symbol ||
+        !instrument.symbol ||
         !executedAt ||
         !Number.isFinite(quantitySigned) ||
         quantitySigned === 0 ||
@@ -70,14 +74,14 @@ export const ibkr: ImportFormat = {
         continue;
       }
       executions.push({
-        symbol,
+        symbol: instrument.symbol,
         side: quantitySigned > 0 ? "buy" : "sell",
         quantity: parseQuantity(String(Math.abs(quantitySigned))),
         price,
         fee: Number.isFinite(fee) ? fee : 0,
         executedAt,
         ...(legacyExecutedAt && legacyExecutedAt !== executedAt ? { legacyExecutedAt } : {}),
-        assetClass,
+        assetClass: instrument.assetClass,
       });
     }
 

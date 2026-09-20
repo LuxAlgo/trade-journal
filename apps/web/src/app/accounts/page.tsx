@@ -55,11 +55,24 @@ function Accounts() {
     setSyncing(id);
     try {
       const { sync: outcome } = await action<{
-        sync: { inserted: number; skipped: number; skippedReasons: string[] };
+        sync: {
+          inserted: number;
+          skipped: number;
+          skippedReasons: string[];
+          warnings: string[];
+        };
       }>(id, { action: "sync" });
-      if (outcome.skipped > 0)
+      if (outcome.skipped > 0 || outcome.warnings.length > 0)
         alert(
-          `Sync finished with ${outcome.inserted} new fills. ${outcome.skipped} broker record(s) were skipped: ${outcome.skippedReasons.join(" ")}`,
+          [
+            `Sync finished with ${outcome.inserted} new fills.`,
+            outcome.skipped > 0
+              ? `${outcome.skipped} broker record(s) were skipped: ${outcome.skippedReasons.join(" ")}`
+              : "",
+            ...outcome.warnings,
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
         );
     } catch (error) {
       alert(error instanceof Error ? error.message : "Sync failed");

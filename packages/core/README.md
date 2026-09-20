@@ -27,7 +27,7 @@ const edge = computeEdgeScore(metrics);
 const calendar = calendarMonth(trades, 2026, 8, "America/New_York");
 ```
 
-- `buildRoundTrips` turns fills into flat-to-flat trades: partial fills, scale-ins, flips, futures multipliers, FIFO / LIFO / weighted-average lot matching. Deterministic, with rebuild-stable trade keys.
+- `buildRoundTrips` turns fills into flat-to-flat trades: partial fills, scale-ins, flips, futures multipliers, FIFO / LIFO / weighted-average lot matching. Deterministic, with rebuild-stable trade keys. Equity and index options default to a 100 multiplier; OCC and IBKR option symbols are canonicalized so the same contract does not split.
 - `computeMetrics` produces win rates, profit factor, expectancy, streaks, drawdown and recovery, R multiples, profit concentration.
 - `computeEdgeScore` is the open, versioned 0 to 100 composite; the formula lives in [docs/edge-score.md](https://github.com/LuxAlgo/trade-journal/blob/main/docs/edge-score.md).
 - `calendarMonth`, `dailyStats`, `dailyCumulative`, `equityCurve`, `intradayCurve` feed the calendar and every chart. Day bucketing is timezone-aware and DST-safe.

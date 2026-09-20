@@ -1,9 +1,9 @@
 import { parseCsv } from "./csv";
 import { ibkr } from "./formats/ibkr";
+import { ibkrFlex } from "./formats/ibkr-flex";
 import { metatrader } from "./formats/metatrader";
 import {
   dastrader,
-  ibkrFlex,
   ninjatrader,
   topstepx,
   tradervue,

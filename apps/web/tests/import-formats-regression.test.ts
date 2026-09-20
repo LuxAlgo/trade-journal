@@ -68,6 +68,15 @@ U1234567,AAPL,20260105;093000,BUY,1,100,-1,STK,O
 U1234567,AAPL,20260105;100000,SELL,-1,110,-1,STK,C`,
   },
   {
+    format: "ibkr-flex-xml",
+    pnl: 8,
+    content: `<FlexQueryResponse queryName="journal" type="AF"><FlexStatements count="1"><FlexStatement accountId="U1234567" fromDate="20260105" toDate="20260105">
+<Trades>
+<Trade assetCategory="STK" symbol="AAPL" tradeID="1" transactionID="tx-1" dateTime="20260105;093000" buySell="BUY" quantity="1" tradePrice="100" ibCommission="-1" openCloseIndicator="O" />
+<Trade assetCategory="STK" symbol="AAPL" tradeID="2" transactionID="tx-2" dateTime="20260105;100000" buySell="SELL" quantity="-1" tradePrice="110" ibCommission="-1" openCloseIndicator="C" />
+</Trades></FlexStatement></FlexStatements></FlexQueryResponse>`,
+  },
+  {
     format: "ibkr",
     pnl: 8,
     content: `Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm/Fee,Basis,Realized P/L,MTM P/L,Code

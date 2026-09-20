@@ -17,7 +17,7 @@ const parsed = parseAuto(fileText, { timeZone: "America/New_York" });
 // -> { format, executions, warnings, skippedRows } or null when unrecognized
 ```
 
-- Auto-detects 12 formats: TradeZella and Tradervue (one-click migration), TradingView, MetaTrader 4 statements, ThinkorSwim / Schwab, Interactive Brokers (activity CSV + Flex Query), NinjaTrader, Tradovate, TopstepX, Webull, DAS Trader.
+- Auto-detects 12 formats: TradeZella and Tradervue (one-click migration), TradingView, MetaTrader 4 statements, ThinkorSwim / Schwab, Interactive Brokers (activity CSV + Flex Query, including option strike/expiry/right), NinjaTrader, Tradovate, TopstepX, Webull, DAS Trader.
 - `parseWithMapping` handles any other CSV through a user-defined column mapping; nothing is guessed silently.
 - Handles quoted fields, BOM, `;` and tab delimiters, `$1,234.56` and `(45.20)` numbers, European decimals, timezone suffixes, and DST-safe naive-timestamp conversion.
 - TradeZella imports reconcile stated net P&L to the cent, so migrated history matches the trader's old numbers.

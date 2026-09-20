@@ -76,4 +76,35 @@ describe("one odd broker record does not fail the whole sync", () => {
     expect(usable).toHaveLength(0);
     expect(skippedReasons.length).toBeLessThanOrEqual(5);
   });
+
+  it("enriches an existing broker fill without duplicating it", () => {
+    expect(insertExecutions("broker", [good], "sync")).toMatchObject({
+      inserted: 1,
+      duplicates: 0,
+    });
+    const enriched: ImportedExecution = {
+      ...good,
+      importMetadata: {
+        id: "ibkr-trade:t1",
+        order: 0,
+        preserveFee: true,
+        broker: {
+          provider: "ibkr-flex",
+          kind: "trade",
+          tradeId: "t1",
+          orderId: "order-1",
+          strategyGroupId: "ibkr-order:U1:order-1",
+        },
+      },
+    };
+    expect(insertExecutions("broker", [enriched], "sync")).toMatchObject({
+      inserted: 0,
+      duplicates: 1,
+    });
+    const saved = db.select().from(executions).all();
+    expect(saved).toHaveLength(1);
+    expect(JSON.parse(saved[0]!.importMetadataJson!)).toMatchObject({
+      broker: { tradeId: "t1", strategyGroupId: "ibkr-order:U1:order-1" },
+    });
+  });
 });
