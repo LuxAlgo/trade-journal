@@ -28,6 +28,9 @@ const EXCEPTIONS = {
   // pdf-lib's compression dependency: reviewed MIT and Zlib notices are
   // preserved together in apps/web/public/licenses/pako.txt.
   pako: ["(MIT AND Zlib)"],
+  // jsdom's test-only CSS helper: reviewed MIT No Attribution license grants
+  // unrestricted use, modification and redistribution, without attribution.
+  "@csstools/color-helpers": ["MIT-0"],
 };
 
 const allowedExpression = (expression) => {
