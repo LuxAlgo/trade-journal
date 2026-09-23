@@ -84,7 +84,7 @@ Do not commit Flex statements, SQLite databases, or `.secret` files; those paths
 
 ### Live sync
 
-Read-only Flex Web Service sync still uses `@luxalgo/broker-sdk` for the request. The statement XML is then parsed here so option settlement, contract identity, and broker IDs survive. Sync hashes ignore import metadata, so a later pull can enrich an existing fill in place when the query exposes more fields. Closing fills that have no matching open inside the query window are omitted or clamped so pre-window history cannot open a reverse position.
+Read-only Flex Web Service sync still uses `@luxalgo/broker-sdk` for the request. The statement XML is then parsed here so option settlement, contract identity, and broker IDs survive. Sync and file import both dedupe on IBKR `transactionID` (then `tradeID` / `ibExecID`), so importing a Flex file into an account that already synced that trade does not store it again. Distinct partial fills that share a price and timestamp stay separate. A later sync can still attach broker fields to a fill saved before those ids existed. If a short sync window stored a smaller closing quantity for the same trade id, a later file with the broker's full quantity raises the stored fill; a later short sync does not shrink it. Closing fills that have no matching open inside the query window are omitted or clamped so pre-window history cannot open a reverse position.
 
 Parser warnings appear on the Accounts sync alert and on the import commit alert.
 
