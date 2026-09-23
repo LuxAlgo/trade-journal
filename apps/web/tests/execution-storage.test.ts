@@ -144,6 +144,82 @@ describe("execution storage preserves a coherent journal", () => {
     });
   });
 
+  it("drops a pre-id option twin once the canonical broker fill is stored", () => {
+    const common = {
+      side: "buy" as const,
+      quantity: 1,
+      price: 0.62,
+      fee: 1.55,
+      executedAt: "2026-04-10T14:30:00Z",
+    };
+    const metadata = {
+      id: "ibkr-trade:U1:transaction-1",
+      group: "ibkr-account:U1",
+      order: 0,
+      broker: {
+        provider: "ibkr-flex" as const,
+        kind: "trade" as const,
+        transactionId: "transaction-1",
+      },
+    };
+    insertExecutions("test", [{ ...common, symbol: "SPXW  260410C06865000" }], "sync");
+    insertExecutions(
+      "test",
+      [
+        {
+          ...common,
+          symbol: "SPXW 10APR26 6865 C",
+          assetClass: "option",
+          importMetadata: metadata,
+        },
+      ],
+      "sync",
+    );
+    expect(db.select().from(executions).all()).toHaveLength(2);
+
+    expect(normalizeStoredOptionExecutions("test")).toEqual({
+      normalized: 0,
+      duplicatesRemoved: 1,
+    });
+    const saved = db.select().from(executions).all();
+    expect(saved).toEqual([
+      expect.objectContaining({
+        symbol: "SPXW 10APR26 6865 C",
+        assetClass: "option",
+      }),
+    ]);
+    expect(JSON.parse(saved[0]!.importMetadataJson!)).toMatchObject({
+      id: "ibkr-trade:U1:transaction-1",
+    });
+  });
+
+  it("keeps same-price option partials that have different broker ids", () => {
+    const row = (id: string) => ({
+      symbol: "SPXW 10APR26 6865 C",
+      assetClass: "option" as const,
+      side: "sell" as const,
+      quantity: 1,
+      price: 0.62,
+      fee: 1.55,
+      executedAt: "2026-04-10T14:30:00Z",
+      importMetadata: {
+        id: `ibkr-trade:U1:${id}`,
+        group: "ibkr-account:U1",
+        order: 0,
+        broker: { provider: "ibkr-flex" as const, kind: "trade" as const, transactionId: id },
+      },
+    });
+    expect(insertExecutions("test", [row("a"), row("b")], "sync")).toMatchObject({
+      inserted: 2,
+      duplicates: 0,
+    });
+    expect(normalizeStoredOptionExecutions("test")).toEqual({
+      normalized: 0,
+      duplicatesRemoved: 0,
+    });
+    expect(db.select().from(executions).all()).toHaveLength(2);
+  });
+
   it("saves Markdown notes with manual trades and preserves them through a rebuild and retry", async () => {
     const notes = "## Setup\n\nWaited for **confirmation**.\n- Followed the plan.";
     const response = await POST(

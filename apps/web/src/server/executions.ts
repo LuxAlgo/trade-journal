@@ -21,6 +21,10 @@ export type ExecutionSource = "sync" | "import" | "manual";
 
 const MAX_SKIP_REASONS = 5;
 
+/** Group plus id. History legs reuse ids like "entry"; the group tells them apart. */
+const brokerIdentity = (metadata: { id?: string; group?: string } | undefined): string | null =>
+  metadata?.id?.trim() ? `${metadata.group ?? ""}\0${metadata.id}` : null;
+
 export interface OptionNormalizationResult {
   normalized: number;
   duplicatesRemoved: number;
@@ -102,12 +106,29 @@ export const partitionExecutions = (
   return { usable, skipped, skippedReasons };
 };
 
+const isIbkrFlexExecution = (row: ImportedExecution): boolean =>
+  row.importMetadata?.broker?.provider === "ibkr-flex";
+
+/**
+ * IBKR's broker ID is stable across XML upload and live sync, so both paths
+ * must use it. Other sync providers retain normalized-fill hashing because
+ * their metadata may become richer between snapshots.
+ */
+const storedExecutionHash = (row: ImportedExecution, source: ExecutionSource): string =>
+  executionHash(
+    source === "import" || isIbkrFlexExecution(row) ? row : { ...row, importMetadata: undefined },
+  );
+
 /**
  * Upgrade option fills saved before contract normalization was introduced.
  *
  * Changing an OCC symbol also changes its dedup hash. If a later broker sync
  * already inserted the canonical form, keep that row and remove the legacy
  * twin before rebuilding round trips.
+ *
+ * Fills with a broker id stay keyed by that id, so distinct partials are not
+ * collapsed. A twin saved before ids were stored still matches on economics,
+ * and is removed when exactly one broker id shares that print.
  */
 export const normalizeStoredOptionExecutions = (accountId: string): OptionNormalizationResult => {
   const rows = db.select().from(executions).where(eq(executions.accountId, accountId)).all();
@@ -140,30 +161,89 @@ export const normalizeStoredOptionExecutions = (accountId: string): OptionNormal
     const importMetadata = row.importMetadataJson
       ? (JSON.parse(row.importMetadataJson) as ImportedExecution["importMetadata"])
       : undefined;
-    const contentHash = executionHash({
-      ...row,
+    const normalized = {
       symbol: instrument.symbol,
-      ...(row.source === "import" && importMetadata ? { importMetadata } : {}),
-    });
-    return [{ row, symbol: instrument.symbol, contentHash }];
+      side: row.side,
+      quantity: row.quantity,
+      price: row.price,
+      fee: row.fee,
+      executedAt: row.executedAt,
+      assetClass: (row.assetClass ?? undefined) as AssetClass | undefined,
+      ...(importMetadata ? { importMetadata } : {}),
+    };
+    return [
+      {
+        row,
+        symbol: instrument.symbol,
+        contentHash: storedExecutionHash(normalized, row.source),
+        economicHash: executionHash({ ...normalized, importMetadata: undefined }),
+        brokerId: brokerIdentity(importMetadata),
+      },
+    ];
   });
 
-  const byHash = new Map<string, typeof candidates>();
-  for (const candidate of candidates) {
-    const group = byHash.get(candidate.contentHash);
-    if (group) group.push(candidate);
-    else byHash.set(candidate.contentHash, [candidate]);
+  const parent = candidates.map((_, index) => index);
+  const findRoot = (index: number): number => {
+    let root = index;
+    while (parent[root] !== root) root = parent[root]!;
+    let cursor = index;
+    while (cursor !== root) {
+      const next = parent[cursor]!;
+      parent[cursor] = root;
+      cursor = next;
+    }
+    return root;
+  };
+  const union = (left: number, right: number) => {
+    const leftRoot = findRoot(left);
+    const rightRoot = findRoot(right);
+    if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot;
+  };
+  const byPersisted = new Map<string, number>();
+  for (let index = 0; index < candidates.length; index++) {
+    const hash = candidates[index]!.contentHash;
+    const prior = byPersisted.get(hash);
+    if (prior === undefined) byPersisted.set(hash, index);
+    else union(prior, index);
+  }
+  const byEconomic = new Map<string, number[]>();
+  for (let index = 0; index < candidates.length; index++) {
+    const hash = candidates[index]!.economicHash;
+    const group = byEconomic.get(hash);
+    if (group) group.push(index);
+    else byEconomic.set(hash, [index]);
+  }
+  for (const indexes of byEconomic.values()) {
+    const unidentified = indexes.filter((index) => !candidates[index]!.brokerId);
+    if (unidentified.length === 0) continue;
+    for (const index of unidentified.slice(1)) union(unidentified[0]!, index);
+    const identities = new Set(
+      indexes
+        .map((index) => candidates[index]!.brokerId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    if (identities.size !== 1) continue;
+    const identified = indexes.find((index) => candidates[index]!.brokerId);
+    if (identified !== undefined) union(unidentified[0]!, identified);
+  }
+  const byHash = new Map<number, typeof candidates>();
+  for (let index = 0; index < candidates.length; index++) {
+    const root = findRoot(index);
+    const group = byHash.get(root);
+    if (group) group.push(candidates[index]!);
+    else byHash.set(root, [candidates[index]!]);
   }
 
   const duplicateIds: string[] = [];
   const updates: (typeof candidates)[number][] = [];
   for (const group of byHash.values()) {
-    // Prefer the already-canonical row so its stable trade key and annotations survive.
+    const alreadyCanonical = ({ row, symbol, contentHash }: (typeof candidates)[number]) =>
+      row.symbol === symbol && row.contentHash === contentHash && row.assetClass === "option";
     const keeper =
-      group.find(
-        ({ row, symbol, contentHash }) =>
-          row.symbol === symbol && row.contentHash === contentHash && row.assetClass === "option",
-      ) ?? group[0]!;
+      group.find((candidate) => candidate.brokerId && alreadyCanonical(candidate)) ??
+      group.find(alreadyCanonical) ??
+      group.find((candidate) => candidate.brokerId) ??
+      group[0]!;
     duplicateIds.push(
       ...group.filter(({ row }) => row.id !== keeper.row.id).map(({ row }) => row.id),
     );
@@ -279,76 +359,220 @@ export const insertExecutions = (
         );
       }
     }
+    interface StoredFill {
+      id: string;
+      contentHash: string;
+      quantity: number;
+      price: number;
+      fee: number;
+      executedAt: string;
+      assetClass: string | null;
+      importMetadataJson: string | null;
+      brokerId: string | null;
+      brokerProvider: string | null;
+      source: ExecutionSource;
+    }
+    const byHash = new Map<string, StoredFill>();
+    const byBrokerId = new Map<string, StoredFill>();
+    const remember = (fill: StoredFill) => {
+      byHash.set(fill.contentHash, fill);
+      if (fill.brokerId) byBrokerId.set(fill.brokerId, fill);
+    };
+    const forget = (fill: StoredFill) => {
+      if (byHash.get(fill.contentHash)?.id === fill.id) byHash.delete(fill.contentHash);
+      if (fill.brokerId && byBrokerId.get(fill.brokerId)?.id === fill.id) {
+        byBrokerId.delete(fill.brokerId);
+      }
+    };
+    const identityOf = (
+      json: string | null,
+    ): { brokerId: string | null; brokerProvider: string | null } => {
+      if (!json) return { brokerId: null, brokerProvider: null };
+      try {
+        const parsed = JSON.parse(json) as {
+          id?: unknown;
+          group?: unknown;
+          broker?: { provider?: unknown };
+        };
+        return {
+          brokerId: brokerIdentity({
+            id: typeof parsed.id === "string" ? parsed.id : undefined,
+            group: typeof parsed.group === "string" ? parsed.group : undefined,
+          }),
+          brokerProvider:
+            typeof parsed.broker?.provider === "string" ? parsed.broker.provider : null,
+        };
+      } catch {
+        return { brokerId: null, brokerProvider: null };
+      }
+    };
+    for (const row of tx
+      .select({
+        id: executions.id,
+        contentHash: executions.contentHash,
+        quantity: executions.quantity,
+        price: executions.price,
+        fee: executions.fee,
+        executedAt: executions.executedAt,
+        assetClass: executions.assetClass,
+        importMetadataJson: executions.importMetadataJson,
+        source: executions.source,
+      })
+      .from(executions)
+      .where(eq(executions.accountId, accountId))
+      .all()) {
+      remember({ ...row, ...identityOf(row.importMetadataJson) });
+    }
+
     const noteExecutionIds = new Set<string>();
-    for (const row of usable) {
-      const id = newId();
-      // Broker metadata can become richer when users add Flex fields. Keep the
-      // original normalized-fill hash so the next sync enriches rather than duplicates.
-      const contentHash = executionHash(
-        source === "sync" ? { ...row, importMetadata: undefined } : row,
+    const resolvedFee = (row: ImportedExecution) =>
+      row.importMetadata?.preserveFee
+        ? row.fee
+        : defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults);
+    const isLegacySyncFill = (fill: StoredFill | undefined): fill is StoredFill =>
+      Boolean(
+        fill &&
+          fill.source === "sync" &&
+          !fill.brokerId &&
+          (fill.brokerProvider === null || fill.brokerProvider === "ibkr-flex"),
       );
+    for (const row of usable) {
+      const brokerId = brokerIdentity(row.importMetadata);
+      const contentHash = storedExecutionHash(row, source);
+      const economicHash = executionHash({ ...row, importMetadata: undefined });
       const importMetadataJson = row.importMetadata ? JSON.stringify(row.importMetadata) : null;
-      const result = tx
-        .insert(executions)
-        .values({
-          id,
-          accountId,
-          symbol: row.symbol,
-          side: row.side,
-          quantity: row.quantity,
-          price: row.price,
-          fee: row.importMetadata?.preserveFee
-            ? row.fee
-            : defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults),
-          executedAt: row.executedAt,
-          assetClass: row.assetClass ?? null,
-          source,
-          importMetadataJson,
-          contentHash,
-          createdAt,
-        })
-        .onConflictDoNothing()
-        .run();
-      if (result.changes > 0) {
-        inserted++;
-        if (note) noteExecutionIds.add(id);
-      } else {
-        duplicates++;
-        if (source === "sync" && importMetadataJson) {
-          const existing = tx
-            .select({
-              id: executions.id,
-              assetClass: executions.assetClass,
-              importMetadataJson: executions.importMetadataJson,
-            })
-            .from(executions)
-            .where(
-              and(eq(executions.accountId, accountId), eq(executions.contentHash, contentHash)),
-            )
-            .get();
-          if (
-            existing &&
-            (existing.importMetadataJson !== importMetadataJson ||
-              existing.assetClass !== (row.assetClass ?? null))
-          ) {
+      const fee = resolvedFee(row);
+      const ibkr = isIbkrFlexExecution(row);
+
+      // A pre-id sync row and the broker-id copy of the same fill can both
+      // already be stored. Drop the pre-id row instead of inserting a third.
+      if (ibkr && economicHash !== contentHash) {
+        const legacy = byHash.get(economicHash);
+        const canonical = byHash.get(contentHash);
+        if (isLegacySyncFill(legacy) && canonical && canonical.id !== legacy.id) {
+          forget(legacy);
+          tx.delete(executions).where(eq(executions.id, legacy.id)).run();
+          const metadataChanged =
+            importMetadataJson !== null && importMetadataJson !== canonical.importMetadataJson;
+          const assetClass = row.assetClass ?? null;
+          if (metadataChanged || assetClass !== canonical.assetClass) {
+            const nextMetadata = metadataChanged
+              ? importMetadataJson
+              : canonical.importMetadataJson;
             tx.update(executions)
-              .set({ importMetadataJson, assetClass: row.assetClass ?? null })
-              .where(eq(executions.id, existing.id))
+              .set({ importMetadataJson: nextMetadata, assetClass })
+              .where(eq(executions.id, canonical.id))
               .run();
-            enriched++;
+            forget(canonical);
+            canonical.importMetadataJson = nextMetadata;
+            canonical.assetClass = assetClass;
+            canonical.brokerId = brokerId ?? canonical.brokerId;
+            canonical.brokerProvider =
+              row.importMetadata?.broker?.provider ?? canonical.brokerProvider;
+            remember(canonical);
           }
-        }
-        if (note) {
-          const existing = tx
-            .select({ id: executions.id })
-            .from(executions)
-            .where(
-              and(eq(executions.accountId, accountId), eq(executions.contentHash, contentHash)),
-            )
-            .get();
-          if (existing) noteExecutionIds.add(existing.id);
+          duplicates++;
+          enriched++;
+          if (note) noteExecutionIds.add(canonical.id);
+          continue;
         }
       }
+
+      let existing = byHash.get(contentHash);
+      if (!existing && ibkr && brokerId) existing = byBrokerId.get(brokerId);
+      if (!existing && ibkr) {
+        const legacy = byHash.get(economicHash);
+        if (isLegacySyncFill(legacy)) existing = legacy;
+      }
+
+      if (!existing) {
+        const id = newId();
+        const result = tx
+          .insert(executions)
+          .values({
+            id,
+            accountId,
+            symbol: row.symbol,
+            side: row.side,
+            quantity: row.quantity,
+            price: row.price,
+            fee,
+            executedAt: row.executedAt,
+            assetClass: row.assetClass ?? null,
+            source,
+            importMetadataJson,
+            contentHash,
+            createdAt,
+          })
+          .onConflictDoNothing()
+          .run();
+        if (result.changes > 0) {
+          inserted++;
+          remember({
+            id,
+            contentHash,
+            quantity: row.quantity,
+            price: row.price,
+            fee,
+            executedAt: row.executedAt,
+            assetClass: row.assetClass ?? null,
+            importMetadataJson,
+            brokerId,
+            brokerProvider: row.importMetadata?.broker?.provider ?? null,
+            source,
+          });
+          if (note) noteExecutionIds.add(id);
+        } else {
+          duplicates++;
+          const conflict = byHash.get(contentHash);
+          if (note && conflict) noteExecutionIds.add(conflict.id);
+        }
+        continue;
+      }
+
+      duplicates++;
+      if (note) noteExecutionIds.add(existing.id);
+      // A later short sync must not shrink a close that a full file already raised.
+      if (ibkr && brokerId !== null && row.quantity < existing.quantity) continue;
+      const upgradeQuantity = ibkr && brokerId !== null && row.quantity > existing.quantity;
+      const attachIdentity =
+        ibkr &&
+        brokerId !== null &&
+        (existing.brokerId === null || existing.contentHash === economicHash);
+      const nextHash = upgradeQuantity || attachIdentity ? contentHash : existing.contentHash;
+      const occupant = byHash.get(nextHash);
+      if (occupant && occupant.id !== existing.id) continue;
+      const metadataChanged =
+        importMetadataJson !== null && importMetadataJson !== existing.importMetadataJson;
+      const assetClass = row.assetClass ?? null;
+      const assetChanged = assetClass !== existing.assetClass;
+      const shouldWrite =
+        upgradeQuantity || attachIdentity || (ibkr && (metadataChanged || assetChanged));
+      if (!shouldWrite) continue;
+
+      const next = {
+        quantity: upgradeQuantity ? row.quantity : existing.quantity,
+        price: upgradeQuantity ? row.price : existing.price,
+        fee: upgradeQuantity ? fee : existing.fee,
+        executedAt: upgradeQuantity ? row.executedAt : existing.executedAt,
+        assetClass,
+        importMetadataJson:
+          upgradeQuantity || metadataChanged ? importMetadataJson : existing.importMetadataJson,
+        contentHash: nextHash,
+      };
+      forget(existing);
+      tx.update(executions).set(next).where(eq(executions.id, existing.id)).run();
+      existing.quantity = next.quantity;
+      existing.price = next.price;
+      existing.fee = next.fee;
+      existing.executedAt = next.executedAt;
+      existing.assetClass = next.assetClass;
+      existing.importMetadataJson = next.importMetadataJson;
+      existing.contentHash = next.contentHash;
+      existing.brokerId = brokerId ?? existing.brokerId;
+      existing.brokerProvider = row.importMetadata?.broker?.provider ?? existing.brokerProvider;
+      remember(existing);
+      enriched++;
     }
     if (inserted > 0 || enriched > 0) rebuildAccount(accountId);
     if (note) {
