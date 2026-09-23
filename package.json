@@ -23,10 +23,10 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "jsdom": "^26.1.0",
-    "prettier": "^3.6.0",
+    "jsdom": "^30.1.1",
+    "prettier": "^3.9.8",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.0",
-    "vitest": "^4.1.11"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }
