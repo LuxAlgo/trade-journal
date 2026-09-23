@@ -1,5 +1,5 @@
-import { listBrokers } from "@/server/sync";
+import { brokerRoster } from "@/server/sync";
 import { handler, ok } from "@/server/api";
 
-/** Broker roster straight from @luxalgo/broker-sdk — the connect form renders itself. */
-export const GET = handler(() => ok({ brokers: listBrokers() }));
+/** Broker roster from the SDK, with current Trading 212 credential fields. */
+export const GET = handler(() => ok({ brokers: brokerRoster() }));

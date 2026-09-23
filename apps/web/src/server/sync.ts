@@ -5,9 +5,23 @@ import { accounts, db } from "@/db";
 import { decryptJson, encryptJson } from "./crypto";
 import { nowIso } from "./ids";
 import { insertExecutions, type InsertResult } from "./executions";
+import { fetchTrading212Snapshot } from "./trading212";
 
-/** All broker connectivity goes through @luxalgo/broker-sdk, never direct API code. */
-export { listBrokers };
+/** Override the SDK's outdated Trading 212 credential metadata. */
+export const brokerRoster = () =>
+  listBrokers().map((broker) =>
+    broker.id === "trading212"
+      ? {
+          ...broker,
+          credentials: [
+            { key: "apiKey", label: "API key ID", secret: false },
+            { key: "apiSecret", label: "Secret key", secret: true },
+          ],
+          readOnlySetup:
+            "Create a key in Trading 212 Settings → API with read access to account, positions, and historical orders. Choose the matching live or demo environment.",
+        }
+      : broker,
+  );
 
 export interface SyncOutcome extends InsertResult {
   accountId: string;
@@ -24,19 +38,24 @@ export const syncAccount = async (accountId: string): Promise<SyncOutcome> => {
   }
 
   const credentials = decryptJson<Record<string, string>>(account.credentialsEnc);
-  const connection = connect({
-    broker: account.broker as BrokerId,
-    credentials,
-    // Some brokers rotate tokens on every fetch (Questrade): persist or die.
-    onCredentialsRotated: (next: Record<string, string>) => {
-      db.update(accounts)
-        .set({ credentialsEnc: encryptJson(next) })
-        .where(eq(accounts.id, accountId))
-        .run();
-    },
-  } as Parameters<typeof connect>[0]);
+  const connection =
+    account.broker === "trading212"
+      ? null
+      : connect({
+          broker: account.broker as BrokerId,
+          credentials,
+          // Some brokers rotate tokens on every fetch (Questrade): persist or die.
+          onCredentialsRotated: (next: Record<string, string>) => {
+            db.update(accounts)
+              .set({ credentialsEnc: encryptJson(next) })
+              .where(eq(accounts.id, accountId))
+              .run();
+          },
+        } as Parameters<typeof connect>[0]);
 
-  const snapshot = await connection.fetchSnapshot();
+  const snapshot = connection
+    ? await connection.fetchSnapshot()
+    : await fetchTrading212Snapshot(credentials);
   const syncedAt = nowIso();
 
   const rows: ImportedExecution[] = snapshot.accounts.flatMap((brokerAccount) =>
@@ -64,7 +83,18 @@ export const syncAccount = async (accountId: string): Promise<SyncOutcome> => {
   }
 
   const equity = snapshot.accounts.reduce((total, a) => total + a.equity, 0);
-  const positions = snapshot.accounts.flatMap((a) => a.positions);
+  const positions = snapshot.accounts.reduce<
+    {
+      symbol: string;
+      quantity: number;
+      marketValue?: number;
+      averageEntryPrice?: number;
+      assetClass?: string;
+    }[]
+  >((all, brokerAccount) => {
+    all.push(...brokerAccount.positions);
+    return all;
+  }, []);
   db.update(accounts)
     .set({
       lastSyncAt: syncedAt,

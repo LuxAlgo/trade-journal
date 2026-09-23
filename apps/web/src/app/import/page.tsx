@@ -581,6 +581,25 @@ function BrokerConnect() {
                 />
               </div>
             ))}
+            {broker.id === "trading212" && (
+              <div>
+                <Label className="mb-1 block text-xs text-muted-foreground">Environment</Label>
+                <Select
+                  value={credentials.environment ?? "live"}
+                  onValueChange={(value) =>
+                    setCredentials((current) => ({ ...current, environment: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="live">Live</SelectItem>
+                    <SelectItem value="demo">Demo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {error && <p className="text-sm text-loss">{error}</p>}
             <Button
               onClick={connect}
