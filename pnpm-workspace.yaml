@@ -3,10 +3,8 @@ packages:
   - "apps/*"
 allowBuilds:
   esbuild: true
-  better-sqlite3: true
+  # v13 ships N-API prebuilds and sets gypfile:false. Approving the build makes
+  # pnpm run node-gyp anyway, which fails on machines without a C++ toolchain.
+  better-sqlite3: false
 ignoredOptionalDependencies:
   - sharp
-minimumReleaseAgeExclude:
-  - "@ai-sdk/openai@4.0.64"
-  - "@ai-sdk/provider-utils@5.0.38"
-  - "@ai-sdk/provider@4.0.12"
