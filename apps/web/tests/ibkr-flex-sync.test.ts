@@ -150,6 +150,25 @@ describe("IBKR Flex sync enrichment", () => {
     ]);
   });
 
+  it("keeps same-second partial fills with different transaction ids during live sync", () => {
+    const result = parseIbkrFlexSync(
+      statement(`
+        <Trade accountId="U1" assetCategory="OPT" symbol="SPXW  260204C06935000" dateTime="20260204;122146" buySell="SELL" quantity="-1" tradePrice="0.97" transactionID="a" openCloseIndicator="O" />
+        <Trade accountId="U1" assetCategory="OPT" symbol="SPXW  260204C06935000" dateTime="20260204;122146" buySell="SELL" quantity="-1" tradePrice="0.97" transactionID="b" openCloseIndicator="O" />
+        <Trade accountId="U1" assetCategory="OPT" symbol="SPXW  260204C06935000" dateTime="20260204;122146" buySell="SELL" quantity="-1" tradePrice="0.97" transactionID="c" openCloseIndicator="O" />
+        <Trade accountId="U1" assetCategory="OPT" symbol="SPXW  260204C06935000" dateTime="20260204;162000" buySell="BUY" quantity="3" tradePrice="0" transactionID="exp" openCloseIndicator="C" notes="Ep" transactionType="BookTrade" multiplier="100" cost="291" fifoPnlRealized="291" />
+      `),
+      new Date("2026-02-05T00:00:00Z"),
+    );
+    expect(result.executions.map((row) => [row.side, row.quantity, row.price])).toEqual([
+      ["sell", 1, 0.97],
+      ["sell", 1, 0.97],
+      ["sell", 1, 0.97],
+      ["buy", 3, 0],
+    ]);
+    expect(result.warnings.join(" ")).not.toMatch(/limited to the position visible/);
+  });
+
   it("keeps economically identical partial fills when broker transaction IDs differ", () => {
     const result = parseIbkrFlexXmlImport(
       statement(`
