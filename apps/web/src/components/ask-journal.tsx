@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { postJson } from "@/lib/use-api";
 import { AiNotice } from "./ai-notice";
 import { useFilters } from "./filter-bar";
+import { useAiRequest, type AiScope } from "@/lib/use-ai-request";
 import type { AnalysisFilters } from "@luxalgo/journal-core";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -20,27 +21,30 @@ const SUGGESTIONS = [
 
 /** Natural-language questions against your own aggregates — BYO AI provider key. */
 export function AskJournal() {
+  const { values, query, timeZone } = useFilters();
+  return <ScopedAskJournal key={`${timeZone}:${query}`} filters={values} timeZone={timeZone} />;
+}
+
+function ScopedAskJournal({ filters, timeZone }: { filters: AnalysisFilters; timeZone: string }) {
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [response, setResponse] = useState<{ answer: string; scope: AiScope } | null>(null);
+  const { run, busy, error, dismiss } = useAiRequest();
   const [lastQuestion, setLastQuestion] = useState("");
 
   const ask = async (q: string) => {
     if (busy || !q.trim()) return;
     q = q.trim();
     setLastQuestion(q);
-    setBusy(true);
-    setError(null);
-    setAnswer(null);
-    try {
-      const result = await postJson<{ answer: string }>("/api/ai/ask", { question: q });
-      setAnswer(result.answer);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Request failed");
-    } finally {
-      setBusy(false);
-    }
+    setResponse(null);
+    await run(
+      () =>
+        postJson<{ answer: string; scope: AiScope }>("/api/ai/ask", {
+          question: q,
+          filters,
+          timeZone,
+        }),
+      setResponse,
+    );
   };
 
   return (
@@ -49,6 +53,9 @@ export function AskJournal() {
         <CardTitle>Ask your journal</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Uses the selected accounts and journal filters. Changing filters clears the answer.
+        </p>
         <form
           className="flex gap-2"
           onSubmit={(event) => {
@@ -83,17 +90,16 @@ export function AskJournal() {
           ))}
         </div>
         {error && (
-          <AiNotice error={error} onRetry={() => void ask(lastQuestion)} onDismiss={() => { }} />
+          <AiNotice error={error} onRetry={() => void ask(lastQuestion)} onDismiss={dismiss} />
         )}
-        {answer && (
+        {response && (
           <div className="space-y-2 pt-1">
-            <p className="text-xs text-muted-foreground">{answer}</p>
+            <p className="text-xs text-muted-foreground">{response.scope.label}</p>
             <div className="whitespace-pre-wrap text-sm leading-relaxed">
-              <Markdown remarkPlugins={[remarkGfm]}>{answer}</Markdown>
+              <Markdown remarkPlugins={[remarkGfm]}>{response.answer}</Markdown>
             </div>
           </div>
         )}
-        {answer && <p className="whitespace-pre-wrap pt-1 text-sm leading-relaxed">{answer}</p>}
       </CardContent>
     </Card>
   );
