@@ -1,7 +1,7 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { APICallError, RetryError, generateText } from "ai";
-import { getAiKey, getAiModel, getAiProvider } from "./settings";
+import { getAiBaseUrl, getAiKey, getAiModel, getAiProvider } from "./settings";
 import { AI_PROVIDER_NAMES } from "@/lib/ai-settings";
 
 /**
@@ -27,12 +27,13 @@ export const runAi = async (prompt: string, maxOutputTokens = 1200): Promise<str
     );
   }
   const model = getAiModel(provider);
+  const baseURL = getAiBaseUrl(provider);
   try {
     const result = await generateText({
       model:
         provider === "openai"
-          ? createOpenAI({ apiKey }).responses(model)
-          : createAnthropic({ apiKey })(model),
+          ? createOpenAI({ apiKey, baseURL }).responses(model)
+          : createAnthropic({ apiKey, baseURL })(model),
       ...(provider === "openai" ? { providerOptions: { openai: { store: false } } } : {}),
       system: SYSTEM,
       prompt,

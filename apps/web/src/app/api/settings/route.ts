@@ -9,6 +9,7 @@ import {
   aiModelSetting,
   getAiProvider,
   getAiSettings,
+  setAiBaseUrl,
   setAiKey,
   setSetting,
 } from "@/server/settings";
@@ -33,6 +34,8 @@ interface SettingsBody {
   openaiKey?: string | null;
   aiProvider?: AiProvider;
   aiModel?: string;
+  /** Custom OpenAI-compatible base URL. Blank clears it back to the provider default. */
+  aiBaseUrl?: string;
 }
 
 export const PATCH = handler(async (request: Request) => {
@@ -46,6 +49,14 @@ export const PATCH = handler(async (request: Request) => {
       typeof body.aiModel === "string" &&
         /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(body.aiModel.trim()),
       "Enter a valid model ID.",
+    );
+  if (body.aiBaseUrl !== undefined)
+    requireValue(
+      typeof body.aiBaseUrl === "string" &&
+        (body.aiBaseUrl.trim() === "" ||
+          (body.aiBaseUrl.trim().length <= 2048 &&
+            /^https?:\/\/\S+$/i.test(body.aiBaseUrl.trim()))),
+      "Enter a valid base URL.",
     );
   for (const id of AI_PROVIDERS) {
     const key = body[`${id}Key`];
@@ -97,6 +108,7 @@ export const PATCH = handler(async (request: Request) => {
     }
     if (body.aiProvider !== undefined) setSetting("aiProvider", body.aiProvider);
     if (body.aiModel !== undefined) setSetting(aiModelSetting(provider), body.aiModel.trim());
+    if (body.aiBaseUrl !== undefined) setAiBaseUrl(provider, body.aiBaseUrl.trim() || null);
   });
   return ok({ saved: true });
 });
