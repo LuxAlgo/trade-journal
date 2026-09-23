@@ -102,6 +102,19 @@ export const partitionExecutions = (
   return { usable, skipped, skippedReasons };
 };
 
+const isIbkrFlexExecution = (row: ImportedExecution): boolean =>
+  row.importMetadata?.broker?.provider === "ibkr-flex";
+
+/**
+ * IBKR's broker ID is stable across XML upload and live sync, so both paths
+ * must use it. Other sync providers retain normalized-fill hashing because
+ * their metadata may become richer between snapshots.
+ */
+const storedExecutionHash = (row: ImportedExecution, source: ExecutionSource): string =>
+  executionHash(
+    source === "import" || isIbkrFlexExecution(row) ? row : { ...row, importMetadata: undefined },
+  );
+
 /**
  * Upgrade option fills saved before contract normalization was introduced.
  *
@@ -140,11 +153,19 @@ export const normalizeStoredOptionExecutions = (accountId: string): OptionNormal
     const importMetadata = row.importMetadataJson
       ? (JSON.parse(row.importMetadataJson) as ImportedExecution["importMetadata"])
       : undefined;
-    const contentHash = executionHash({
-      ...row,
-      symbol: instrument.symbol,
-      ...(row.source === "import" && importMetadata ? { importMetadata } : {}),
-    });
+    const contentHash = storedExecutionHash(
+      {
+        symbol: instrument.symbol,
+        side: row.side,
+        quantity: row.quantity,
+        price: row.price,
+        fee: row.fee,
+        executedAt: row.executedAt,
+        assetClass: (row.assetClass ?? undefined) as AssetClass | undefined,
+        ...(importMetadata ? { importMetadata } : {}),
+      },
+      row.source,
+    );
     return [{ row, symbol: instrument.symbol, contentHash }];
   });
 
@@ -282,12 +303,62 @@ export const insertExecutions = (
     const noteExecutionIds = new Set<string>();
     for (const row of usable) {
       const id = newId();
-      // Broker metadata can become richer when users add Flex fields. Keep the
-      // original normalized-fill hash so the next sync enriches rather than duplicates.
-      const contentHash = executionHash(
-        source === "sync" ? { ...row, importMetadata: undefined } : row,
-      );
+      const contentHash = storedExecutionHash(row, source);
       const importMetadataJson = row.importMetadata ? JSON.stringify(row.importMetadata) : null;
+
+      // Earlier Flex syncs used the normalized-fill hash. Migrate that row to
+      // its broker ID before inserting so an XML upload and a live sync cannot
+      // store the same transaction twice. Only sync rows are eligible: a
+      // same-priced non-IBKR file import may be a genuinely separate fill.
+      if (isIbkrFlexExecution(row)) {
+        const legacyHash = executionHash({ ...row, importMetadata: undefined });
+        if (legacyHash !== contentHash) {
+          const legacy = tx
+            .select({
+              id: executions.id,
+              source: executions.source,
+              importMetadataJson: executions.importMetadataJson,
+            })
+            .from(executions)
+            .where(and(eq(executions.accountId, accountId), eq(executions.contentHash, legacyHash)))
+            .get();
+          const legacyMetadata = legacy?.importMetadataJson
+            ? (JSON.parse(legacy.importMetadataJson) as ImportedExecution["importMetadata"])
+            : undefined;
+          if (
+            legacy?.source === "sync" &&
+            (!legacyMetadata || legacyMetadata.broker?.provider === "ibkr-flex")
+          ) {
+            const canonical = tx
+              .select({ id: executions.id })
+              .from(executions)
+              .where(
+                and(eq(executions.accountId, accountId), eq(executions.contentHash, contentHash)),
+              )
+              .get();
+            if (canonical) {
+              tx.delete(executions).where(eq(executions.id, legacy.id)).run();
+              tx.update(executions)
+                .set({ importMetadataJson, assetClass: row.assetClass ?? null })
+                .where(eq(executions.id, canonical.id))
+                .run();
+            } else {
+              tx.update(executions)
+                .set({
+                  contentHash,
+                  importMetadataJson,
+                  assetClass: row.assetClass ?? null,
+                })
+                .where(eq(executions.id, legacy.id))
+                .run();
+            }
+            duplicates++;
+            enriched++;
+            continue;
+          }
+        }
+      }
+
       const result = tx
         .insert(executions)
         .values({
@@ -314,7 +385,7 @@ export const insertExecutions = (
         if (note) noteExecutionIds.add(id);
       } else {
         duplicates++;
-        if (source === "sync" && importMetadataJson) {
+        if (isIbkrFlexExecution(row) && importMetadataJson) {
           const existing = tx
             .select({
               id: executions.id,

@@ -163,4 +163,18 @@ describe("IBKR Flex sync enrichment", () => {
       "ibkr-trade:U1:partial-2",
     ]);
   });
+
+  it("keeps identical live-sync partial fills when broker transaction IDs differ", () => {
+    const result = parseIbkrFlexSync(
+      statement(`
+        <Trade assetCategory="STK" symbol="NVDA" dateTime="20260102;100000" buySell="BUY" quantity="1" tradePrice="100" transactionID="partial-1" />
+        <Trade assetCategory="STK" symbol="NVDA" dateTime="20260102;100000" buySell="BUY" quantity="1" tradePrice="100" transactionID="partial-2" />
+      `),
+    );
+    expect(result.executions).toHaveLength(2);
+    expect(result.executions.map((row) => row.importMetadata?.id)).toEqual([
+      "ibkr-trade:U1:partial-1",
+      "ibkr-trade:U1:partial-2",
+    ]);
+  });
 });
