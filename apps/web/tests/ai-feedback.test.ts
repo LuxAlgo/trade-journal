@@ -2,24 +2,6 @@ import { describe, expect, it } from "vitest";
 import { aiFeedback } from "../src/lib/ai-feedback";
 
 describe("AI feedback", () => {
-  it("explains empty or invalid scopes without suggesting an AI connection problem", () => {
-    for (const message of [
-      "No trades match the selected accounts and filters",
-      "No closed trades match this day and the selected filters",
-    ])
-      expect(aiFeedback(message)).toEqual({
-        title: "No matching trades",
-        description:
-          "There are no trades to analyze in this selection. Adjust the accounts, dates or other journal filters.",
-        tone: "info",
-      });
-    expect(aiFeedback("A selected account no longer exists. Update your filters.").title).toBe(
-      "Check your journal filters",
-    );
-    expect(aiFeedback("Journal timezone changed. Refresh and try again.").title).toBe(
-      "Refresh your journal",
-    );
-  });
   it("treats missing setup as guidance with a direct settings destination", () => {
     expect(
       aiFeedback(

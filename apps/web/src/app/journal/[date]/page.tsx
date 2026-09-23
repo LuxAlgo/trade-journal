@@ -1,8 +1,9 @@
 "use client";
-import { AiRecap } from "@/components/ai-recap";
+import { AiNotice } from "@/components/ai-notice";
 
 import Link from "next/link";
-import { Suspense, use, useRef, useState } from "react";
+import { Suspense, use, useEffect, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
 import type { IntradayPoint, TradeMetrics } from "@luxalgo/journal-core";
 import { EquityArea } from "@/components/charts/equity-area";
 import { FilterBar, useFilters } from "@/components/filter-bar";
@@ -17,7 +18,7 @@ import { RichEditor, type RichEditorHandle } from "@/components/rich-editor";
 import { Attachments } from "@/components/attachments";
 import { ReviewExport } from "@/components/review-export";
 import { useAutosave } from "@/lib/use-autosave";
-import { useApi } from "@/lib/use-api";
+import { postJson, useApi } from "@/lib/use-api";
 import { fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
 
 interface TradeRowLite {
@@ -50,18 +51,31 @@ export default function JournalDayPage({ params }: { params: Promise<{ date: str
 }
 
 function JournalDay({ date }: { date: string }) {
-  const { query, values: filters, timeZone } = useFilters();
+  const { query } = useFilters();
   const { data, error } = useApi<DayPayload>(`/api/journal/${date}?${query}`);
   const [note, setNote] = useState<string | null>(null);
   const noteEditor = useRef<RichEditorHandle>(null);
   const { save, status: saving, flush } = useAutosave(`/api/journal/${date}`, "PUT");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const noteValue = note ?? data?.note ?? "";
-  const latestNote = useRef(noteValue);
-  latestNote.current = noteValue;
   const scheduleSave = (value: string) => {
-    latestNote.current = value;
     setNote(value);
     save({ note: value });
+  };
+
+  const generateRecap = async () => {
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const result = await postJson<{ recap: string }>(`/api/ai/recap`, { date });
+      const merged = noteValue ? `${noteValue}\n\n---\n\n${result.recap}` : result.recap;
+      scheduleSave(merged);
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "AI recap failed");
+    } finally {
+      setAiBusy(false);
+    }
   };
 
   const m = data?.metrics;
@@ -191,29 +205,27 @@ function JournalDay({ date }: { date: string }) {
                   )
                 }
               />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={generateRecap}
+                disabled={aiBusy || !data}
+              >
+                <Sparkles />
+                {aiBusy ? "Writing…" : "AI recap"}
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
-            <p className="mb-3 text-xs text-muted-foreground">
-              This note is shared across accounts. AI recaps use the selected filters and append a
-              labeled section. Shared notes are excluded from filtered AI context.
-            </p>
-            <div className="mb-3">
-              <AiRecap
-                key={`${date}:${timeZone}:${query}`}
-                date={date}
-                filters={filters}
-                timeZone={timeZone}
-                disabled={!data || !m?.closedTrades}
-                onRecap={({ recap, scope }) => {
-                  // Append to the current draft, including edits made while AI was running.
-                  const section = `## AI recap\n\n${scope.label.replace(/[\\`*_{}\[\]<>#]/g, "").replace(/[\r\n]+/g, " ")}\n\n${recap}`;
-                  scheduleSave(
-                    latestNote.current ? `${latestNote.current}\n\n---\n\n${section}` : section,
-                  );
-                }}
-              />
-            </div>
+            {aiError && (
+              <div className="mb-4">
+                <AiNotice
+                  error={aiError}
+                  onRetry={() => void generateRecap()}
+                  onDismiss={() => setAiError(null)}
+                />
+              </div>
+            )}
             {data ? (
               <RichEditor editorRef={noteEditor} value={noteValue} onChange={scheduleSave} />
             ) : error ? (

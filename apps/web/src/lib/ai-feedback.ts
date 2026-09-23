@@ -8,31 +8,6 @@ export interface AiFeedback {
 
 /** Friendly, bounded copy: never echo provider payloads or credentials into the UI. */
 export function aiFeedback(message: string): AiFeedback {
-  if (/^No (?:closed )?trades match/.test(message))
-    return {
-      title: "No matching trades",
-      description:
-        "There are no trades to analyze in this selection. Adjust the accounts, dates or other journal filters.",
-      tone: "info",
-    };
-  if (
-    /^A selected account no longer exists|^Invalid .* filter|^Invalid .* (?:date|time|number|range)|^Unknown journal filter|^filters is required|^From date must/.test(
-      message,
-    )
-  )
-    return {
-      title: "Check your journal filters",
-      description:
-        "The selected scope is no longer valid. Update the accounts and filters before trying again.",
-      tone: "info",
-    };
-  if (/^Journal timezone changed/.test(message))
-    return {
-      title: "Refresh your journal",
-      description:
-        "The journal timezone changed. Refresh this page so the displayed dates and AI analysis agree.",
-      tone: "info",
-    };
   if (/AI is not configured/i.test(message))
     return {
       title: "Set up AI to continue",
