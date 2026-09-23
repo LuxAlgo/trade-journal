@@ -33,6 +33,7 @@ interface SettingsBody {
   openaiKey?: string | null;
   aiProvider?: AiProvider;
   aiModel?: string;
+  aiBaseUrl?: string;
 }
 
 export const PATCH = handler(async (request: Request) => {
@@ -47,9 +48,17 @@ export const PATCH = handler(async (request: Request) => {
         /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,199}$/.test(body.aiModel.trim()),
       "Enter a valid model ID.",
     );
+
+  requireValue(
+    body.aiBaseUrl &&
+    /^https?:\/\/(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,63}(?::\d{1,5})?\/?$/.test(body.aiBaseUrl.trim()),
+    `Enter a valid ${provider} Base URL.`,
+  );
+
   for (const id of AI_PROVIDERS) {
     const key = body[`${id}Key`];
     if (key === undefined) continue;
+
     requireValue(
       key === null ||
         (typeof key === "string" &&
@@ -58,11 +67,13 @@ export const PATCH = handler(async (request: Request) => {
           !/\s/.test(key.trim())),
       `Enter a valid ${AI_PROVIDER_NAMES[id]} API key.`,
     );
+
     requireValue(
       !aiKeyEnvironment(id),
       `${AI_PROVIDER_NAMES[id]} uses an environment key. Update or remove it on the server.`,
     );
   }
+
   for (const key of ["timeZone", "importTimeZone"] as const)
     if (body[key] !== undefined)
       requireValue(
@@ -78,6 +89,7 @@ export const PATCH = handler(async (request: Request) => {
         ),
       "Contract multipliers must be positive numbers.",
     );
+
   db.transaction(() => {
     // A display-only change must not silently alter the legacy import default.
     if (body.timeZone !== undefined || body.importTimeZone !== undefined)
@@ -97,6 +109,8 @@ export const PATCH = handler(async (request: Request) => {
     }
     if (body.aiProvider !== undefined) setSetting("aiProvider", body.aiProvider);
     if (body.aiModel !== undefined) setSetting(aiModelSetting(provider), body.aiModel.trim());
+    if (body.aiBaseUrl !== undefined) setSetting(`${provider}_baseUrl`, body.aiBaseUrl.trim());
   });
+
   return ok({ saved: true });
 });

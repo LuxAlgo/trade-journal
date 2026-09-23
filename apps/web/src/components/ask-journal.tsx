@@ -10,6 +10,8 @@ import { AiNotice } from "./ai-notice";
 import { useFilters } from "./filter-bar";
 import { useAiRequest, type AiScope } from "@/lib/use-ai-request";
 import type { AnalysisFilters } from "@luxalgo/journal-core";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const SUGGESTIONS = [
   "What's my most expensive mistake?",
@@ -93,7 +95,9 @@ function ScopedAskJournal({ filters, timeZone }: { filters: AnalysisFilters; tim
         {answer && (
           <div className="space-y-2 pt-1">
             <p className="text-xs text-muted-foreground">{answer.scope.label}</p>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">{answer.answer}</p>
+            <div className="whitespace-pre-wrap text-sm leading-relaxed">
+              <Markdown remarkPlugins={[remarkGfm]}>{answer.answer}</Markdown>
+            </div>
           </div>
         )}
       </CardContent>

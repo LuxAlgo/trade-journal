@@ -4,6 +4,8 @@ import { decryptJson, encryptJson } from "./crypto";
 import { EMPTY_DEFAULTS, type JournalDefaults } from "@/lib/journal-defaults";
 import {
   AI_DEFAULT_MODELS,
+  DEFAULT_ANTHROPIC_API_BASE_URL,
+  DEFAULT_OPENAI_BASE_URL,
   isAiProvider,
   type AiProvider,
   type AiSettingsPayload,
@@ -52,6 +54,10 @@ export const aiKeyEnvironment = (provider: AiProvider): string | null =>
   (provider === "openai" ? process.env.OPENAI_API_KEY : process.env.ANTHROPIC_API_KEY)?.trim() ||
   null;
 
+export const aiBaseUrlEnvironment = (provider: AiProvider): string | null =>
+  (provider === "openai" ? process.env.OPENAI_API_BASE_URL : process.env.ANTHROPIC_API_BASE_URL)?.trim() ||
+  null;
+
 /** Provider keys are stored separately and encrypted like broker credentials. */
 export const getAiKey = (provider: AiProvider): string | null => {
   const environment = aiKeyEnvironment(provider);
@@ -66,9 +72,28 @@ export const getAiKey = (provider: AiProvider): string | null => {
   }
 };
 
+export const getAiBaseUrl = (provider: AiProvider): string => {
+  const environment = aiBaseUrlEnvironment(provider);
+  if (environment) return environment;
+  const envelope = getSetting(`${provider}_baseUrl`);
+
+  if (!envelope) {
+    return provider === "anthropic" ?
+      DEFAULT_ANTHROPIC_API_BASE_URL :
+      DEFAULT_OPENAI_BASE_URL;
+  }
+
+  return envelope;
+}
+
 export const setAiKey = (provider: AiProvider, key: string | null): void => {
   if (key === null) deleteSetting(`${provider}KeyEnc`);
   else setSetting(`${provider}KeyEnc`, encryptJson(key.trim()));
+};
+
+export const setAiBaseUrl = (provider: AiProvider, url: string | null): void => {
+  if (url === null) deleteSetting(`${provider}_baseUrl`);
+  else setSetting(`${provider}_baseUrl`, url);
 };
 
 export const getAnthropicKey = (): string | null => getAiKey("anthropic");
@@ -89,6 +114,7 @@ export const getAiModel = (provider: AiProvider): string =>
 
 export const getAiSettings = (): AiSettingsPayload => {
   const aiProvider = getAiProvider();
+
   const connection = (provider: AiProvider) => ({
     configured: Boolean(getAiKey(provider)),
     source: aiKeyEnvironment(provider)
@@ -96,13 +122,16 @@ export const getAiSettings = (): AiSettingsPayload => {
       : getAiKey(provider)
         ? ("saved" as const)
         : null,
+    baseUrl: getAiBaseUrl(aiProvider),
     model: getAiModel(provider),
   });
+
   const aiConnections = { anthropic: connection("anthropic"), openai: connection("openai") };
   return {
     aiProvider,
     aiConfigured: aiConnections[aiProvider].configured,
     aiModel: aiConnections[aiProvider].model,
+    aiBaseUrl: aiConnections[aiProvider].baseUrl,
     aiConnections,
   };
 };
