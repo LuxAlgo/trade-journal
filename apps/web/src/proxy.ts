@@ -7,7 +7,9 @@ import { NextResponse, type NextRequest } from "next/server";
 export const proxy = (request: NextRequest) => {
   if (!process.env.JOURNAL_PASSWORD) return NextResponse.next();
   const { pathname } = request.nextUrl;
-  if (pathname === "/login" || pathname === "/api/auth") return NextResponse.next();
+  if (pathname === "/login" || pathname === "/api/auth" || pathname === "/json/version") {
+    return NextResponse.next();
+  }
   const cookie = request.cookies.get("journal_session")?.value;
   if (!cookie) {
     if (pathname.startsWith("/api/")) {
