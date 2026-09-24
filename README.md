@@ -4,16 +4,18 @@
 
 <br/>
 
+# Trade Journal
+
 Broker sync, deep analytics, a P&L calendar, trade replay, prop firm tracking, daily journaling with voice dictation, and AI reflection. Run it locally, or use it free inside LuxAlgo.
 
-Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project. Official repository: [github.com/LuxAlgo/trade-journal](https://github.com/LuxAlgo/trade-journal)
+Trade Journal is a [LuxAlgo](https://luxalgo.com) open-source project.
 
 [![npm](https://img.shields.io/npm/v/@luxalgo/journal-core?label=npm&color=white)](https://www.npmjs.com/package/@luxalgo/journal-core)
 [![License](https://img.shields.io/badge/license-MIT-white)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/lang-TypeScript-white)](packages/core/src/types.ts)
 [![SQLite](https://img.shields.io/badge/db-SQLite-white)](#quickstart)
 
-[Quickstart](#quickstart) · [Features](#features) · [Screenshots](#screenshots) · [How it works](#how-it-works) · [Migrate](#migrating-from-tradezella-or-tradervue) · [Edge Score](docs/edge-score.md) · [Contributing](CONTRIBUTING.md)
+[Homepage](https://www.luxalgo.com/trade-journal/) · [Quickstart](#quickstart) · [Features](#features) · [Screenshots](#screenshots) · [How it works](#how-it-works) · [Migrate](#migrating-from-tradezella-or-tradervue) · [Edge Score](docs/edge-score.md) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -79,7 +81,7 @@ For AI, open **Settings → AI**, select **Anthropic** or **OpenAI**, enter your
 
 Deploy anywhere a Node process and a persistent disk exist: Docker, Railway, Fly.io, a small VPS. Serverless platforms without a disk need an external database, which this release does not support. SQLite on disk is the point.
 
-Optional historical market data powers estimated MAE/MFE and candle replay on closed trades, with Vela rendering the charts. Configure a connection or upload candle CSVs in **Settings → Market data**. No provider is enabled or selected by default. See [Market data and replay](#market-data-and-replay) below and the [market data guide](docs/market-data.md) for setup, calculation definitions, and coverage limits.
+Optional historical market data powers estimated MAE/MFE and candle replay on closed trades, with Vela™ rendering the charts. Configure a connection or upload candle CSVs in **Settings → Market data**. No provider is enabled or selected by default. See [Market data and replay](#market-data-and-replay) below and the [market data guide](docs/market-data.md) for setup, calculation definitions, and coverage limits.
 
 The **Prop firms** sidebar tracks evaluation/reset costs, refunds, payout requests, and actual receipts across your own firms and accounts. It includes cash ROI, partial payouts, reversals, renewal reminders, attachments, and generic CSV import/export. See [Prop firm tracking](#prop-firm-tracking) below and the [prop firm guide and research](docs/prop-firms.md) for workflows and metric definitions.
 
