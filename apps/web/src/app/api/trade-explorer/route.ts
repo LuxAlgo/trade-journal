@@ -3,12 +3,12 @@ import { accounts, db } from "@/db";
 import { tradeExplorerPoints } from "@/lib/trade-explorer";
 import { handler, ok } from "@/server/api";
 import { getTimeZone } from "@/server/settings";
-import { queryTrades } from "@/server/trades-query";
+import { queryTradeModels } from "@/server/trades-query";
 
 import { savedEstimates } from "@/server/market-data/estimates";
 
 export const GET = handler((request: Request) => {
-  const { trades } = queryTrades(readFilters(new URL(request.url).searchParams));
+  const trades = queryTradeModels(readFilters(new URL(request.url).searchParams));
   const timeZone = getTimeZone();
   const currencies = new Map(
     db

@@ -6,14 +6,14 @@ import {
   type Dimension,
 } from "@luxalgo/journal-core";
 import { handler, ok } from "@/server/api";
-import { queryTrades } from "@/server/trades-query";
+import { queryTradeModels } from "@/server/trades-query";
 import { getTimeZone } from "@/server/settings";
 import { db, playbooks, accounts } from "@/db";
 export const GET = handler((request: Request) => {
   const params = new URL(request.url).searchParams;
   const primary = params.get("primary") as Dimension,
     secondary = params.get("secondary") as Dimension;
-  const { trades } = queryTrades(readFilters(params));
+  const trades = queryTradeModels(readFilters(params));
   const tz = getTimeZone(),
     accountRows = db.select().from(accounts).all();
   const accountCurrencies = new Map(accountRows.map((a) => [a.id, a.currency]));

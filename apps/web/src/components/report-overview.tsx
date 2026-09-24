@@ -34,7 +34,7 @@ const SECTIONS = [
 ] as const;
 
 export function ReportOverview({ query, filters }: { query: string; filters: AnalysisFilters }) {
-  const { data, error, loading } = useApi<OverviewData>(`/api/stats?${query}`);
+  const { data, error, loading } = useApi<OverviewData>(`/api/stats?view=overview&${query}`);
   if (error)
     return (
       <p role="alert" className="text-sm text-destructive">

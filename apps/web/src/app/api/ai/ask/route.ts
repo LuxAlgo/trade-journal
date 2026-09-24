@@ -11,7 +11,7 @@ import {
 } from "@luxalgo/journal-core";
 import { bad, handler, ok } from "@/server/api";
 import { runAi } from "@/server/ai";
-import { queryTrades } from "@/server/trades-query";
+import { queryTradeModels } from "@/server/trades-query";
 import { accountContext, readAiRequest } from "@/server/ai-scope";
 
 const bucketBlock = (title: string, buckets: BucketStats[]): string =>
@@ -32,7 +32,7 @@ export const POST = handler(async (request: Request) => {
   const scope = readAiRequest(await request.json(), "question");
   const { question, timeZone, filters } = scope;
 
-  const { trades } = queryTrades(filters);
+  const trades = queryTradeModels(filters);
   if (trades.length === 0) return bad("No trades match the selected accounts and filters");
   const m = computeMetrics(trades, { timeZone });
 

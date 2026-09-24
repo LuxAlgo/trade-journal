@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useCallback, useEffect, useState } from "react";
-import { acquireJson } from "./api-request";
+import { acquireJson, invalidateMetadataCache } from "./api-request";
 
 export interface ApiState<T> {
   data: T | null;
@@ -78,5 +78,6 @@ export const postJson = async <T = unknown>(
   });
   const data = (await response.json()) as T & { error?: string };
   if (!response.ok) throw new Error(data.error ?? `Request failed (${response.status})`);
+  invalidateMetadataCache();
   return data;
 };

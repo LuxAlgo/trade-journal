@@ -2,7 +2,7 @@ import { calendarMonthFromDays, dailyStats, dayKeyOf, readFilters } from "@luxal
 import { accounts, db } from "@/db";
 import { handler, ok, requireValue } from "@/server/api";
 import { getTimeZone } from "@/server/settings";
-import { queryTrades } from "@/server/trades-query";
+import { queryTradeModels } from "@/server/trades-query";
 import { calendarInsights, calendarScope } from "@/lib/calendar-insights";
 
 /** Only compute the visible month, not every dashboard/report breakdown. */
@@ -22,7 +22,7 @@ export const GET = handler(async (request: Request) => {
     "Choose a valid calendar month.",
   );
   const scope = calendarScope(readFilters(params), year, month);
-  const { trades } = queryTrades(scope);
+  const trades = queryTradeModels(scope);
   const calendar = calendarMonthFromDays(dailyStats(trades, timeZone), year, month);
   const accountRows = db
     .select({ id: accounts.id, currency: accounts.currency })

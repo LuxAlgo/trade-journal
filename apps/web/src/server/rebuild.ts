@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { buildRoundTrips, type Execution, type ProfitCalcMethod } from "@luxalgo/journal-core";
 import { db, executions, trades, accounts } from "@/db";
 import { getMultipliers, getJournalDefaults } from "./settings";
@@ -42,37 +42,61 @@ export const rebuildAccount = (accountId: string): void => {
       .map((row) => row.key),
   );
   const defaults = getJournalDefaults();
+  const values = trips.map((trip) => {
+    obsolete.delete(trip.key);
+    return {
+      key: trip.key,
+      accountId: trip.accountId,
+      symbol: trip.symbol,
+      assetClass: trip.assetClass ?? null,
+      direction: trip.direction,
+      status: trip.status,
+      openedAt: trip.openedAt,
+      closedAt: trip.closedAt ?? null,
+      quantity: trip.quantity,
+      openQuantity: trip.openQuantity,
+      avgEntry: trip.avgEntry,
+      avgExit: trip.avgExit ?? null,
+      grossPnl: trip.grossPnl,
+      fees: trip.fees,
+      netPnl: trip.netPnl,
+      executionCount: trip.executionCount,
+      executionIdsJson: JSON.stringify(trip.executionIds),
+      exitsJson: JSON.stringify(trip.exits),
+      durationMs: trip.durationMs ?? null,
+      ...defaultRisk(trip.avgEntry, trip.direction, accountId, trip.symbol, defaults),
+    };
+  });
 
   db.transaction((tx) => {
-    for (const trip of trips) {
-      obsolete.delete(trip.key);
-      const computed = {
-        accountId: trip.accountId,
-        symbol: trip.symbol,
-        assetClass: trip.assetClass ?? null,
-        direction: trip.direction,
-        status: trip.status,
-        openedAt: trip.openedAt,
-        closedAt: trip.closedAt ?? null,
-        quantity: trip.quantity,
-        openQuantity: trip.openQuantity,
-        avgEntry: trip.avgEntry,
-        avgExit: trip.avgExit ?? null,
-        grossPnl: trip.grossPnl,
-        fees: trip.fees,
-        netPnl: trip.netPnl,
-        executionCount: trip.executionCount,
-        executionIdsJson: JSON.stringify(trip.executionIds),
-        exitsJson: JSON.stringify(trip.exits),
-        durationMs: trip.durationMs ?? null,
-      };
+    // Keep batches below SQLite's bind-parameter limit. User annotations are
+    // intentionally absent from the conflict update and therefore survive.
+    for (let i = 0; i < values.length; i += 25) {
       tx.insert(trades)
-        .values({
-          key: trip.key,
-          ...computed,
-          ...defaultRisk(trip.avgEntry, trip.direction, accountId, trip.symbol, defaults),
+        .values(values.slice(i, i + 25))
+        .onConflictDoUpdate({
+          target: trades.key,
+          set: {
+            accountId: sql`excluded.account_id`,
+            symbol: sql`excluded.symbol`,
+            assetClass: sql`excluded.asset_class`,
+            direction: sql`excluded.direction`,
+            status: sql`excluded.status`,
+            openedAt: sql`excluded.opened_at`,
+            closedAt: sql`excluded.closed_at`,
+            quantity: sql`excluded.quantity`,
+            openQuantity: sql`excluded.open_quantity`,
+            avgEntry: sql`excluded.avg_entry`,
+            avgExit: sql`excluded.avg_exit`,
+            grossPnl: sql`excluded.gross_pnl`,
+            fees: sql`excluded.fees`,
+            netPnl: sql`excluded.net_pnl`,
+            executionCount: sql`excluded.execution_count`,
+            executionIdsJson: sql`excluded.execution_ids_json`,
+            exitsJson: sql`excluded.exits_json`,
+            durationMs: sql`excluded.duration_ms`,
+          },
         })
-        .onConflictDoUpdate({ target: trades.key, set: computed })
         .run();
     }
     const vanished = [...obsolete];

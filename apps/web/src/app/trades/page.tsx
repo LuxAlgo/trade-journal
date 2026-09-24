@@ -4,13 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import {
-  createSortedRowModel,
   rowSelectionFeature,
   rowSortingFeature,
   columnVisibilityFeature,
   tableFeatures,
   useTable,
-  sortFns,
   type ColumnDef,
 } from "@tanstack/react-table";
 import { ArrowUpDown, Check, Columns3, Download, Tag, Trash2 } from "lucide-react";
@@ -55,8 +53,6 @@ const features = tableFeatures({
   rowSortingFeature,
   rowSelectionFeature,
   columnVisibilityFeature,
-  sortedRowModel: createSortedRowModel(),
-  sortFns,
 });
 
 const EMPTY_TRADES: TradeRow[] = [];
@@ -71,18 +67,29 @@ export default function TradesPage() {
 
 function Trades() {
   const { query } = useFilters();
+  const pageSize = 50;
+  const [page, setPage] = useState(0);
+  const [sort, setSort] = useState({ id: "closedAt", desc: true });
   const { data, error, refresh } = useApi<{
     trades: TradeRow[];
     metrics: TradeMetrics;
     timeZone: string;
-  }>(`/api/trades?view=list&${query}`);
+    total: number;
+    page: number;
+    pageSize: number;
+  }>(
+    `/api/trades?view=list&page=${page}&pageSize=${pageSize}&sort=${encodeURIComponent(sort.id)}&dir=${sort.desc ? "desc" : "asc"}&${query}`,
+  );
   const router = useRouter();
   const timeZone = data?.timeZone ?? "UTC";
   const [tagInput, setTagInput] = useState("");
   const [showColumns, setShowColumns] = useState(false);
-  const [page, setPage] = useState(0);
-  const pageSize = 50;
   useEffect(() => setPage(0), [query]);
+  useEffect(() => {
+    if (!data) return;
+    const lastPage = Math.max(0, Math.ceil(data.total / pageSize) - 1);
+    if (page > lastPage) setPage(lastPage);
+  }, [data, page]);
 
   const columns = useMemo<ColumnDef<typeof features, TradeRow>[]>(
     () => [
@@ -99,7 +106,7 @@ function Trades() {
                   : false
             }
             onCheckedChange={(value) => table.toggleAllRowsSelected(value === true)}
-            aria-label="Select all matching trades"
+            aria-label="Select all trades on this page"
           />
         ),
         cell: ({ row }) => (
@@ -269,10 +276,10 @@ function Trades() {
   });
 
   const selectedKeys = table.getSelectedRowModel().rows.map((row) => row.original.key);
-  const sortedRows = table.getRowModel().rows;
-  const pageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const visibleRows = table.getRowModel().rows;
+  const total = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
-  const visibleRows = sortedRows.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   const bulk = async (action: string, extra?: Record<string, unknown>) => {
     await postJson("/api/trades/bulk", { keys: selectedKeys, action, ...extra });
     table.resetRowSelection();
@@ -441,16 +448,19 @@ function Trades() {
                           {header.isPlaceholder ? null : header.column.getCanSort() ? (
                             <button
                               className="inline-flex items-center gap-1 hover:text-foreground"
-                              onClick={(event) => {
+                              onClick={() => {
                                 setPage(0);
-                                header.column.getToggleSortingHandler()?.(event);
+                                setSort((current) => ({
+                                  id: header.column.id,
+                                  desc: current.id === header.column.id ? !current.desc : false,
+                                }));
                               }}
                             >
                               <table.FlexRender header={header} />
                               <ArrowUpDown
                                 className={cn(
                                   "h-3 w-3",
-                                  header.column.getIsSorted() && "text-foreground",
+                                  sort.id === header.column.id && "text-foreground",
                                 )}
                               />
                             </button>
@@ -478,7 +488,7 @@ function Trades() {
                       ))}
                     </tr>
                   ))}
-                  {table.getRowModel().rows.length === 0 && (
+                  {visibleRows.length === 0 && (
                     <tr>
                       <td
                         colSpan={columns.length}
@@ -495,12 +505,11 @@ function Trades() {
                 </tbody>
               </table>
             </div>
-            {sortedRows.length > pageSize && (
+            {total > pageSize && (
               <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
                 <span>
-                  {currentPage * pageSize + 1}–
-                  {Math.min((currentPage + 1) * pageSize, sortedRows.length)} of{" "}
-                  {fmtNumber(sortedRows.length, 0)} trades
+                  {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, total)} of{" "}
+                  {fmtNumber(total, 0)} trades
                 </span>
                 <div className="flex items-center gap-2">
                   <Button

@@ -165,6 +165,15 @@ describe("statement and display timezones are independent", () => {
     await post({ mode: "commit", accountId: "test", content: html });
     const stored = db.select().from(trades).get()!;
     const dashboard = await (await stats(request("stats?calYear=2026&calMonth=7"))).json();
+    const dashboardView = await (
+      await stats(request("stats?view=dashboard&calYear=2026&calMonth=7"))
+    ).json();
+    const overviewView = await (await stats(request("stats?view=overview"))).json();
+    expect(dashboardView).not.toHaveProperty("equity");
+    expect(dashboardView).not.toHaveProperty("accounts");
+    expect(Object.keys(dashboardView.buckets)).toEqual(["hour"]);
+    expect(overviewView).not.toHaveProperty("metrics");
+    expect(overviewView).toHaveProperty("accounts");
     expect(dashboard.days[0].date).toBe("2026-07-04");
     expect(dashboard.buckets.hour.find((bucket: { trades: number }) => bucket.trades > 0).key).toBe(
       "22",
@@ -181,6 +190,7 @@ describe("statement and display timezones are independent", () => {
       await tradeDetail(request("trades/test"), { params: Promise.resolve({ key: stored.key }) })
     ).json();
     const listed = await (await listTrades(request("trades?view=list"))).json();
+    expect(listed).toMatchObject({ total: 1, page: 0, pageSize: 50 });
     expect(
       detail.executions
         .map((fill: { executedAt: string }) => formatTimestamp(fill.executedAt, detail.timeZone))

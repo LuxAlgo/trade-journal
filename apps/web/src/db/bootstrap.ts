@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS trades (
   reviewed_at TEXT
 );
 CREATE INDEX IF NOT EXISTS trades_account_closed ON trades (account_id, closed_at);
+CREATE INDEX IF NOT EXISTS trades_closed ON trades (closed_at);
 CREATE INDEX IF NOT EXISTS trades_symbol ON trades (symbol);
 CREATE INDEX IF NOT EXISTS trades_opened ON trades (opened_at);
 CREATE INDEX IF NOT EXISTS trades_account_opened ON trades (account_id, opened_at);

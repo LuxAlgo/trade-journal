@@ -142,6 +142,7 @@ export const trades = sqliteTable(
   },
   (table) => [
     index("trades_account_closed").on(table.accountId, table.closedAt),
+    index("trades_closed").on(table.closedAt),
     index("trades_symbol").on(table.symbol),
     index("trades_opened").on(table.openedAt),
     index("trades_account_opened").on(table.accountId, table.openedAt),

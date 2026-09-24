@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Suspense, useState } from "react";
 import type {
   CalendarMonth,
@@ -11,11 +12,7 @@ import type {
 } from "@luxalgo/journal-core";
 import { dayKeyOf, relativeDrawdownCurve } from "@luxalgo/journal-core";
 import { CalendarPnl } from "@/components/calendar-pnl";
-import { DailyBars } from "@/components/charts/daily-bars";
-import { EdgeRadar } from "@/components/charts/edge-radar";
-import { EquityArea } from "@/components/charts/equity-area";
 import { Gauge } from "@/components/charts/gauge";
-import { RelativeDrawdownBars } from "@/components/charts/relative-drawdown-bars";
 import { TimeHeatmap } from "@/components/charts/time-heatmap";
 import {
   ArrowUpDown,
@@ -41,6 +38,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HelpHint, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn, fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
+
+const DailyBars = dynamic(() =>
+  import("@/components/charts/daily-bars").then((module) => module.DailyBars),
+);
+const EdgeRadar = dynamic(() =>
+  import("@/components/charts/edge-radar").then((module) => module.EdgeRadar),
+);
+const EquityArea = dynamic(() =>
+  import("@/components/charts/equity-area").then((module) => module.EquityArea),
+);
+const RelativeDrawdownBars = dynamic(() =>
+  import("@/components/charts/relative-drawdown-bars").then(
+    (module) => module.RelativeDrawdownBars,
+  ),
+);
 
 interface Bucket {
   key: string;
@@ -79,7 +91,9 @@ export default function DashboardPage() {
 
 function Dashboard() {
   const { query } = useFilters();
-  const { data, loading, error, refresh } = useApi<StatsPayload>(`/api/stats?${query}`);
+  const { data, loading, error, refresh } = useApi<StatsPayload>(
+    `/api/stats?view=dashboard&${query}`,
+  );
 
   return (
     <>

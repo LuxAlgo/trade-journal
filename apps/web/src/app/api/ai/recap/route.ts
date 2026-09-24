@@ -3,7 +3,7 @@ import { computeMetrics, dayKeyOf } from "@luxalgo/journal-core";
 import { db, journalDays } from "@/db";
 import { bad, handler, ok } from "@/server/api";
 import { runAi } from "@/server/ai";
-import { queryTrades } from "@/server/trades-query";
+import { queryTradeModels } from "@/server/trades-query";
 import { accountContext, readAiRequest } from "@/server/ai-scope";
 
 /** Generate a session recap for one trading day from the day's actual trades. */
@@ -12,7 +12,7 @@ export const POST = handler(async (request: Request) => {
   const { timeZone, filters } = scope;
   const date = scope.date!;
 
-  const { trades } = queryTrades(filters);
+  const trades = queryTradeModels(filters);
   const dayTrades = trades.filter(
     (trade) => trade.closedAt && dayKeyOf(trade.closedAt, timeZone) === date,
   );

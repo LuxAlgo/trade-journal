@@ -1,10 +1,10 @@
 import { analyzeAdherence, readFilters } from "@luxalgo/journal-core";
 import { db, playbooks, tradeRuleChecks, accounts } from "@/db";
-import { queryTrades } from "@/server/trades-query";
+import { queryTradeModels } from "@/server/trades-query";
 import { handler, ok } from "@/server/api";
 
 export const GET = handler((request: Request) => {
-  const { trades } = queryTrades(readFilters(new URL(request.url).searchParams));
+  const trades = queryTradeModels(readFilters(new URL(request.url).searchParams));
   const checks = db.select().from(tradeRuleChecks).all();
   const books = db
     .select()

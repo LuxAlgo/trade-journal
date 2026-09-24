@@ -18,49 +18,69 @@ import { asc } from "drizzle-orm";
 import { accounts, db, playbooks } from "@/db";
 import { handler, ok } from "@/server/api";
 import { getTimeZone } from "@/server/settings";
-import { queryTrades, type TradeFilters } from "@/server/trades-query";
+import { queryTradeModels, type TradeFilters } from "@/server/trades-query";
 
-/** The entire dashboard in one request. */
+type StatsView = "dashboard" | "overview" | "full";
+
+const requestedView = (url: URL): StatsView => {
+  const view = url.searchParams.get("view");
+  return view === "dashboard" || view === "overview" ? view : "full";
+};
+
+/** Return only the analytics blocks required by the requesting screen. */
 export const GET = handler(async (request: Request) => {
   const url = new URL(request.url);
+  const view = requestedView(url);
   const timeZone = getTimeZone();
   const filters: TradeFilters = readFilters(url.searchParams);
 
-  const { trades } = queryTrades(filters);
+  const trades = queryTradeModels(filters);
   const accountRows = db.select().from(accounts).orderBy(asc(accounts.createdAt)).all();
   const selected = filters.accounts
     ? accountRows.filter((a) => filters.accounts!.split(",").includes(a.id))
     : accountRows;
   const initialBalance = selected.reduce((total, a) => total + a.initialBalance, 0);
 
-  const { metrics, days, equity } = computeOverview(trades, { timeZone, initialBalance });
   const accountCurrencies = new Map(accountRows.map((a) => [a.id, a.currency]));
+  const directory =
+    view === "dashboard"
+      ? {}
+      : {
+          currencies: [...new Set(trades.map((t) => accountCurrencies.get(t.accountId) ?? "USD"))],
+          accounts: accountRows.map((a) => ({ id: a.id, name: a.name })),
+          playbooks: db.select({ id: playbooks.id, name: playbooks.name }).from(playbooks).all(),
+        };
+  const buckets =
+    view === "dashboard"
+      ? { hour: byHour(trades, timeZone) }
+      : {
+          symbol: bySymbol(trades).slice(0, 20),
+          tag: byTag(trades),
+          mistake: byMistake(trades),
+          playbook: byPlaybook(trades),
+          weekday: byWeekday(trades, timeZone),
+          hour: byHour(trades, timeZone),
+          duration: byDuration(trades),
+          direction: byDirection(trades),
+        };
 
   const today = dayKeyOf(new Date().toISOString(), timeZone);
   const calendarYear = Number(url.searchParams.get("calYear") ?? today.slice(0, 4));
   const calendarMonthNum = Number(url.searchParams.get("calMonth") ?? today.slice(5, 7));
 
+  if (view === "overview") return ok({ timeZone, ...directory, buckets });
+
+  const { metrics, days, equity } = computeOverview(trades, { timeZone, initialBalance });
   return ok({
     timeZone,
-    currencies: [...new Set(trades.map((t) => accountCurrencies.get(t.accountId) ?? "USD"))],
-    accounts: accountRows.map((a) => ({ id: a.id, name: a.name })),
-    playbooks: db.select({ id: playbooks.id, name: playbooks.name }).from(playbooks).all(),
+    ...directory,
     metrics,
     edgeScore: computeEdgeScore(metrics),
     days,
     dailyCumulative: dailyCumulativeFromDays(days),
-    equity,
+    ...(view === "full" ? { equity } : {}),
     calendar: calendarMonthFromDays(days, calendarYear, calendarMonthNum),
-    buckets: {
-      symbol: bySymbol(trades).slice(0, 20),
-      tag: byTag(trades),
-      mistake: byMistake(trades),
-      playbook: byPlaybook(trades),
-      weekday: byWeekday(trades, timeZone),
-      hour: byHour(trades, timeZone),
-      duration: byDuration(trades),
-      direction: byDirection(trades),
-    },
+    buckets,
     openPositions: trades
       .filter((t) => t.status === "open")
       .map((t) => ({

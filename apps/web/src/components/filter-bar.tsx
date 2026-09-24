@@ -16,7 +16,7 @@ import { SlidersHorizontal } from "lucide-react";
 import { AccountSelector } from "./account-selector";
 export const useFilters = () => {
   const params = useSearchParams();
-  const { data } = useApi<{ timeZone: string }>("/api/settings");
+  const { data } = useApi<{ timeZone: string }>("/api/settings?scope=timezone");
   const range = params.get("range") ?? "all",
     timeZone = data?.timeZone ?? "UTC";
   return useMemo(() => {

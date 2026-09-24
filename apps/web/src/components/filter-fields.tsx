@@ -55,7 +55,7 @@ export function FilterFields({
 }) {
   const { data: accounts } = useApi<{
     accounts: { id: string; name: string; archivedAt: string | null }[];
-  }>("/api/accounts");
+  }>("/api/accounts?summary=1");
   const { data: playbooks } = useApi<{ playbooks: { id: string; name: string }[] }>(
     "/api/playbooks",
   );

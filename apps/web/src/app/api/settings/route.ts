@@ -15,14 +15,16 @@ import {
 import { AI_PROVIDERS, AI_PROVIDER_NAMES, isAiProvider, type AiProvider } from "@/lib/ai-settings";
 import { isTimeZone } from "@/lib/timezone";
 
-export const GET = handler(() =>
-  ok({
+export const GET = handler((request?: Request) => {
+  if (request && new URL(request.url).searchParams.get("scope") === "timezone")
+    return ok({ timeZone: getTimeZone() });
+  return ok({
     timeZone: getTimeZone(),
     importTimeZone: getImportTimeZone(),
     multipliers: getMultipliers(),
     ...getAiSettings(),
-  }),
-);
+  });
+});
 
 interface SettingsBody {
   timeZone?: string;
