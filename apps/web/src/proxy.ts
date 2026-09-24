@@ -1,12 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Auth guard (only active when JOURNAL_PASSWORD is set). The session cookie is
- * validated for presence here and cryptographically in API handlers — the
- * middleware runtime has no Node crypto, so it gates navigation while the
- * handlers gate data.
+ * Auth guard (only active when JOURNAL_PASSWORD is set). Cookie presence gates
+ * navigation here; API handlers verify the session HMAC before serving data.
  */
-export const middleware = (request: NextRequest) => {
+export const proxy = (request: NextRequest) => {
   if (!process.env.JOURNAL_PASSWORD) return NextResponse.next();
   const { pathname } = request.nextUrl;
   if (pathname === "/login" || pathname === "/api/auth" || pathname === "/json/version") {
