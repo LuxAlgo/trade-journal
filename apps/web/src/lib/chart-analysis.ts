@@ -1,6 +1,7 @@
-import { RESOLUTIONS, type Resolution } from "./market-data";
+import { AGGREGATE_FROM, RESOLUTIONS, type Resolution } from "./market-data";
 import type { LayersDocument } from "./chart-layers";
 import type { StoredIndicator } from "./chart-indicators";
+import type { SrZone } from "./sr-zones";
 
 /** Vela's `SerializedDrawing` as stored: time+price anchors, never pixels. */
 export interface StoredDrawing {
@@ -40,6 +41,7 @@ export interface ChartAnalysis extends ChartAnalysisSummary {
   drawings: DrawingsDocument;
   layers: LayersDocument;
   indicators: StoredIndicator[];
+  zones: SrZone[];
 }
 
 export const EMPTY_DRAWINGS: DrawingsDocument = { version: 1, drawings: [] };
@@ -56,19 +58,29 @@ export const MAX_ANALYSIS_BARS = 20_000;
 
 export const VELA_TIMEFRAME: Record<Resolution, string> = {
   "1m": "1",
+  "3m": "3",
   "5m": "5",
   "15m": "15",
+  "30m": "30",
   "1h": "60",
+  "2h": "120",
+  "4h": "240",
   "1d": "1D",
+  "1w": "1W",
 };
 
 /** Default history window: enough context to analyse, well under provider page limits. */
 const DEFAULT_LOOKBACK_DAYS: Record<Resolution, number> = {
   "1m": 2,
+  "3m": 4,
   "5m": 10,
   "15m": 30,
+  "30m": 60,
   "1h": 120,
+  "2h": 240,
+  "4h": 480,
   "1d": 3 * 365,
+  "1w": 10 * 365,
 };
 
 export const defaultLookbackMs = (resolution: Resolution): number =>
@@ -76,7 +88,8 @@ export const defaultLookbackMs = (resolution: Resolution): number =>
 
 /** Largest window one request may cover at a resolution, matching the adapters' bar cap. */
 export const maxSpanMs = (resolution: Resolution): number =>
-  MAX_ANALYSIS_BARS * RESOLUTIONS[resolution];
+  // Built sizes are limited by the finer candles they are made from.
+  MAX_ANALYSIS_BARS * RESOLUTIONS[AGGREGATE_FROM[resolution] ?? resolution];
 
 const finite = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);

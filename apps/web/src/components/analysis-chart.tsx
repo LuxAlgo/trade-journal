@@ -41,6 +41,12 @@ import {
   type IndicatorBridge,
 } from "./chart-indicators-bridge";
 import type { StoredIndicator } from "@/lib/chart-indicators";
+import {
+  createChartOverlays,
+  type ChartOverlays,
+  type OverlayHooks,
+  type OverlayState,
+} from "./chart-overlays";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
 
@@ -66,6 +72,8 @@ export interface AnalysisChartHandle {
   reveal(ids: string[]): void;
   /** Script indicators on the chart, or null until the chart and its Pine engine are up. */
   indicators(): IndicatorBridge | null;
+  /** Scroll to a moment (loading older history if needed). */
+  showTime(time: number): void;
 }
 
 const TOOLS: {
@@ -124,6 +132,10 @@ export function AnalysisChart({
   initialIndicators,
   onIndicatorsChange,
   onIndicatorAlert,
+  overlay,
+  overlayHooks,
+  capturing,
+  toolbarExtras,
   layers,
   onDrawingCreated,
   onDrawingsChange,
@@ -144,6 +156,13 @@ export function AnalysisChart({
   /** Indicators after any change; `edited` is false for errors and the initial restore. */
   onIndicatorsChange: (indicators: ChartIndicator[], edited: boolean) => void;
   onIndicatorAlert: (alert: IndicatorAlert) => void;
+  /** Journal trades, missed trades, zones and events to draw, and what to show. */
+  overlay: OverlayState;
+  overlayHooks: Omit<OverlayHooks, "drawingActive">;
+  /** A click-to-place mode (missed trade, zone) is waiting for a chart click. */
+  capturing: boolean;
+  /** Extra buttons appended to the drawing toolbar. */
+  toolbarExtras?: React.ReactNode;
   layers: LayersDocument;
   onDrawingCreated: (id: string) => void;
   /** Every drawing on the chart, after any change (for the layers panel and alerts). */
@@ -161,6 +180,11 @@ export function AnalysisChart({
   const provider = useRef<JournalMarketProvider | null>(null);
   const seed = useRef({ drawings: initialDrawings, visible: initialVisible });
   const indicatorsSeed = useRef(initialIndicators);
+  const overlayRef = useRef(overlay);
+  overlayRef.current = overlay;
+  const overlayHooksRef = useRef(overlayHooks);
+  overlayHooksRef.current = overlayHooks;
+  const overlays = useRef<ChartOverlays | null>(null);
   const bridge = useRef<IndicatorBridge | null>(null);
   const callbacks = useRef({
     onDrawingCreated,
@@ -187,6 +211,7 @@ export function AnalysisChart({
   const liveRef = useRef(live);
   const history = useRef(freshHistory(INITIAL_BARS));
   const pendingReveal = useRef<string[] | null>(null);
+  const pendingTime = useRef<number | null>(null);
   const [preference, setPreference] = useState(stylusPreference.read);
   const prefs = useRef(preference);
   prefs.current = preference;
@@ -214,6 +239,9 @@ export function AnalysisChart({
       if (chart.current) revealNow(chart.current, ids);
     },
     indicators: () => bridge.current,
+    showTime: (time) => {
+      if (chart.current) showTimeNow(chart.current, time);
+    },
   }));
 
   const arm = (type: DrawingTypeKey | null) => {
@@ -284,6 +312,21 @@ export function AnalysisChart({
       });
       indicators.restore(indicatorsSeed.current);
       bridge.current = indicators;
+      const drawn = createChartOverlays(
+        vela,
+        instance,
+        element,
+        {
+          onOpenTrade: (key) => overlayHooksRef.current.onOpenTrade(key),
+          onOpenMissed: (id) => overlayHooksRef.current.onOpenMissed(id),
+          onZoneStats: (stats) => overlayHooksRef.current.onZoneStats(stats),
+          onChartClick: (point) => overlayHooksRef.current.onChartClick(point),
+          drawingActive: () =>
+            instance.drawings.getTool() !== null || instance.drawings.getMode() !== null,
+        },
+        overlayRef.current,
+      );
+      overlays.current = drawn;
 
       const refresh = () =>
         setUndoState({ undo: instance.drawings.canUndo(), redo: instance.drawings.canRedo() });
@@ -323,6 +366,7 @@ export function AnalysisChart({
           state.genesis = reason === "genesis" || reason === "aborted";
           if (oldestTime) state.oldest = oldestTime;
           if (pendingReveal.current) revealNow(instance, pendingReveal.current);
+          if (pendingTime.current !== null) showTimeNow(instance, pendingTime.current);
         }),
         instance.on("load:end", ({ bars: loaded }) => {
           if (!loaded) history.current.loading = false;
@@ -347,7 +391,10 @@ export function AnalysisChart({
           requestAnimationFrame(edited);
       };
       element.addEventListener("keydown", onKey);
-      const observer = new MutationObserver(() => instance.setTheme(dark() ? "dark" : "light"));
+      const observer = new MutationObserver(() => {
+        instance.setTheme(dark() ? "dark" : "light");
+        drawn.repaint();
+      });
       observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
       const resize = new ResizeObserver(() => instance.resize());
       resize.observe(element);
@@ -361,6 +408,8 @@ export function AnalysisChart({
           drawings: instance.drawings.toJSON() as unknown as DrawingsDocument,
           visible: instance.getVisibleRange(),
         };
+        drawn.dispose();
+        if (overlays.current === drawn) overlays.current = null;
         indicatorsSeed.current = indicators.list();
         indicators.dispose();
         if (bridge.current === indicators) bridge.current = null;
@@ -388,6 +437,8 @@ export function AnalysisChart({
     history.current = freshHistory(INITIAL_BARS);
     void instance.setMarket({ timeframe: VELA_TIMEFRAME[resolution], bars: INITIAL_BARS });
   }, [resolution]);
+
+  useEffect(() => overlays.current?.set(overlay), [overlay]);
 
   useEffect(() => {
     liveRef.current = live;
@@ -441,6 +492,24 @@ export function AnalysisChart({
     state.requested = target;
     state.loading = true;
     void instance.setMarket({ bars: target });
+  }
+
+  function showTimeNow(instance: Vela, time: number) {
+    const step = RESOLUTIONS[resolutionRef.current];
+    const from = time - step * 40;
+    const state = history.current;
+    if (
+      state.oldest > 0 &&
+      from < state.oldest &&
+      !state.genesis &&
+      state.requested < MAX_CHART_BARS
+    ) {
+      pendingTime.current = time;
+      growHistory(instance, Math.ceil((state.newest - from) / step) + 50);
+      if (history.current.loading) return;
+    }
+    pendingTime.current = null;
+    instance.setVisibleRange({ from, to: time + step * 120 });
   }
 
   function revealNow(instance: Vela, ids: string[]) {
@@ -613,6 +682,12 @@ export function AnalysisChart({
           }}
           icon={Trash2}
         />
+        {toolbarExtras && (
+          <>
+            <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+            {toolbarExtras}
+          </>
+        )}
         <label className="ml-auto flex min-h-8 cursor-pointer items-center gap-2 px-2 text-xs text-muted-foreground">
           <input
             type="checkbox"
@@ -637,6 +712,7 @@ export function AnalysisChart({
         tabIndex={-1}
         className={cn(
           "journal-analysis-chart overflow-hidden rounded-lg border",
+          capturing && "cursor-crosshair ring-2 ring-primary",
           fullscreen ? "min-h-0 flex-1" : "h-[min(72vh,680px)] min-h-[420px]",
         )}
       />

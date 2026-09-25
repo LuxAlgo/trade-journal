@@ -8,10 +8,15 @@ import { VELA_TIMEFRAME } from "./chart-analysis";
  */
 export const LIVE_POLL_MS: Record<Resolution, number> = {
   "1m": 15_000,
+  "3m": 20_000,
   "5m": 30_000,
   "15m": 60_000,
+  "30m": 60_000,
   "1h": 120_000,
+  "2h": 120_000,
+  "4h": 180_000,
   "1d": 300_000,
+  "1w": 600_000,
 };
 
 export const INITIAL_BARS = 500;

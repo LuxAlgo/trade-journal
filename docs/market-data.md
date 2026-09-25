@@ -125,7 +125,10 @@ market prices; they do not create broker-sync accounts, place orders, or change 
 Public sources require an explicit Enable source action. No source is contacted just
 because Settings or Reports is opened. **Charts** is the exception by design: an open chart
 requests its symbol's candles and polls for new ones while visible and not paused (see
-[charts.md](charts.md#live-updates) for the pace).
+[charts.md](charts.md#live-updates) for the pace). Candle sizes a source does not offer (3m,
+30m, 2h, 4h, 1w) are built from finer candles it does, aligned to UTC. The optional economic
+calendar on Charts is a separate public feed, off until enabled (see
+[charts.md](charts.md#economic-calendar)).
 
 | Source                | Setup                                                                                                   | Symbols and coverage                                                                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |

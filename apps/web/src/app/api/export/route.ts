@@ -27,6 +27,7 @@ import { readFilters } from "@luxalgo/journal-core";
 import { parseDrawings } from "@/lib/chart-analysis";
 import { parseLayers } from "@/lib/chart-layers";
 import { parseIndicators } from "@/lib/chart-indicators";
+import { parseZones } from "@/lib/sr-zones";
 import { queryTrades } from "@/server/trades-query";
 import {
   getJournalDefaults,
@@ -112,11 +113,12 @@ export const GET = handler(async (request: Request) => {
       .select()
       .from(chartAnalyses)
       .all()
-      .map(({ image, drawingsJson, layersJson, indicatorsJson, ...analysis }) => ({
+      .map(({ image, drawingsJson, layersJson, indicatorsJson, zonesJson, ...analysis }) => ({
         ...analysis,
         drawings: parseDrawings(drawingsJson),
         layers: parseLayers(layersJson),
         indicators: parseIndicators(indicatorsJson),
+        zones: parseZones(zonesJson),
         hasSnapshot: image !== null,
       })),
     chartScripts: db.select().from(chartScripts).all(),

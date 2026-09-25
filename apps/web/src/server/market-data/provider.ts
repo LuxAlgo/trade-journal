@@ -19,3 +19,13 @@ export interface MarketDataProvider {
 }
 
 export class MarketDataError extends Error {}
+
+/**
+ * An adapter's name for a candle size it serves directly. Other sizes never reach an
+ * adapter: `withAggregation` builds them from a finer size first.
+ */
+export function nativeInterval(map: Record<string, string>, resolution: string): string {
+  const interval = map[resolution];
+  if (!interval) throw new MarketDataError(`This source does not serve ${resolution} candles.`);
+  return interval;
+}

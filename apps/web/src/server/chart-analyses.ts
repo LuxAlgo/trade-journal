@@ -13,6 +13,7 @@ import {
 } from "@/lib/chart-analysis";
 import { layersProblem, parseLayers, type LayersDocument } from "@/lib/chart-layers";
 import { indicatorsProblem, parseIndicators, type StoredIndicator } from "@/lib/chart-indicators";
+import { parseZones, zonesProblem, type SrZone } from "@/lib/sr-zones";
 import { providerFor } from "./market-data/connections";
 import { RequestError, requireValue } from "./api";
 import { newId, nowIso } from "./ids";
@@ -49,6 +50,7 @@ export interface AnalysisInput {
   drawings?: DrawingsDocument;
   layers?: LayersDocument;
   indicators?: StoredIndicator[];
+  zones?: SrZone[];
   /** null clears a snapshot that no longer matches the drawings. */
   image?: Buffer | null;
 }
@@ -145,6 +147,11 @@ export function parseAnalysisInput(body: unknown, partial: boolean): AnalysisInp
     requireValue(!problem, problem ?? "");
     input.indicators = b.indicators as StoredIndicator[];
   }
+  if (has("zones")) {
+    const problem = zonesProblem(b.zones);
+    requireValue(!problem, problem ?? "");
+    input.zones = b.zones as SrZone[];
+  }
   if (b.image === null) input.image = null;
   else if (has("image")) {
     const image = decodePngDataUrl(b.image);
@@ -175,6 +182,7 @@ const toSummary = (
     Row,
     | "image"
     | "drawingsJson"
+    | "zonesJson"
     | "layersJson"
     | "indicatorsJson"
     | "notes"
@@ -214,6 +222,7 @@ export function getAnalysis(id: string): ChartAnalysis | null {
       drawingsJson: chartAnalyses.drawingsJson,
       layersJson: chartAnalyses.layersJson,
       indicatorsJson: chartAnalyses.indicatorsJson,
+      zonesJson: chartAnalyses.zonesJson,
     })
     .from(chartAnalyses)
     .where(eq(chartAnalyses.id, id))
@@ -224,6 +233,7 @@ export function getAnalysis(id: string): ChartAnalysis | null {
     drawingsJson,
     layersJson,
     indicatorsJson,
+    zonesJson,
     visibleFrom,
     visibleTo,
     notes,
@@ -237,6 +247,7 @@ export function getAnalysis(id: string): ChartAnalysis | null {
     drawings: parseDrawings(drawingsJson),
     layers: parseLayers(layersJson),
     indicators: parseIndicators(indicatorsJson),
+    zones: parseZones(zonesJson),
   };
 }
 
@@ -248,9 +259,10 @@ export const analysisImage = (id: string): Buffer | null =>
     .get()?.image ?? null;
 
 const columns = (input: AnalysisInput) => {
-  const { drawings, layers, indicators, ...rest } = input;
+  const { drawings, layers, indicators, zones, ...rest } = input;
   return {
     ...rest,
+    ...(zones ? { zonesJson: JSON.stringify(zones) } : {}),
     ...(indicators ? { indicatorsJson: JSON.stringify(indicators) } : {}),
     ...(layers ? { layersJson: JSON.stringify(layers) } : {}),
     ...(drawings

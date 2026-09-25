@@ -138,12 +138,18 @@ CREATE TABLE IF NOT EXISTS chart_analyses (
  id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT '', symbol TEXT NOT NULL, provider TEXT NOT NULL,
  dataset TEXT, resolution TEXT NOT NULL, range_from INTEGER NOT NULL, range_to INTEGER NOT NULL,
  visible_from INTEGER, visible_to INTEGER, drawings_json TEXT NOT NULL,
- drawing_count INTEGER NOT NULL DEFAULT 0, layers_json TEXT, indicators_json TEXT,
+ drawing_count INTEGER NOT NULL DEFAULT 0, layers_json TEXT, indicators_json TEXT, zones_json TEXT,
  notes TEXT NOT NULL DEFAULT '', day_date TEXT,
  image BLOB, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS chart_analyses_day ON chart_analyses(day_date);
 CREATE INDEX IF NOT EXISTS chart_analyses_symbol ON chart_analyses(provider, symbol);
+CREATE TABLE IF NOT EXISTS economic_events (
+ id TEXT PRIMARY KEY, source TEXT NOT NULL, title TEXT NOT NULL, currency TEXT NOT NULL,
+ time INTEGER NOT NULL, impact TEXT NOT NULL, forecast TEXT NOT NULL DEFAULT '',
+ previous TEXT NOT NULL DEFAULT '', fetched_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS economic_events_time ON economic_events(time);
 CREATE TABLE IF NOT EXISTS chart_scripts (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, source TEXT NOT NULL,
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL

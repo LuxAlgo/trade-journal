@@ -1,5 +1,6 @@
 "use client";
 import { AiRecap } from "@/components/ai-recap";
+import { analysesUsedMarkdown } from "@/components/ai-charts-option";
 
 import Link from "next/link";
 import { CandlestickChart } from "lucide-react";
@@ -203,7 +204,8 @@ function JournalDay({ date }: { date: string }) {
           <CardContent>
             <p className="mb-3 text-xs text-muted-foreground">
               This note is shared across accounts. AI recaps use the selected filters and append a
-              labeled section. Shared notes are excluded from filtered AI context.
+              labeled section. Shared notes are excluded from filtered AI context. Chart analyses
+              embedded here or assigned to this day are sent with their snapshots.
             </p>
             <div className="mb-3">
               <AiRecap
@@ -212,9 +214,9 @@ function JournalDay({ date }: { date: string }) {
                 filters={filters}
                 timeZone={timeZone}
                 disabled={!data || !m?.closedTrades}
-                onRecap={({ recap, scope }) => {
+                onRecap={({ recap, scope, analyses }) => {
                   // Append to the current draft, including edits made while AI was running.
-                  const section = `## AI recap\n\n${scope.label.replace(/[\\`*_{}\[\]<>#]/g, "").replace(/[\r\n]+/g, " ")}\n\n${recap}`;
+                  const section = `## AI recap\n\n${scope.label.replace(/[\\`*_{}\[\]<>#]/g, "").replace(/[\r\n]+/g, " ")}\n\n${analysesUsedMarkdown(analyses)}${recap}`;
                   scheduleSave(
                     latestNote.current ? `${latestNote.current}\n\n---\n\n${section}` : section,
                   );

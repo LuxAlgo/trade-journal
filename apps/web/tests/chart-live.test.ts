@@ -214,7 +214,9 @@ describe("live charts ask for the latest candles without dates", () => {
   it("maps Vela timeframes and provider names", () => {
     expect(resolutionForTimeframe("1D")).toBe("1d");
     expect(resolutionForTimeframe("60")).toBe("1h");
-    expect(resolutionForTimeframe("240")).toBeNull();
+    expect(resolutionForTimeframe("240")).toBe("4h");
+    expect(resolutionForTimeframe("1W")).toBe("1w");
+    expect(resolutionForTimeframe("480")).toBeNull();
     expect(velaProviderName("london-strategic-edge")).toBe("london_strategic_edge");
   });
 });

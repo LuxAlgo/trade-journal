@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   BellOff,
+  Diamond,
+  Rows3,
   BookOpenText,
   ChevronDown,
   Crosshair,
@@ -78,6 +80,21 @@ import { lineCrossings } from "@/lib/price-alerts";
 import { recentSymbols, type RecentSymbol } from "@/lib/recent-symbols";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn, fmtNumber } from "@/lib/utils";
+import { TimeframeBar } from "@/components/timeframe-bar";
+import { OverlaysPanel } from "@/components/overlays-panel";
+import { ZonesPanel } from "@/components/zones-panel";
+import { MissedTradeDialog } from "@/components/missed-trade-dialog";
+import { usePrivacy } from "@/components/privacy";
+import type { OverlayState } from "@/components/chart-overlays";
+import { DEFAULT_TIMEFRAMES, timeframePreference } from "@/lib/chart-timeframes";
+import {
+  DEFAULT_OVERLAYS,
+  overlayPreference,
+  type ChartOverlayData,
+  type OverlayOptions,
+} from "@/lib/chart-overlays";
+import type { CalendarState } from "@/lib/economic-calendar";
+import { zoneEvents, zoneFromClicks, type SrZone, type ZoneStats } from "@/lib/sr-zones";
 
 export default function ChartsPage() {
   return (
@@ -98,7 +115,39 @@ interface Board {
   indicators: StoredIndicator[];
 }
 
-/** One entry in the alerts log: a line crossing or an indicator's `alert()`. */
+const EXTRA_SYMBOLS_KEY = "journal-chart-extra-symbols-v1";
+
+/** Journal symbols the user also wants on a chart (e.g. MES trades on an ES chart), per chart. */
+function extraSymbolsFor(chartKey: string): string {
+  try {
+    const map = JSON.parse(localStorage.getItem(EXTRA_SYMBOLS_KEY) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    const value = map[chartKey];
+    return typeof value === "string" ? value : "";
+  } catch {
+    return "";
+  }
+}
+
+function saveExtraSymbols(chartKey: string, value: string) {
+  try {
+    const map = JSON.parse(localStorage.getItem(EXTRA_SYMBOLS_KEY) ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    if (value.trim()) map[chartKey] = value;
+    else delete map[chartKey];
+    localStorage.setItem(EXTRA_SYMBOLS_KEY, JSON.stringify(map));
+  } catch {
+    // Remembered for this page only.
+  }
+}
+
+const newZoneId = () => `zone-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/** One entry in the alerts log: a line crossing, a zone event or an indicator's `alert()`. */
 interface AlertEntry {
   key: string;
   label: string;
@@ -153,6 +202,21 @@ function ChartLab() {
   const [openError, setOpenError] = useState("");
   const [recent, setRecent] = useState<RecentSymbol[]>([]);
   const [showAll, setShowAll] = useState(false);
+  const privacy = usePrivacy();
+  const [shownTimeframes, setShownTimeframes] = useState(DEFAULT_TIMEFRAMES);
+  const [overlayOptions, setOverlayOptions] = useState<OverlayOptions>(DEFAULT_OVERLAYS);
+  const [extraSymbols, setExtraSymbols] = useState("");
+  useEffect(() => {
+    setShownTimeframes(timeframePreference.read());
+    setOverlayOptions(overlayPreference.read());
+  }, []);
+  const [zones, setZones] = useState<SrZone[]>([]);
+  const [zoneStats, setZoneStats] = useState<Record<string, ZoneStats>>({});
+  /** A click-to-place mode waiting for a chart click. */
+  const [placing, setPlacing] = useState<"missed" | "zone" | null>(null);
+  const [zoneEdge, setZoneEdge] = useState<{ time: number; price: number } | null>(null);
+  const [missedPoint, setMissedPoint] = useState<{ time: number; price: number } | null>(null);
+  const zoneOrigins = useRef(new Map<string, "above" | "below">());
   useEffect(() => setRecent(recentSymbols.read()), []);
 
   // ── The open analysis ──
@@ -210,6 +274,7 @@ function ChartLab() {
     drawings,
     alertsOn,
     indicators,
+    zones,
   });
   state.current = {
     analysisId,
@@ -221,6 +286,7 @@ function ChartLab() {
     drawings,
     alertsOn,
     indicators,
+    zones,
   };
 
   // ── Autosave ──
@@ -265,6 +331,7 @@ function ChartLab() {
       const worth =
         captured.drawings.drawings.length > 0 ||
         current.indicators.length > 0 ||
+        current.zones.length > 0 ||
         current.title.trim() ||
         current.notes.trim();
       if (!current.analysisId && !worth && !options.create) {
@@ -305,6 +372,7 @@ function ChartLab() {
             ),
             // The chart's errors are shown, not saved.
             indicators: current.indicators.map(({ error: _error, ...indicator }) => indicator),
+            zones: current.zones,
           };
           if (
             handle &&
@@ -465,6 +533,12 @@ function ChartLab() {
         setIndicators(restored);
         state.current.indicators = restored;
         setIndicatorError("");
+        setZones(analysis?.zones ?? []);
+        state.current.zones = analysis?.zones ?? [];
+        setZoneStats({});
+        zoneOrigins.current.clear();
+        setPlacing(null);
+        setZoneEdge(null);
         setEditor(null);
         setDrawings([]);
         setSelectedId(null);
@@ -578,6 +652,36 @@ function ChartLab() {
     lastClose.current = bar;
     if (!previous || !state.current.alertsOn || bar.time < previous.time) return;
     const now = Date.now();
+    const zoneSymbol = state.current.board?.symbol ?? "";
+    const zoneHits = zoneEvents(
+      state.current.zones,
+      previous.close,
+      bar.close,
+      zoneOrigins.current,
+    );
+    for (const event of zoneHits) {
+      const zone = state.current.zones.find((z) => z.id === event.zoneId);
+      const key = `zone-${event.zoneId}-${event.kind}`;
+      if (!zone || now - (alertedAt.current.get(key) ?? 0) < ALERT_COOLDOWN_MS) continue;
+      alertedAt.current.set(key, now);
+      const range = `${zone.label ? `${zone.label} ` : ""}${fmtNumber(zone.low)} to ${fmtNumber(zone.high)}`;
+      const label =
+        event.kind === "enter"
+          ? `${zoneSymbol} entered the zone ${range}`
+          : `${zoneSymbol} broke ${event.direction === "up" ? "above" : "below"} the zone ${range}`;
+      try {
+        if (typeof Notification !== "undefined" && Notification.permission === "granted")
+          new Notification("Zone alert", { body: label, tag: `${zoneSymbol}-${key}` });
+      } catch {
+        // The in-page log still shows it.
+      }
+      setAlerts((current) =>
+        [{ key: `${key}-${now}`, label, at: now, direction: event.direction }, ...current].slice(
+          0,
+          20,
+        ),
+      );
+    }
     const hits = lineCrossings(
       state.current.drawings.filter((d) => layerVisible(state.current.layers, d.id)),
       previous,
@@ -610,6 +714,110 @@ function ChartLab() {
       );
     }
   }, []);
+
+  // ── Journal overlays: trades, missed trades, zones, sessions, economic events ──
+  const extraKey = board ? `${board.provider}|${board.symbol}` : "";
+  useEffect(() => {
+    if (!extraKey) return;
+    setExtraSymbols(extraSymbolsFor(extraKey));
+  }, [extraKey]);
+  const changeExtraSymbols = (value: string) => {
+    setExtraSymbols(value);
+    saveExtraSymbols(extraKey, value);
+  };
+  const { data: overlayData, refresh: refreshOverlays } = useApi<ChartOverlayData>(
+    board
+      ? `/api/chart-overlays?symbol=${encodeURIComponent(board.symbol)}&extra=${encodeURIComponent(extraSymbols)}`
+      : null,
+  );
+  // A year back (events accumulate from when the feed was enabled) and two weeks ahead.
+  const [calendarWindow] = useState(() => {
+    const hour = Math.floor(Date.now() / 3_600_000) * 3_600_000;
+    return `from=${hour - 366 * 86_400_000}&to=${hour + 14 * 86_400_000}`;
+  });
+  const { data: calendar, refresh: refreshCalendar } = useApi<CalendarState>(
+    board ? `/api/economic-events?${calendarWindow}` : null,
+  );
+  useEffect(() => {
+    // The server refetches the feed at most hourly; this re-reads what it stored.
+    const timer = setInterval(refreshCalendar, 30 * 60_000);
+    return () => clearInterval(timer);
+  }, [refreshCalendar]);
+  const changeOverlays = (next: OverlayOptions) => {
+    setOverlayOptions(next);
+    overlayPreference.write(next);
+  };
+  const calendarAction = async (action: "enable" | "disable" | "refresh") => {
+    await postJson("/api/economic-events", { action });
+    if (action === "enable") changeOverlays({ ...overlayOptions, economic: true });
+    refreshCalendar();
+  };
+  const changeZones = useCallback(
+    (next: SrZone[]) => {
+      setZones(next);
+      state.current.zones = next;
+      schedule();
+    },
+    [schedule],
+  );
+  const overlay = useMemo<OverlayState>(
+    () => ({
+      data: overlayData ?? { symbols: [], trades: [], missed: [] },
+      options: {
+        ...overlayOptions,
+        economic: overlayOptions.economic && Boolean(calendar?.enabled),
+      },
+      zones,
+      events: calendar?.events ?? [],
+      privacy,
+      pendingZone: zoneEdge?.price ?? null,
+    }),
+    [overlayData, overlayOptions, zones, calendar, privacy, zoneEdge],
+  );
+  const captureState = useRef({ placing, zoneEdge });
+  captureState.current = { placing, zoneEdge };
+  const overlayHooks = useMemo(
+    () => ({
+      onOpenTrade: (key: string) => router.push(`/trades/${encodeURIComponent(key)}`),
+      onOpenMissed: () => router.push("/missed"),
+      onZoneStats: (stats: Record<string, ZoneStats>) =>
+        setZoneStats((current) =>
+          JSON.stringify(current) === JSON.stringify(stats) ? current : stats,
+        ),
+      onChartClick: (point: { time: number; price: number }) => {
+        const { placing: mode, zoneEdge: first } = captureState.current;
+        if (mode === "missed") {
+          setPlacing(null);
+          setMissedPoint(point);
+          return true;
+        }
+        if (mode !== "zone") return false;
+        if (!first) {
+          setZoneEdge(point);
+          captureState.current.zoneEdge = point;
+          return true;
+        }
+        setZoneEdge(null);
+        setPlacing(null);
+        captureState.current = { placing: null, zoneEdge: null };
+        changeZones([...state.current.zones, zoneFromClicks(newZoneId(), first, point)]);
+        return true;
+      },
+    }),
+    [router, changeZones],
+  );
+  const cancelCapture = () => {
+    setPlacing(null);
+    setZoneEdge(null);
+  };
+  useEffect(() => {
+    if (!placing) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") cancelCapture();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [placing]);
 
   // ── Indicators ──
   const onIndicatorsChange = useCallback(
@@ -857,31 +1065,19 @@ function ChartLab() {
                   <Button type="submit" disabled={!canOpen}>
                     {opening ? "Opening…" : "Open"}
                   </Button>
-                  <div
-                    role="radiogroup"
-                    aria-label="Candle size"
-                    className="flex items-center rounded-md border p-0.5"
-                  >
-                    {resolutions.map((value) => (
-                      <Button
-                        key={value}
-                        type="button"
-                        role="radio"
-                        aria-checked={resolution === value}
-                        size="sm"
-                        variant={resolution === value ? "secondary" : "ghost"}
-                        className="h-7 px-2.5"
-                        onClick={() => {
-                          if (value === resolution) return;
-                          setResolution(value);
-                          lastClose.current = null;
-                          if (state.current.analysisId) schedule();
-                        }}
-                      >
-                        {value}
-                      </Button>
-                    ))}
-                  </div>
+                  <TimeframeBar
+                    value={resolution}
+                    shown={shownTimeframes}
+                    onChange={(value) => {
+                      setResolution(value);
+                      lastClose.current = null;
+                      if (state.current.analysisId) schedule();
+                    }}
+                    onShownChange={(next) => {
+                      setShownTimeframes(next);
+                      timeframePreference.write(next);
+                    }}
+                  />
                   <Button
                     type="button"
                     variant="outline"
@@ -978,6 +1174,39 @@ function ChartLab() {
               initialIndicators={board.indicators}
               onIndicatorsChange={onIndicatorsChange}
               onIndicatorAlert={onIndicatorAlert}
+              overlay={overlay}
+              overlayHooks={overlayHooks}
+              capturing={placing !== null}
+              toolbarExtras={
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={placing === "missed" ? "secondary" : "ghost"}
+                    aria-pressed={placing === "missed"}
+                    title="Log a setup you did not take: click the chart where you saw it"
+                    onClick={() => {
+                      setZoneEdge(null);
+                      setPlacing(placing === "missed" ? null : "missed");
+                    }}
+                  >
+                    <Diamond className="text-violet-500" /> Missed trade
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={placing === "zone" ? "secondary" : "ghost"}
+                    aria-pressed={placing === "zone"}
+                    title="Add a support or resistance zone: click its two edges"
+                    onClick={() => {
+                      setZoneEdge(null);
+                      setPlacing(placing === "zone" ? null : "zone");
+                    }}
+                  >
+                    <Rows3 /> Zone
+                  </Button>
+                </>
+              }
               layers={layers}
               onDrawingCreated={onDrawingCreated}
               onDrawingsChange={onDrawingsChange}
@@ -997,6 +1226,24 @@ function ChartLab() {
               </Card>
             )
           )}
+          {placing && (
+            <p
+              role="status"
+              className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-sm"
+            >
+              {placing === "missed"
+                ? "Click the chart where you saw the missed setup. Esc cancels."
+                : zoneEdge
+                  ? "Now click the zone's other edge. Esc cancels."
+                  : "Click one edge of the support or resistance zone. Esc cancels."}
+            </p>
+          )}
+          <MissedTradeDialog
+            point={missedPoint}
+            symbol={board?.symbol ?? ""}
+            onClose={() => setMissedPoint(null)}
+            onSaved={refreshOverlays}
+          />
           {board && editor && (
             <PineEditor
               key={`editor-${editor.key}`}
@@ -1146,6 +1393,51 @@ function ChartLab() {
 
           <Card>
             <CardHeader>
+              <CardTitle>On the chart</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {board ? (
+                <OverlaysPanel
+                  options={overlayOptions}
+                  onChange={changeOverlays}
+                  data={overlayData}
+                  extraSymbols={extraSymbols}
+                  onExtraSymbols={changeExtraSymbols}
+                  calendar={calendar}
+                  onCalendar={calendarAction}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Open a chart to see your trades on it.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Support and resistance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ZonesPanel
+                zones={zones}
+                stats={zoneStats}
+                capturing={placing === "zone"}
+                pending={zoneEdge !== null}
+                disabled={!board}
+                onAdd={() => {
+                  setZoneEdge(null);
+                  setPlacing("zone");
+                }}
+                onCancel={cancelCapture}
+                onChange={changeZones}
+                onReveal={(zone) => chart.current?.showTime(zone.start)}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Indicators</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -1229,7 +1521,8 @@ function ChartLab() {
             <CardContent className="space-y-2">
               <p className="text-xs text-muted-foreground">
                 While this page is open and live, get an alert when the price crosses a visible
-                horizontal line, ray or trend line, or when an indicator calls <code>alert()</code>.
+                horizontal line, ray or trend line, enters or breaks a support/resistance zone, or
+                when an indicator calls <code>alert()</code>.
               </p>
               {alerts.length === 0 ? (
                 <p className="text-xs text-muted-foreground">No alerts yet.</p>

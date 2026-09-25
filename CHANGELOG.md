@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Charts show your journal trades (fills, entry to exit with WIN/LOSS and P&L, open positions with stop and target; click to open the trade), with switches to hide all trades or only closed ones, and missed trades as violet diamonds logged straight from the chart
+- Support and resistance zones on Charts: price ranges with a role that follows price, counted touches and breaks, role flip on a break, zone alerts, saved with the analysis
+- Market session opens and closes (Sydney, Tokyo, London, Frankfurt, New York) and an opt-in economic calendar (ForexFactory weekly feed, stored locally, filtered by impact and currency) on the chart time axis
+- Configurable timeframe bar with 3m, 30m, 2h, 4h and 1w candles (4h shown by default); sizes a source lacks are built from finer candles
+- AI recaps and trade critiques include linked chart analyses, with their notes, drawings and zones as text and the snapshot as an image
 - Chart indicators in Pine Script, run by PineTS in a Web Worker: 15 built-ins (moving averages, VWAP, Bollinger, Donchian, Supertrend, ATR, RSI, MACD, Stochastic, ADX, OBV and signal scripts), a Pine editor with errors and line numbers, a "My indicators" library, settings and visibility saved with each analysis, and indicator `alert()` messages in chart alerts. Adds AGPL-3.0 dependencies (`pinets`, `@luxalgo/vela-pinets`) with reviewed license-gate exceptions
 - Charts: a live Vela chart for any symbol from your market-data source (latest candles on open, automatic updates, older history on scroll back), stylus drawing (pen, highlighter, hardware eraser, palm rejection), automatic saving per symbol, drawing layers grouped in folders, line-crossing alerts, and journal embeds that reopen the chart
 - Customizable dashboard: drag cards to rearrange, hide and restore them, save named layouts; responsive layout with a mobile navigation drawer

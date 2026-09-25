@@ -229,6 +229,8 @@ export const chartAnalyses = sqliteTable(
     layersJson: text("layers_json"),
     /** Indicators on the chart (`StoredIndicator[]`); null = none. */
     indicatorsJson: text("indicators_json"),
+    /** Support/resistance zones (`SrZone[]`); null = none. */
+    zonesJson: text("zones_json"),
     notes: text("notes").notNull().default(""),
     /** Optional journal day ("YYYY-MM-DD") the analysis belongs to. */
     dayDate: text("day_date"),
@@ -240,6 +242,25 @@ export const chartAnalyses = sqliteTable(
     index("chart_analyses_day").on(table.dayDate),
     index("chart_analyses_symbol").on(table.provider, table.symbol),
   ],
+);
+/**
+ * Economic calendar events from an opted-in source, kept so past weeks stay on the chart
+ * after the source moves on (the public feed only serves the current week).
+ */
+export const economicEvents = sqliteTable(
+  "economic_events",
+  {
+    id: text("id").primaryKey(),
+    source: text("source").notNull(),
+    title: text("title").notNull(),
+    currency: text("currency").notNull(),
+    time: integer("time").notNull(),
+    impact: text("impact").notNull(),
+    forecast: text("forecast").notNull().default(""),
+    previous: text("previous").notNull().default(""),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (table) => [index("economic_events_time").on(table.time)],
 );
 /** User-written Pine Script indicators ("My indicators"), shared by every chart. */
 export const chartScripts = sqliteTable("chart_scripts", {

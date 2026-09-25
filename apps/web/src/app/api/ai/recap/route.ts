@@ -5,6 +5,7 @@ import { bad, handler, ok } from "@/server/api";
 import { runAi } from "@/server/ai";
 import { queryTrades } from "@/server/trades-query";
 import { accountContext, readAiRequest } from "@/server/ai-scope";
+import { analysesPrompt, analysesUsed, analysisImages, linkedAnalyses } from "@/server/ai-analyses";
 
 /** Generate a session recap for one trading day from the day's actual trades. */
 export const POST = handler(async (request: Request) => {
@@ -26,6 +27,16 @@ export const POST = handler(async (request: Request) => {
     ? db.select().from(journalDays).where(eq(journalDays.date, date)).get()?.note
     : undefined;
 
+  // Analyses embedded in the shared note follow the note's rule; the day's own analyses
+  // count for a filtered recap only when they chart a symbol traded in that subset.
+  const linked = scope.includeAnalyses
+    ? linkedAnalyses({
+        notes: [existingNote],
+        day: date,
+        symbols: onlyDateFilters ? undefined : [...new Set(dayTrades.map((t) => t.symbol))],
+      })
+    : [];
+
   const tradeLines = dayTrades
     .map(
       (trade) =>
@@ -39,7 +50,7 @@ export const POST = handler(async (request: Request) => {
 
   const recap = await runAi(
     `Write a session recap for ${date} in first person ("I"), 120-200 words, markdown with a
-short "**Keep**" and "**Fix**" list at the end.
+short "**Keep**" and "**Fix**" list at the end.${linked.length ? " Where chart analyses are attached, say whether the trades followed the plan drawn on them." : ""}
 
 ${scope.context}
 ${accountContext(dayTrades, scope)}
@@ -51,8 +62,12 @@ fees ${metrics.fees.toFixed(2)}.
 Trades:
 ${tradeLines}
 
-${existingNote ? `The trader's own note so far (respect it, build on it):\n${existingNote}` : ""}`,
+${existingNote ? `The trader's own note so far (respect it, build on it):\n${existingNote}` : ""}
+
+${analysesPrompt(linked)}`,
+    linked.length ? 1500 : 1200,
+    analysisImages(linked),
   );
 
-  return ok({ recap, scope: scope.scope });
+  return ok({ recap, scope: scope.scope, analyses: analysesUsed(linked) });
 });
