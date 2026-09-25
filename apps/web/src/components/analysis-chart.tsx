@@ -31,7 +31,9 @@ import {
 } from "@/lib/live-market";
 import { STYLUS_COLORS, STYLUS_WIDTHS, isBrush, stylusPreference } from "@/lib/stylus";
 import { cn } from "@/lib/utils";
+import { markLegacyPatterns } from "@/lib/pattern-fixes";
 import { attachStylus } from "./chart-stylus";
+import { applyPatternFixes } from "./vela-pattern-fixes";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
 
@@ -198,8 +200,10 @@ export function AnalysisChart({
     let cleanup = () => {};
     setError("");
     void (async () => {
-      const { Vela } = await import("@luxalgo/vela");
+      const vela = await import("@luxalgo/vela");
+      const { Vela } = vela;
       if (disposed || !host.current) return;
+      applyPatternFixes(vela);
       const dark = () => document.documentElement.classList.contains("dark");
       const { drawings, visible } = seed.current;
       const step = RESOLUTIONS[resolutionRef.current];
@@ -234,7 +238,7 @@ export function AnalysisChart({
       });
       instance.data.registerProvider(name, feed);
       chart.current = instance;
-      instance.drawings.fromJSON(drawings);
+      instance.drawings.fromJSON(markLegacyPatterns(drawings));
       applyLayers(instance, layersRef.current);
       publish(instance);
 

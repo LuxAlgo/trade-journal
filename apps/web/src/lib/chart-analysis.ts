@@ -199,6 +199,11 @@ const DRAWING_LABELS: Record<string, string> = {
   parallelchannel: "Parallel channel",
   position: "Position",
   pricelabel: "Price label",
+  elliottimpulse: "Elliott impulse (1-5)",
+  elliottcorrection: "Elliott correction (ABC)",
+  headshoulders: "Head and shoulders",
+  xabcd: "XABCD pattern",
+  abcd: "ABCD pattern",
 };
 
 /** A readable name for a Vela drawing type ("fibretracement" → "Fib retracement"). */

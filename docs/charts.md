@@ -71,6 +71,21 @@ along their slope, within their span). Alerts appear in the card and, if you all
 browser notifications. Each line alerts at most once a minute. Alerts only run while the
 page is open; there is no background service.
 
+## Pattern tools
+
+Vela's side toolbar **Patterns** group holds XABCD, ABCD, the harmonic patterns (Gartley,
+Bat, Butterfly, Crab, Shark, Cypher, with ratio checks), head and shoulders, and Elliott waves.
+A wave is the leg between two points, so the journal corrects two Vela 0.6 tools through
+Vela's `registerDrawingType` hook (`components/vela-pattern-fixes.ts`):
+
+- **Elliott impulse**: six points, 0-1-2-3-4-5, five waves (Vela placed five points, four waves).
+- **Elliott correction**: four points, 0-A-B-C, three waves (Vela placed three points, two waves).
+- **Shark**: labelled 0-X-A-B-C; its ratio checks were already right.
+
+Wave drawings saved with the old count keep their points and labels (marked with a
+`legacyVertices` prop); redraw them to get the full count. Vela ships one native indicator
+(volume) and no scripting engine, so the chart has no other indicators to correct.
+
 ## Stylus behavior
 
 With **Stylus draws, fingers pan** on (the default, remembered per browser):
