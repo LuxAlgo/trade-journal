@@ -12,6 +12,7 @@ import {
   type DrawingsDocument,
 } from "@/lib/chart-analysis";
 import { layersProblem, parseLayers, type LayersDocument } from "@/lib/chart-layers";
+import { indicatorsProblem, parseIndicators, type StoredIndicator } from "@/lib/chart-indicators";
 import { providerFor } from "./market-data/connections";
 import { RequestError, requireValue } from "./api";
 import { newId, nowIso } from "./ids";
@@ -47,6 +48,7 @@ export interface AnalysisInput {
   dayDate?: string | null;
   drawings?: DrawingsDocument;
   layers?: LayersDocument;
+  indicators?: StoredIndicator[];
   /** null clears a snapshot that no longer matches the drawings. */
   image?: Buffer | null;
 }
@@ -138,6 +140,11 @@ export function parseAnalysisInput(body: unknown, partial: boolean): AnalysisInp
     requireValue(!problem, problem ?? "");
     input.layers = b.layers as LayersDocument;
   }
+  if (has("indicators")) {
+    const problem = indicatorsProblem(b.indicators);
+    requireValue(!problem, problem ?? "");
+    input.indicators = b.indicators as StoredIndicator[];
+  }
   if (b.image === null) input.image = null;
   else if (has("image")) {
     const image = decodePngDataUrl(b.image);
@@ -164,7 +171,16 @@ const summaryColumns = {
 
 /** The image is served separately; listings only report whether one exists. */
 const toSummary = (
-  row: Omit<Row, "image" | "drawingsJson" | "layersJson" | "notes" | "visibleFrom" | "visibleTo">,
+  row: Omit<
+    Row,
+    | "image"
+    | "drawingsJson"
+    | "layersJson"
+    | "indicatorsJson"
+    | "notes"
+    | "visibleFrom"
+    | "visibleTo"
+  >,
   hasImage: boolean,
 ): ChartAnalysisSummary => ({ ...row, resolution: row.resolution as Resolution, hasImage });
 
@@ -197,12 +213,22 @@ export function getAnalysis(id: string): ChartAnalysis | null {
       notes: chartAnalyses.notes,
       drawingsJson: chartAnalyses.drawingsJson,
       layersJson: chartAnalyses.layersJson,
+      indicatorsJson: chartAnalyses.indicatorsJson,
     })
     .from(chartAnalyses)
     .where(eq(chartAnalyses.id, id))
     .get();
   if (!row) return null;
-  const { hasImage, drawingsJson, layersJson, visibleFrom, visibleTo, notes, ...rest } = row;
+  const {
+    hasImage,
+    drawingsJson,
+    layersJson,
+    indicatorsJson,
+    visibleFrom,
+    visibleTo,
+    notes,
+    ...rest
+  } = row;
   return {
     ...toSummary(rest, Boolean(hasImage)),
     visibleFrom,
@@ -210,6 +236,7 @@ export function getAnalysis(id: string): ChartAnalysis | null {
     notes,
     drawings: parseDrawings(drawingsJson),
     layers: parseLayers(layersJson),
+    indicators: parseIndicators(indicatorsJson),
   };
 }
 
@@ -221,9 +248,10 @@ export const analysisImage = (id: string): Buffer | null =>
     .get()?.image ?? null;
 
 const columns = (input: AnalysisInput) => {
-  const { drawings, layers, ...rest } = input;
+  const { drawings, layers, indicators, ...rest } = input;
   return {
     ...rest,
+    ...(indicators ? { indicatorsJson: JSON.stringify(indicators) } : {}),
     ...(layers ? { layersJson: JSON.stringify(layers) } : {}),
     ...(drawings
       ? { drawingsJson: JSON.stringify(drawings), drawingCount: drawings.drawings.length }

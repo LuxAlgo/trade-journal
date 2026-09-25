@@ -22,6 +22,16 @@ import {
 } from "@/components/analysis-chart";
 import { FilterBar } from "@/components/filter-bar";
 import { LayersPanel } from "@/components/layers-panel";
+import { IndicatorsPanel } from "@/components/indicators-panel";
+import { PineEditor, type EditorDraft } from "@/components/pine-editor";
+import type { ChartIndicator, IndicatorAlert } from "@/components/chart-indicators-bridge";
+import {
+  resolveSource,
+  type ChartScript,
+  type IndicatorRef,
+  type StoredIndicator,
+} from "@/lib/chart-indicators";
+import { NEW_INDICATOR_TEMPLATE } from "@/lib/indicator-library";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -64,7 +74,7 @@ import {
 } from "@/lib/market-data";
 import type { MarketCsvDataset } from "@/lib/market-csv";
 import { providerInfo } from "@/lib/market-providers";
-import { lineCrossings, type LineCrossing } from "@/lib/price-alerts";
+import { lineCrossings } from "@/lib/price-alerts";
 import { recentSymbols, type RecentSymbol } from "@/lib/recent-symbols";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn, fmtNumber } from "@/lib/utils";
@@ -84,6 +94,17 @@ interface Board {
   dataset: string | null;
   symbol: string;
   analysis: ChartAnalysis | null;
+  /** Saved indicators with their current code (library or My indicators). */
+  indicators: StoredIndicator[];
+}
+
+/** One entry in the alerts log: a line crossing or an indicator's `alert()`. */
+interface AlertEntry {
+  key: string;
+  label: string;
+  at: number;
+  drawingId?: string;
+  direction?: "up" | "down";
 }
 
 type SaveState =
@@ -160,7 +181,14 @@ function ChartLab() {
   const [status, setStatus] = useState<LiveStatus>({ state: "idle" });
   const [latest, setLatest] = useState<LatestBar | null>(null);
   const [alertsOn, setAlertsOn] = useState(false);
-  const [alerts, setAlerts] = useState<(LineCrossing & { label: string; at: number })[]>([]);
+  const [alerts, setAlerts] = useState<AlertEntry[]>([]);
+  const [indicators, setIndicators] = useState<ChartIndicator[]>([]);
+  const [indicatorError, setIndicatorError] = useState("");
+  const [editor, setEditor] = useState<{ key: number; draft: EditorDraft } | null>(null);
+  const { data: scriptData, refresh: refreshScripts } = useApi<{ scripts: ChartScript[] }>(
+    "/api/chart-scripts",
+  );
+  const scripts = scriptData?.scripts ?? [];
   useEffect(() => {
     try {
       setAlertsOn(localStorage.getItem(ALERTS_KEY) === "on");
@@ -172,8 +200,28 @@ function ChartLab() {
   const alertedAt = useRef(new Map<string, number>());
 
   // Latest values for async work (autosave, alerts) without re-subscribing.
-  const state = useRef({ analysisId, title, notes, layers, board, resolution, drawings, alertsOn });
-  state.current = { analysisId, title, notes, layers, board, resolution, drawings, alertsOn };
+  const state = useRef({
+    analysisId,
+    title,
+    notes,
+    layers,
+    board,
+    resolution,
+    drawings,
+    alertsOn,
+    indicators,
+  });
+  state.current = {
+    analysisId,
+    title,
+    notes,
+    layers,
+    board,
+    resolution,
+    drawings,
+    alertsOn,
+    indicators,
+  };
 
   // ── Autosave ──
   const saver = useRef({
@@ -215,7 +263,10 @@ function ChartLab() {
       if (!captured) return current.analysisId;
       // Viewing a chart creates nothing; the first drawing, title or note does.
       const worth =
-        captured.drawings.drawings.length > 0 || current.title.trim() || current.notes.trim();
+        captured.drawings.drawings.length > 0 ||
+        current.indicators.length > 0 ||
+        current.title.trim() ||
+        current.notes.trim();
       if (!current.analysisId && !worth && !options.create) {
         s.dirty = false;
         setSaveState({ state: "idle" });
@@ -252,6 +303,8 @@ function ChartLab() {
               current.layers,
               captured.drawings.drawings.map((d) => d.id),
             ),
+            // The chart's errors are shown, not saved.
+            indicators: current.indicators.map(({ error: _error, ...indicator }) => indicator),
           };
           if (
             handle &&
@@ -361,6 +414,7 @@ function ChartLab() {
           return body as T;
         };
         let analysis: ChartAnalysis | null = null;
+        const saved = await read<{ scripts: ChartScript[] }>("/api/chart-scripts");
         if (target.analysisId) {
           analysis = (
             await read<{ analysis: ChartAnalysis }>(
@@ -404,6 +458,14 @@ function ChartLab() {
         setTitle(analysis?.title ?? "");
         setNotes(analysis?.notes ?? "");
         setLayers(analysis?.layers ?? defaultLayers());
+        const restored = (analysis?.indicators ?? []).map((indicator) => ({
+          ...indicator,
+          source: resolveSource(indicator, saved.scripts),
+        }));
+        setIndicators(restored);
+        state.current.indicators = restored;
+        setIndicatorError("");
+        setEditor(null);
         setDrawings([]);
         setSelectedId(null);
         setJournalStatus(null);
@@ -418,6 +480,7 @@ function ChartLab() {
           dataset: nextDataset,
           symbol: nextSymbol,
           analysis,
+          indicators: restored,
         };
         state.current.board = next;
         setBoard(next);
@@ -533,9 +596,118 @@ function ChartLab() {
       } catch {
         // The in-page log still shows it.
       }
-      setAlerts((current) => [{ ...hit, label: message, at: now }, ...current].slice(0, 20));
+      setAlerts((current) =>
+        [
+          {
+            key: `${hit.drawingId}-${now}`,
+            label: message,
+            at: now,
+            drawingId: hit.drawingId,
+            direction: hit.direction,
+          },
+          ...current,
+        ].slice(0, 20),
+      );
     }
   }, []);
+
+  // ── Indicators ──
+  const onIndicatorsChange = useCallback(
+    (list: ChartIndicator[], edited: boolean) => {
+      setIndicators(list);
+      state.current.indicators = list;
+      if (edited) schedule();
+    },
+    [schedule],
+  );
+  const indicatorAlertAt = useRef(new Map<string, number>());
+  const onIndicatorAlert = useCallback((alert: IndicatorAlert) => {
+    if (!state.current.alertsOn) return;
+    const now = Date.now();
+    const key = `${alert.indicator}|${alert.message}`;
+    // A script can alert on every tick of a bar; one notice per message per 30 s.
+    if (now - (indicatorAlertAt.current.get(key) ?? 0) < 30_000) return;
+    indicatorAlertAt.current.set(key, now);
+    const symbol = state.current.board?.symbol ?? "";
+    const label = `${symbol} · ${alert.indicator}: ${alert.message}`;
+    try {
+      if (typeof Notification !== "undefined" && Notification.permission === "granted")
+        new Notification("Indicator alert", { body: label, tag: key });
+    } catch {
+      // The in-page log still shows it.
+    }
+    setAlerts((current) => [{ key: `${key}-${now}`, label, at: now }, ...current].slice(0, 20));
+  }, []);
+  const bridge = () => chart.current?.indicators() ?? null;
+  const addIndicator = async (ref: IndicatorRef, source: string) => {
+    setIndicatorError("");
+    const target = bridge();
+    if (!target) return setIndicatorError("Open a chart first.");
+    const result = await target.add(ref, source);
+    if (!result.ok) setIndicatorError(result.error);
+  };
+  const runDraft = async (draft: EditorDraft) => {
+    const target = bridge();
+    if (!target) return { error: "Open a chart first." };
+    const ref: IndicatorRef = draft.scriptId
+      ? { kind: "script", id: draft.scriptId }
+      : { kind: "inline" };
+    const result = draft.chartIndicatorId
+      ? await target.replace(draft.chartIndicatorId, ref, draft.source)
+      : await target.add(ref, draft.source);
+    if (!result.ok) return { error: result.error };
+    // Keep the editor attached to what it now runs as.
+    setEditor((current) =>
+      current ? { ...current, draft: { ...draft, chartIndicatorId: result.id } } : current,
+    );
+    return { chartIndicatorId: result.id };
+  };
+  const saveDraft = async (draft: EditorDraft) => {
+    try {
+      const { script } = draft.scriptId
+        ? await postJson<{ script: ChartScript }>(
+            `/api/chart-scripts/${encodeURIComponent(draft.scriptId)}`,
+            { name: draft.name, source: draft.source },
+            "PATCH",
+          )
+        : await postJson<{ script: ChartScript }>("/api/chart-scripts", {
+            name: draft.name,
+            source: draft.source,
+          });
+      refreshScripts();
+      const target = bridge();
+      if (target) {
+        if (draft.chartIndicatorId)
+          target.relink(draft.chartIndicatorId, { kind: "script", id: script.id });
+        // Other charts pick up the new code when opened; this one updates in place.
+        for (const indicator of state.current.indicators)
+          if (
+            indicator.ref.kind === "script" &&
+            indicator.ref.id === script.id &&
+            indicator.id !== draft.chartIndicatorId &&
+            indicator.source !== script.source
+          )
+            await target.replace(indicator.id, indicator.ref, script.source);
+      }
+      setEditor((current) =>
+        current ? { ...current, draft: { ...draft, scriptId: script.id } } : current,
+      );
+      return { scriptId: script.id };
+    } catch (cause) {
+      return { error: cause instanceof Error ? cause.message : "Could not save the indicator." };
+    }
+  };
+  const deleteScript = async (id: string) => {
+    await postJson(`/api/chart-scripts/${encodeURIComponent(id)}`, undefined, "DELETE");
+    refreshScripts();
+    const target = bridge();
+    // Indicators from it keep running their saved copy, now as their own code.
+    for (const indicator of state.current.indicators)
+      if (indicator.ref.kind === "script" && indicator.ref.id === id)
+        target?.relink(indicator.id, { kind: "inline" });
+  };
+  const openEditor = (draft: EditorDraft) =>
+    setEditor((current) => ({ key: (current?.key ?? 0) + 1, draft }));
 
   const toggleAlerts = async () => {
     const next = !alertsOn;
@@ -803,6 +975,9 @@ function ChartLab() {
                   ? { from: board.analysis.visibleFrom, to: board.analysis.visibleTo }
                   : null
               }
+              initialIndicators={board.indicators}
+              onIndicatorsChange={onIndicatorsChange}
+              onIndicatorAlert={onIndicatorAlert}
               layers={layers}
               onDrawingCreated={onDrawingCreated}
               onDrawingsChange={onDrawingsChange}
@@ -821,6 +996,16 @@ function ChartLab() {
                 </CardContent>
               </Card>
             )
+          )}
+          {board && editor && (
+            <PineEditor
+              key={`editor-${editor.key}`}
+              draft={editor.draft}
+              onRun={runDraft}
+              onSave={saveDraft}
+              onDelete={deleteScript}
+              onClose={() => setEditor(null)}
+            />
           )}
         </div>
 
@@ -961,6 +1146,52 @@ function ChartLab() {
 
           <Card>
             <CardHeader>
+              <CardTitle>Indicators</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <IndicatorsPanel
+                indicators={indicators}
+                scripts={scripts}
+                disabled={!board}
+                onAdd={(ref, source) => void addIndicator(ref, source)}
+                onNew={() =>
+                  openEditor({
+                    name: "",
+                    source: NEW_INDICATOR_TEMPLATE,
+                    scriptId: null,
+                    chartIndicatorId: null,
+                  })
+                }
+                onEditIndicator={(indicator) =>
+                  openEditor({
+                    name: indicator.title,
+                    source: indicator.source,
+                    scriptId: indicator.ref.kind === "script" ? indicator.ref.id : null,
+                    chartIndicatorId: indicator.id,
+                  })
+                }
+                onEditScript={(script) =>
+                  openEditor({
+                    name: script.name,
+                    source: script.source,
+                    scriptId: script.id,
+                    chartIndicatorId: null,
+                  })
+                }
+                onToggle={(id, visible) => bridge()?.setVisible(id, visible)}
+                onSettings={(id) => bridge()?.openSettings(id)}
+                onRemove={(id) => bridge()?.remove(id)}
+              />
+              {indicatorError && (
+                <p role="alert" className="whitespace-pre-wrap text-xs text-destructive">
+                  {indicatorError}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Layers</CardTitle>
             </CardHeader>
             <CardContent>
@@ -983,7 +1214,7 @@ function ChartLab() {
 
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
-              <CardTitle>Line alerts</CardTitle>
+              <CardTitle>Alerts</CardTitle>
               <Button
                 type="button"
                 size="sm"
@@ -998,29 +1229,35 @@ function ChartLab() {
             <CardContent className="space-y-2">
               <p className="text-xs text-muted-foreground">
                 While this page is open and live, get an alert when the price crosses a visible
-                horizontal line, ray or trend line.
+                horizontal line, ray or trend line, or when an indicator calls <code>alert()</code>.
               </p>
               {alerts.length === 0 ? (
                 <p className="text-xs text-muted-foreground">No alerts yet.</p>
               ) : (
                 <ul className="space-y-1">
                   {alerts.map((alert) => (
-                    <li
-                      key={`${alert.drawingId}-${alert.at}`}
-                      className="flex items-start gap-2 text-xs"
-                    >
-                      <button
-                        type="button"
-                        aria-label="Show the line on the chart"
-                        className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => chart.current?.reveal([alert.drawingId])}
-                      >
-                        <Crosshair className="size-3.5" />
-                      </button>
+                    <li key={alert.key} className="flex items-start gap-2 text-xs">
+                      {alert.drawingId ? (
+                        <button
+                          type="button"
+                          aria-label="Show the line on the chart"
+                          className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => chart.current?.reveal([alert.drawingId!])}
+                        >
+                          <Crosshair className="size-3.5" />
+                        </button>
+                      ) : (
+                        <Bell
+                          aria-hidden="true"
+                          className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+                        />
+                      )}
                       <span className="min-w-0 flex-1">
-                        <span className="font-medium">
-                          {alert.direction === "up" ? "▲ Above" : "▼ Below"}
-                        </span>{" "}
+                        {alert.direction && (
+                          <span className="font-medium">
+                            {alert.direction === "up" ? "▲ Above " : "▼ Below "}
+                          </span>
+                        )}
                         {alert.label}
                         <span className="block text-muted-foreground">
                           {new Date(alert.at).toLocaleTimeString()}

@@ -71,6 +71,39 @@ along their slope, within their span). Alerts appear in the card and, if you all
 browser notifications. Each line alerts at most once a minute. Alerts only run while the
 page is open; there is no background service.
 
+## Indicators
+
+Indicators are Pine Script (v5/v6), run by [PineTS](https://github.com/LuxAlgo/PineTS) through
+Vela's Pine add-on in a Web Worker, so heavy scripts never block drawing.
+
+- **Add indicator** lists the built-ins by category: SMA, EMA, EMA ribbon, VWAP, Bollinger
+  Bands, Donchian channel, Supertrend, ATR, RSI, MACD, Stochastic, ADX/DMI, OBV, and two signal
+  scripts (EMA cross, RSI extremes) that mark the chart and raise alerts.
+- **New** opens the editor under the chart with a starter script. **Run on chart** applies the
+  code; if it fails, the error shows (with its line when the engine reports one) and the
+  previous version stays on the chart. **Save to My indicators** keeps it for every chart.
+  Ctrl/⌘ + Enter runs, Ctrl/⌘ + S saves, Tab indents.
+- The code button opens any indicator on the chart in the editor, built-ins included; saving a
+  built-in makes your own copy. Editing a saved script updates it here at once and on other
+  charts when they are next opened. Charts using a deleted script keep running their copy.
+- Inputs (`input.*()`), style and properties are edited in Vela's settings dialog: the gear in
+  the panel or the chart legend. The eye hides an indicator without removing it.
+- An analysis saves its indicators, their settings and visibility automatically, like drawings.
+- With **Alerts** on, an indicator's `alert()` appears in the Alerts card and, if allowed, as a
+  browser notification (at most once per message every 30 seconds). `plotshape()` marks
+  signals on the chart.
+
+Indicators are computed in the browser from the candles on the chart; nothing extra is
+requested from the data source.
+
+### License
+
+PineTS and `@luxalgo/vela-pinets` are AGPL-3.0. They are bundled deliberately, with
+reviewed exceptions in `scripts/check-licenses.mjs`: a deployment that includes them must
+meet AGPL-3.0 terms, including offering the corresponding source to its network users. The
+journal's own code stays MIT. Pine Script is a trademark of TradingView, Inc.; PineTS is an
+independent runtime not affiliated with TradingView.
+
 ## Pattern tools
 
 Vela's side toolbar **Patterns** group holds XABCD, ABCD, the harmonic patterns (Gartley,
@@ -84,7 +117,7 @@ Vela's `registerDrawingType` hook (`components/vela-pattern-fixes.ts`):
 
 Wave drawings saved with the old count keep their points and labels (marked with a
 `legacyVertices` prop); redraw them to get the full count. Vela ships one native indicator
-(volume) and no scripting engine, so the chart has no other indicators to correct.
+(volume) and no scripting engine of its own; indicators come from the Pine engine above.
 
 ## Stylus behavior
 
@@ -132,6 +165,11 @@ the optional journal day and a PNG snapshot.
 - `server/chart-analyses.ts`: input validation, persistence, journal embedding.
 - `app/api/analyses/**`: CRUD plus `/image`; `app/api/market-data/history`: candles by window
   or "latest N".
+- `lib/indicator-library.ts`: the built-in Pine scripts; `lib/chart-indicators.ts`: saved
+  indicator validation and source resolution.
+- `components/chart-indicators-bridge.ts`: Vela indicators ↔ saved state;
+  `components/indicators-panel.tsx`, `components/pine-editor.tsx`: the panel and editor.
+- `server/chart-scripts.ts`, `app/api/chart-scripts/**`: My indicators.
 - `components/analysis-chart.tsx`: the live Vela chart and quick toolbar;
   `components/chart-stylus.ts`: stylus routing; `components/layers-panel.tsx`: the layer tree.
 - `app/charts/page.tsx`: symbol selection, autosave, alerts, journal and analysis lists.

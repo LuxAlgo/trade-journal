@@ -227,6 +227,8 @@ export const chartAnalyses = sqliteTable(
     drawingCount: integer("drawing_count").notNull().default(0),
     /** Folders and layers grouping the drawings (`LayersDocument`); null = one default layer. */
     layersJson: text("layers_json"),
+    /** Indicators on the chart (`StoredIndicator[]`); null = none. */
+    indicatorsJson: text("indicators_json"),
     notes: text("notes").notNull().default(""),
     /** Optional journal day ("YYYY-MM-DD") the analysis belongs to. */
     dayDate: text("day_date"),
@@ -239,6 +241,14 @@ export const chartAnalyses = sqliteTable(
     index("chart_analyses_symbol").on(table.provider, table.symbol),
   ],
 );
+/** User-written Pine Script indicators ("My indicators"), shared by every chart. */
+export const chartScripts = sqliteTable("chart_scripts", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  source: text("source").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
 export const noteTemplates = sqliteTable("note_templates", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

@@ -34,6 +34,13 @@ import { cn } from "@/lib/utils";
 import { markLegacyPatterns } from "@/lib/pattern-fixes";
 import { attachStylus } from "./chart-stylus";
 import { applyPatternFixes } from "./vela-pattern-fixes";
+import {
+  createIndicatorBridge,
+  type ChartIndicator,
+  type IndicatorAlert,
+  type IndicatorBridge,
+} from "./chart-indicators-bridge";
+import type { StoredIndicator } from "@/lib/chart-indicators";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
 
@@ -57,6 +64,8 @@ export interface AnalysisChartHandle {
   remove(ids: string[]): void;
   /** Scroll (loading older history if needed) so these drawings are in view. */
   reveal(ids: string[]): void;
+  /** Script indicators on the chart, or null until the chart and its Pine engine are up. */
+  indicators(): IndicatorBridge | null;
 }
 
 const TOOLS: {
@@ -112,6 +121,9 @@ export function AnalysisChart({
   live,
   initialDrawings,
   initialVisible,
+  initialIndicators,
+  onIndicatorsChange,
+  onIndicatorAlert,
   layers,
   onDrawingCreated,
   onDrawingsChange,
@@ -127,6 +139,11 @@ export function AnalysisChart({
   live: boolean;
   initialDrawings: DrawingsDocument;
   initialVisible?: { from: number; to: number } | null;
+  /** Saved indicators with their code already resolved (library or saved script). */
+  initialIndicators: StoredIndicator[];
+  /** Indicators after any change; `edited` is false for errors and the initial restore. */
+  onIndicatorsChange: (indicators: ChartIndicator[], edited: boolean) => void;
+  onIndicatorAlert: (alert: IndicatorAlert) => void;
   layers: LayersDocument;
   onDrawingCreated: (id: string) => void;
   /** Every drawing on the chart, after any change (for the layers panel and alerts). */
@@ -143,6 +160,8 @@ export function AnalysisChart({
   const chart = useRef<Vela | null>(null);
   const provider = useRef<JournalMarketProvider | null>(null);
   const seed = useRef({ drawings: initialDrawings, visible: initialVisible });
+  const indicatorsSeed = useRef(initialIndicators);
+  const bridge = useRef<IndicatorBridge | null>(null);
   const callbacks = useRef({
     onDrawingCreated,
     onDrawingsChange,
@@ -150,8 +169,19 @@ export function AnalysisChart({
     onStatus,
     onLatest,
     onSelect,
+    onIndicatorsChange,
+    onIndicatorAlert,
   });
-  callbacks.current = { onDrawingCreated, onDrawingsChange, onEdit, onStatus, onLatest, onSelect };
+  callbacks.current = {
+    onDrawingCreated,
+    onDrawingsChange,
+    onEdit,
+    onStatus,
+    onLatest,
+    onSelect,
+    onIndicatorsChange,
+    onIndicatorAlert,
+  };
   const layersRef = useRef(layers);
   const resolutionRef = useRef(resolution);
   const liveRef = useRef(live);
@@ -183,6 +213,7 @@ export function AnalysisChart({
     reveal: (ids) => {
       if (chart.current) revealNow(chart.current, ids);
     },
+    indicators: () => bridge.current,
   }));
 
   const arm = (type: DrawingTypeKey | null) => {
@@ -200,7 +231,10 @@ export function AnalysisChart({
     let cleanup = () => {};
     setError("");
     void (async () => {
-      const vela = await import("@luxalgo/vela");
+      const [vela, { PineWorkerEngine }] = await Promise.all([
+        import("@luxalgo/vela"),
+        import("@luxalgo/vela-pinets"),
+      ]);
       const { Vela } = vela;
       if (disposed || !host.current) return;
       applyPatternFixes(vela);
@@ -237,10 +271,19 @@ export function AnalysisChart({
         ...(visible ? { visibleRange: visible } : {}),
       });
       instance.data.registerProvider(name, feed);
+      // Pine Script indicators run in a Web Worker so heavy scripts never block drawing.
+      const engine = new PineWorkerEngine({ props: "strategy" });
+      instance.registerEngine("pine", engine);
       chart.current = instance;
       instance.drawings.fromJSON(markLegacyPatterns(drawings));
       applyLayers(instance, layersRef.current);
       publish(instance);
+      const indicators = createIndicatorBridge(instance, {
+        onChange: (list, edited) => callbacks.current.onIndicatorsChange(list, edited),
+        onAlert: (alert) => callbacks.current.onIndicatorAlert(alert),
+      });
+      indicators.restore(indicatorsSeed.current);
+      bridge.current = indicators;
 
       const refresh = () =>
         setUndoState({ undo: instance.drawings.canUndo(), redo: instance.drawings.canRedo() });
@@ -318,7 +361,11 @@ export function AnalysisChart({
           drawings: instance.drawings.toJSON() as unknown as DrawingsDocument,
           visible: instance.getVisibleRange(),
         };
+        indicatorsSeed.current = indicators.list();
+        indicators.dispose();
+        if (bridge.current === indicators) bridge.current = null;
         instance.destroy();
+        engine.terminate();
         if (chart.current === instance) chart.current = null;
         if (provider.current === feed) provider.current = null;
       };

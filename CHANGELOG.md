@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Chart indicators in Pine Script, run by PineTS in a Web Worker: 15 built-ins (moving averages, VWAP, Bollinger, Donchian, Supertrend, ATR, RSI, MACD, Stochastic, ADX, OBV and signal scripts), a Pine editor with errors and line numbers, a "My indicators" library, settings and visibility saved with each analysis, and indicator `alert()` messages in chart alerts. Adds AGPL-3.0 dependencies (`pinets`, `@luxalgo/vela-pinets`) with reviewed license-gate exceptions
 - Charts: a live Vela chart for any symbol from your market-data source (latest candles on open, automatic updates, older history on scroll back), stylus drawing (pen, highlighter, hardware eraser, palm rejection), automatic saving per symbol, drawing layers grouped in folders, line-crossing alerts, and journal embeds that reopen the chart
 - Customizable dashboard: drag cards to rearrange, hide and restore them, save named layouts; responsive layout with a mobile navigation drawer
 - Privacy mode that masks monetary values across the app while keeping counts, ratios and chart shapes
@@ -24,6 +25,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Vela upgraded to 0.7.7 (required by its Pine add-on)
 - Data loads render as React transitions, so a tab change paints progressively instead of freezing while every card and chart mounts at once
 - The development server runs on Turbopack, roughly halving first-visit compile times when switching tabs in `pnpm dev`
 - Removed the gradient accent bar and gradient Edge Score number; the active nav item and the score now use the solid brand blue
