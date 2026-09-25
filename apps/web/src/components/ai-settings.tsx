@@ -5,6 +5,8 @@ import {
   AI_DEFAULT_MODELS,
   AI_PROVIDER_NAMES,
   AI_PROVIDERS,
+  DEFAULT_ANTHROPIC_API_BASE_URL,
+  DEFAULT_OPENAI_BASE_URL,
   type AiProvider,
   type AiSettingsPayload,
 } from "@/lib/ai-settings";
@@ -20,6 +22,7 @@ export function AiSettings() {
   const [provider, setProvider] = useState<AiProvider>("anthropic");
   const [model, setModel] = useState(AI_DEFAULT_MODELS.anthropic);
   const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState("");
   const [saved, setSaved] = useState("");
@@ -28,6 +31,7 @@ export function AiSettings() {
     if (!data) return;
     setProvider(data.aiProvider);
     setModel(data.aiModel);
+    setBaseUrl(data.aiBaseUrl)
   }, [data]);
 
   const connection = data?.aiConnections[provider];
@@ -49,6 +53,7 @@ export function AiSettings() {
           : {
               aiProvider: provider,
               aiModel: model.trim(),
+              aiBaseUrl: baseUrl.trim(),
               ...(apiKey.trim() ? { [`${provider}Key`]: apiKey.trim() } : {}),
             },
         "PATCH",
@@ -90,6 +95,7 @@ export function AiSettings() {
                 const next = value as AiProvider;
                 setProvider(next);
                 setModel(data?.aiConnections[next].model ?? AI_DEFAULT_MODELS[next]);
+                setBaseUrl(data?.aiConnections[next].baseUrl ?? "");
                 setApiKey("");
                 setSaved("");
                 setFailure("");
@@ -120,6 +126,35 @@ export function AiSettings() {
           Use a text model available to your provider account. Each provider keeps its own model and
           key.
         </p>
+        <div className="space-y-1">
+          <Label htmlFor="ai-api-baseurl">{name} Compatible Base URL</Label>
+          <Input
+            id="ai-api-baseurl"
+            type="url"
+            value={baseUrl}
+            disabled={disabled || environment}
+            onChange={(event) => {
+              setBaseUrl(event.target.value);
+              setSaved("");
+            }}
+            placeholder={
+              connection?.configured
+                ? data?.aiBaseUrl
+                : provider === "anthropic"
+                  ? DEFAULT_ANTHROPIC_API_BASE_URL
+                  : DEFAULT_OPENAI_BASE_URL
+            }
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <p className="text-xs text-muted-foreground">
+            {environment
+              ? `Using ${provider === "openai" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY"} from the server environment. Change or remove that variable on the server to update the key.`
+              : connection?.configured
+                ? "Leave blank to keep your saved key, or enter a replacement."
+                : "Add your Base URL (support custom provider*), then save to use this provider."}
+          </p>
+        </div>
         <div className="space-y-1">
           <Label htmlFor="ai-api-key">{name} API key</Label>
           <Input

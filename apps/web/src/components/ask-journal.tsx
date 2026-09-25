@@ -10,6 +10,8 @@ import { AiNotice } from "./ai-notice";
 import { useFilters } from "./filter-bar";
 import { useAiRequest, type AiScope } from "@/lib/use-ai-request";
 import type { AnalysisFilters } from "@luxalgo/journal-core";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const SUGGESTIONS = [
   "What's my most expensive mistake?",
@@ -25,7 +27,7 @@ export function AskJournal() {
 
 function ScopedAskJournal({ filters, timeZone }: { filters: AnalysisFilters; timeZone: string }) {
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<{ answer: string; scope: AiScope } | null>(null);
+  const [response, setResponse] = useState<{ answer: string; scope: AiScope } | null>(null);
   const { run, busy, error, dismiss } = useAiRequest();
   const [lastQuestion, setLastQuestion] = useState("");
 
@@ -33,7 +35,7 @@ function ScopedAskJournal({ filters, timeZone }: { filters: AnalysisFilters; tim
     if (busy || !q.trim()) return;
     q = q.trim();
     setLastQuestion(q);
-    setAnswer(null);
+    setResponse(null);
     await run(
       () =>
         postJson<{ answer: string; scope: AiScope }>("/api/ai/ask", {
@@ -41,7 +43,7 @@ function ScopedAskJournal({ filters, timeZone }: { filters: AnalysisFilters; tim
           filters,
           timeZone,
         }),
-      setAnswer,
+      setResponse,
     );
   };
 
@@ -90,10 +92,12 @@ function ScopedAskJournal({ filters, timeZone }: { filters: AnalysisFilters; tim
         {error && (
           <AiNotice error={error} onRetry={() => void ask(lastQuestion)} onDismiss={dismiss} />
         )}
-        {answer && (
+        {response && (
           <div className="space-y-2 pt-1">
-            <p className="text-xs text-muted-foreground">{answer.scope.label}</p>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">{answer.answer}</p>
+            <p className="text-xs text-muted-foreground">{response.scope.label}</p>
+            <div className="whitespace-pre-wrap text-sm leading-relaxed">
+              <Markdown remarkPlugins={[remarkGfm]}>{response.answer}</Markdown>
+            </div>
           </div>
         )}
       </CardContent>
