@@ -1,4 +1,5 @@
 import { RESOLUTIONS, type Resolution } from "./market-data";
+import type { LayersDocument } from "./chart-layers";
 
 /** Vela's `SerializedDrawing` as stored: time+price anchors, never pixels. */
 export interface StoredDrawing {
@@ -36,6 +37,7 @@ export interface ChartAnalysis extends ChartAnalysisSummary {
   visibleTo: number | null;
   notes: string;
   drawings: DrawingsDocument;
+  layers: LayersDocument;
 }
 
 export const EMPTY_DRAWINGS: DrawingsDocument = { version: 1, drawings: [] };
@@ -178,3 +180,31 @@ export function utcDayRange(fromDay: string, toDay: string, now = Date.now()) {
   const to = Math.min(Date.parse(`${toDay}T00:00:00Z`) + 86_400_000, now);
   return from < to ? { from, to } : null;
 }
+
+const DRAWING_LABELS: Record<string, string> = {
+  freehand: "Pen stroke",
+  highlighter: "Highlight",
+  trendline: "Trend line",
+  hline: "Horizontal line",
+  hray: "Horizontal ray",
+  vline: "Vertical line",
+  ray: "Ray",
+  extendedline: "Extended line",
+  box: "Rectangle",
+  text: "Text",
+  arrow: "Arrow",
+  note: "Note",
+  callout: "Callout",
+  fibretracement: "Fib retracement",
+  parallelchannel: "Parallel channel",
+  position: "Position",
+  pricelabel: "Price label",
+};
+
+/** A readable name for a Vela drawing type ("fibretracement" → "Fib retracement"). */
+export const drawingLabel = (type: string, text?: string) => {
+  const base =
+    DRAWING_LABELS[type] ?? `${type.charAt(0).toUpperCase()}${type.slice(1).replace(/_/g, " ")}`;
+  const detail = text?.trim().replace(/\s+/g, " ").slice(0, 40);
+  return detail ? `${base}: ${detail}` : base;
+};

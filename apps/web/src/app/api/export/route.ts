@@ -24,6 +24,7 @@ import {
 } from "@/db";
 import { readFilters } from "@luxalgo/journal-core";
 import { parseDrawings } from "@/lib/chart-analysis";
+import { parseLayers } from "@/lib/chart-layers";
 import { queryTrades } from "@/server/trades-query";
 import {
   getJournalDefaults,
@@ -109,9 +110,10 @@ export const GET = handler(async (request: Request) => {
       .select()
       .from(chartAnalyses)
       .all()
-      .map(({ image, drawingsJson, ...analysis }) => ({
+      .map(({ image, drawingsJson, layersJson, ...analysis }) => ({
         ...analysis,
         drawings: parseDrawings(drawingsJson),
+        layers: parseLayers(layersJson),
         hasSnapshot: image !== null,
       })),
     journalDefaults: getJournalDefaults(),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
-import type { DrawingTypeKey, Vela } from "@luxalgo/vela";
+import type { DrawingTypeKey, SerializedDrawing, Vela } from "@luxalgo/vela";
 import {
   ArrowUpRight,
   Eraser,
@@ -18,18 +18,43 @@ import {
   Type,
   Undo2,
 } from "lucide-react";
-import type { MarketHistory } from "@/lib/market-data";
+import { RESOLUTIONS, type Resolution } from "@/lib/market-data";
 import { VELA_TIMEFRAME, type DrawingsDocument } from "@/lib/chart-analysis";
+import { drawingStates, type LayersDocument } from "@/lib/chart-layers";
+import {
+  INITIAL_BARS,
+  JournalMarketProvider,
+  MAX_CHART_BARS,
+  velaProviderName,
+  type LatestBar,
+  type LiveStatus,
+} from "@/lib/live-market";
 import { STYLUS_COLORS, STYLUS_WIDTHS, isBrush, stylusPreference } from "@/lib/stylus";
 import { cn } from "@/lib/utils";
+import { attachStylus } from "./chart-stylus";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
 
+export interface ChartDrawing {
+  id: string;
+  type: string;
+  anchors: { time: number; price: number }[];
+  visible: boolean;
+  locked: boolean;
+  text?: string;
+}
+
 export interface AnalysisChartHandle {
   drawings(): DrawingsDocument;
-  /** PNG data URL of candles plus drawings, or null when the renderer can't export. */
+  /** PNG data URL of candles plus visible drawings, or null when it can't be exported. */
   screenshot(): string | null;
   visibleRange(): { from: number; to: number } | null;
+  /** Oldest and newest loaded candle times. */
+  loadedRange(): { from: number; to: number } | null;
+  select(id: string): void;
+  remove(ids: string[]): void;
+  /** Scroll (loading older history if needed) so these drawings are in view. */
+  reveal(ids: string[]): void;
 }
 
 const TOOLS: {
@@ -47,42 +72,89 @@ const TOOLS: {
 ];
 const QUICK_TOOLS = new Set<DrawingTypeKey>(TOOLS.map((entry) => entry.type));
 
-/** The stylus eraser end reports button 5 on press and bit 32 in `buttons` while held. */
-const isEraserTip = (event: PointerEvent) =>
-  event.pointerType === "pen" && (event.button === 5 || (event.buttons & 32) !== 0);
+type DrawingsInternals = {
+  ctrl?: {
+    lastStyle?: unknown;
+    store?: { setVisible?: unknown; setLocked?: unknown };
+  };
+};
 
-type DrawingsInternals = { ctrl?: { lastStyle?: unknown } };
+const toChartDrawing = (d: SerializedDrawing): ChartDrawing => ({
+  id: d.id,
+  type: d.type,
+  anchors: d.anchors.map((a) => ({ time: a.time, price: a.price })),
+  visible: d.visible,
+  locked: d.locked,
+  text: d.text?.value,
+});
+
+const freshHistory = (requested: number) => ({
+  requested,
+  loading: true,
+  genesis: false,
+  oldest: 0,
+  newest: 0,
+});
 
 /**
- * A market chart on Vela with its drawing tools, tuned for a stylus: the pen tip draws
- * (arming the pen when no tool is chosen), its eraser end erases, and fingers keep
- * panning and pinch-zooming. Touches that land while a pen is down are ignored as palm
- * contact. Candles come from `history`; drawings are time+price anchored, so they
- * survive reloads at another resolution or range.
+ * A live market chart on Vela with drawing tools tuned for a stylus. Candles stream from
+ * the journal's market-data connection: the latest history loads on open, scrolling back
+ * loads older candles, and new candles arrive while the tab is visible. Drawings are time
+ * and price anchored; their layer decides whether they show and whether they are locked.
+ * The page remounts this component for another source or symbol.
  */
 export function AnalysisChart({
-  history,
+  source,
+  symbol,
+  resolution,
+  live,
   initialDrawings,
   initialVisible,
-  onChange,
+  layers,
+  onDrawingCreated,
+  onDrawingsChange,
+  onEdit,
+  onStatus,
+  onLatest,
+  onSelect,
   chartRef,
 }: {
-  history: MarketHistory;
+  source: { provider: string; dataset: string | null };
+  symbol: string;
+  resolution: Resolution;
+  live: boolean;
   initialDrawings: DrawingsDocument;
   initialVisible?: { from: number; to: number } | null;
-  onChange: () => void;
+  layers: LayersDocument;
+  onDrawingCreated: (id: string) => void;
+  /** Every drawing on the chart, after any change (for the layers panel and alerts). */
+  onDrawingsChange: (drawings: ChartDrawing[]) => void;
+  /** A user edit worth saving (not panning or zooming). */
+  onEdit: () => void;
+  onStatus: (status: LiveStatus) => void;
+  onLatest: (latest: LatestBar) => void;
+  onSelect: (id: string | null) => void;
   chartRef?: Ref<AnalysisChartHandle>;
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<Vela | null>(null);
-  const seed = useRef({
-    drawings: initialDrawings,
-    visible: initialVisible,
-    resolution: history.resolution,
+  const provider = useRef<JournalMarketProvider | null>(null);
+  const seed = useRef({ drawings: initialDrawings, visible: initialVisible });
+  const callbacks = useRef({
+    onDrawingCreated,
+    onDrawingsChange,
+    onEdit,
+    onStatus,
+    onLatest,
+    onSelect,
   });
-  const changed = useRef(onChange);
-  changed.current = onChange;
+  callbacks.current = { onDrawingCreated, onDrawingsChange, onEdit, onStatus, onLatest, onSelect };
+  const layersRef = useRef(layers);
+  const resolutionRef = useRef(resolution);
+  const liveRef = useRef(live);
+  const history = useRef(freshHistory(INITIAL_BARS));
+  const pendingReveal = useRef<string[] | null>(null);
   const [preference, setPreference] = useState(stylusPreference.read);
   const prefs = useRef(preference);
   prefs.current = preference;
@@ -92,6 +164,7 @@ export function AnalysisChart({
   const [fullscreen, setFullscreen] = useState(false);
   const [error, setError] = useState("");
   const [penSeen, setPenSeen] = useState(false);
+  const armedByPen = useRef(false);
 
   useImperativeHandle(chartRef, () => ({
     drawings: () =>
@@ -99,9 +172,16 @@ export function AnalysisChart({
       seed.current.drawings,
     screenshot: () => chart.current?.renderer.screenshot() ?? null,
     visibleRange: () => chart.current?.getVisibleRange() ?? null,
+    loadedRange: () =>
+      history.current.oldest ? { from: history.current.oldest, to: history.current.newest } : null,
+    select: (id) => chart.current?.drawings.select(id),
+    remove: (ids) => {
+      if (ids.length) chart.current?.drawings.removeMany(ids);
+    },
+    reveal: (ids) => {
+      if (chart.current) revealNow(chart.current, ids);
+    },
   }));
-
-  const armedByPen = useRef(false);
 
   const arm = (type: DrawingTypeKey | null) => {
     const instance = chart.current;
@@ -121,31 +201,51 @@ export function AnalysisChart({
       const { Vela } = await import("@luxalgo/vela");
       if (disposed || !host.current) return;
       const dark = () => document.documentElement.classList.contains("dark");
-      const { drawings, resolution } = seed.current;
-      // The same window at another resolution can be a handful of bars; refit instead.
-      const visible = resolution === history.resolution ? seed.current.visible : null;
+      const { drawings, visible } = seed.current;
+      const step = RESOLUTIONS[resolutionRef.current];
+      // Enough history to show a saved view, within the chart's depth cap.
+      const bars = visible
+        ? Math.min(
+            MAX_CHART_BARS,
+            Math.max(INITIAL_BARS, Math.ceil((Date.now() - visible.from) / step) + 50),
+          )
+        : INITIAL_BARS;
+      history.current = freshHistory(bars);
+      const feed = new JournalMarketProvider(source, {
+        onStatus: (status) => callbacks.current.onStatus(status),
+        onLatest: (latest) => {
+          history.current.newest = Math.max(history.current.newest, latest.bar.time);
+          callbacks.current.onLatest(latest);
+        },
+      });
+      feed.setPaused(!liveRef.current);
+      provider.current = feed;
+      const name = velaProviderName(source.provider);
       const instance = new Vela(element, {
-        symbol: history.symbol,
-        timeframe: VELA_TIMEFRAME[history.resolution],
-        data: history.bars,
-        live: false,
+        symbol: `${name}:${symbol}`,
+        timeframe: VELA_TIMEFRAME[resolutionRef.current],
+        bars,
+        live: true,
         theme: dark() ? "dark" : "light",
         priceStyle: "candles",
         volume: true,
         drawings: true,
         ...(visible ? { visibleRange: visible } : {}),
       });
+      instance.data.registerProvider(name, feed);
       chart.current = instance;
       instance.drawings.fromJSON(drawings);
-      // Drawings-only updates: panning and zooming are not edits.
+      applyLayers(instance, layersRef.current);
+      publish(instance);
+
       const refresh = () =>
-        setUndoState({
-          undo: instance.drawings.canUndo(),
-          redo: instance.drawings.canRedo(),
-        });
-      const edit = () => {
+        setUndoState({ undo: instance.drawings.canUndo(), redo: instance.drawings.canRedo() });
+      const edited = () => {
+        // Undo/redo restore snapshots that predate layer changes; layers stay authoritative.
+        applyLayers(instance, layersRef.current);
         refresh();
-        changed.current();
+        publish(instance);
+        callbacks.current.onEdit();
       };
       const seeded = canSeedStyle(instance);
       const offs = [
@@ -156,10 +256,12 @@ export function AnalysisChart({
             instance.drawings.update(id, {
               style: { ...drawing.style, ...styleFor(drawing.type, prefs.current) },
             });
-          edit();
+          callbacks.current.onDrawingCreated(id);
+          edited();
         }),
-        instance.on("drawing:edited", edit),
-        instance.on("drawing:removed", edit),
+        instance.on("drawing:edited", edited),
+        instance.on("drawing:removed", edited),
+        instance.on("drawing:selected", ({ id }) => callbacks.current.onSelect(id)),
         instance.on("drawing:tool", ({ type }) => {
           setTool(type);
           if (!type) armedByPen.current = false;
@@ -168,136 +270,35 @@ export function AnalysisChart({
             instance.drawings.setTool(type);
         }),
         instance.on("drawing:mode", ({ mode }) => setErasing(mode === "eraser")),
+        instance.on("history:complete", ({ reason, oldestTime }) => {
+          const state = history.current;
+          state.loading = false;
+          state.genesis = reason === "genesis" || reason === "aborted";
+          if (oldestTime) state.oldest = oldestTime;
+          if (pendingReveal.current) revealNow(instance, pendingReveal.current);
+        }),
+        instance.on("load:end", ({ bars: loaded }) => {
+          if (!loaded) history.current.loading = false;
+        }),
+        instance.on("viewport:changed", ({ from, to }) => {
+          // Scrolling near the oldest candle loads more, like any trading chart.
+          const state = history.current;
+          if (!state.oldest || from > state.oldest + (to - from) * 0.15) return;
+          growHistory(instance, state.requested * 2);
+        }),
       ];
       setTool(instance.drawings.getTool());
       refresh();
 
-      // ── Stylus routing ── capture phase runs before Vela's own pointer handlers.
-      const pens = new Set<number>();
-      const palms = new Set<number>();
-      let press: { id: number; x: number; y: number; created: boolean; armed: boolean } | null =
-        null;
-      let eraserRestore: { tool: DrawingTypeKey | null; armedByPen: boolean } | null = null;
-      let replaying = false;
-      offs.push(instance.on("drawing:created", () => press && (press.created = true)));
-      const replay = (target: EventTarget, init: PointerEventInit, types: string[]) => {
-        replaying = true;
-        try {
-          for (const type of types)
-            target.dispatchEvent(
-              new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, ...init }),
-            );
-        } finally {
-          replaying = false;
-        }
-      };
-      const pointerInit = (event: PointerEvent): PointerEventInit => ({
-        pointerId: event.pointerId,
-        pointerType: "pen",
-        isPrimary: event.isPrimary,
-        clientX: event.clientX,
-        clientY: event.clientY,
-        screenX: event.screenX,
-        screenY: event.screenY,
-        pressure: event.pressure,
+      const detachStylus = attachStylus(instance, element, {
+        prefs: () => prefs.current,
+        armedByPen,
+        onPen: () => setPenSeen(true),
       });
-      const onDown = (event: PointerEvent) => {
-        if (replaying) return;
-        const target = event.target;
-        if (!(target instanceof HTMLCanvasElement)) return;
-        const drawingsApi = instance.drawings;
-        if (event.pointerType === "pen") {
-          pens.add(event.pointerId);
-          setPenSeen(true);
-          if (isEraserTip(event)) {
-            // Vela only reacts to the primary button: replay the eraser tip as a
-            // primary press in eraser mode, then restore the tool on release.
-            event.stopImmediatePropagation();
-            event.preventDefault();
-            eraserRestore = { tool: drawingsApi.getTool(), armedByPen: armedByPen.current };
-            drawingsApi.setMode("eraser");
-            replay(target, { ...pointerInit(event), button: 0, buttons: 1 }, ["pointerdown"]);
-            return;
-          }
-          let armed = false;
-          if (prefs.current.penDraws && !drawingsApi.getTool() && !drawingsApi.getMode()) {
-            drawingsApi.setTool(prefs.current.penTool);
-            armedByPen.current = true;
-            armed = true;
-          }
-          press = {
-            id: event.pointerId,
-            x: event.clientX,
-            y: event.clientY,
-            created: false,
-            armed,
-          };
-          return;
-        }
-        if (event.pointerType === "touch" && pens.size) {
-          // Palm resting on the screen while the pen writes: hide the whole contact from Vela,
-          // or its moves would drag the stroke in progress.
-          palms.add(event.pointerId);
-          event.stopImmediatePropagation();
-          event.preventDefault();
-          return;
-        }
-        if (armedByPen.current && isBrush(drawingsApi.getTool())) {
-          // A finger or mouse after the pen pans the chart instead of drawing.
-          drawingsApi.setTool(null);
-          armedByPen.current = false;
-        }
-      };
-      const onPalm = (event: PointerEvent) => {
-        if (!palms.has(event.pointerId)) return;
-        if (event.type !== "pointermove") palms.delete(event.pointerId);
-        event.stopImmediatePropagation();
-        event.preventDefault();
-      };
-      // On window, bubble phase: Vela has handled the release, and a release outside the
-      // chart still clears the pen (a stuck pen would reject every later touch).
-      const onUp = (event: PointerEvent) => {
-        if (replaying || event.pointerType !== "pen") return;
-        pens.delete(event.pointerId);
-        if (eraserRestore) {
-          const restore = eraserRestore;
-          eraserRestore = null;
-          instance.drawings.setMode(null);
-          if (restore.tool) instance.drawings.setTool(restore.tool);
-          armedByPen.current = restore.armedByPen;
-          return;
-        }
-        const tap = press;
-        press = null;
-        if (
-          !tap ||
-          tap.id !== event.pointerId ||
-          event.type !== "pointerup" ||
-          !tap.armed ||
-          tap.created ||
-          Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 6
-        )
-          return;
-        // A pen tap that drew nothing selects what is under it, like a mouse click: put the
-        // auto-armed pen down and replay the tap to Vela's selection.
-        const target = document.elementFromPoint(tap.x, tap.y);
-        if (!(target instanceof HTMLCanvasElement) || !element.contains(target)) return;
-        instance.drawings.setTool(null);
-        armedByPen.current = false;
-        replay(target, { ...pointerInit(event), clientX: tap.x, clientY: tap.y, button: 0 }, [
-          "pointerdown",
-          "pointerup",
-        ]);
-      };
       const onKey = (event: KeyboardEvent) => {
         if ((event.ctrlKey || event.metaKey) && ["z", "y"].includes(event.key.toLowerCase()))
-          requestAnimationFrame(edit);
+          requestAnimationFrame(edited);
       };
-      element.addEventListener("pointerdown", onDown, { capture: true });
-      for (const type of ["pointermove", "pointerup", "pointercancel"] as const)
-        element.addEventListener(type, onPalm, { capture: true });
-      window.addEventListener("pointerup", onUp);
-      window.addEventListener("pointercancel", onUp);
       element.addEventListener("keydown", onKey);
       const observer = new MutationObserver(() => instance.setTheme(dark() ? "dark" : "light"));
       observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
@@ -305,22 +306,17 @@ export function AnalysisChart({
       resize.observe(element);
       cleanup = () => {
         offs.forEach((off) => off());
-        element.removeEventListener("pointerdown", onDown, { capture: true });
-        for (const type of ["pointermove", "pointerup", "pointercancel"] as const)
-          element.removeEventListener(type, onPalm, { capture: true });
-        window.removeEventListener("pointerup", onUp);
-        window.removeEventListener("pointercancel", onUp);
+        detachStylus();
         element.removeEventListener("keydown", onKey);
         observer.disconnect();
         resize.disconnect();
-        // Keep the latest drawings for the next mount (a reload at another resolution).
         seed.current = {
           drawings: instance.drawings.toJSON() as unknown as DrawingsDocument,
           visible: instance.getVisibleRange(),
-          resolution: history.resolution,
         };
         instance.destroy();
         if (chart.current === instance) chart.current = null;
+        if (provider.current === feed) provider.current = null;
       };
     })().catch(() => {
       if (!disposed) setError("The chart could not be rendered.");
@@ -329,13 +325,94 @@ export function AnalysisChart({
       disposed = true;
       cleanup();
     };
-  }, [history]);
+    // Source and symbol changes remount; resolution, live and layers update in place.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A timeframe switch keeps the drawings and loads the latest candles at the new size.
+  useEffect(() => {
+    if (resolutionRef.current === resolution) return;
+    resolutionRef.current = resolution;
+    const instance = chart.current;
+    if (!instance) return;
+    history.current = freshHistory(INITIAL_BARS);
+    void instance.setMarket({ timeframe: VELA_TIMEFRAME[resolution], bars: INITIAL_BARS });
+  }, [resolution]);
+
+  useEffect(() => {
+    liveRef.current = live;
+    provider.current?.setPaused(!live);
+  }, [live]);
+
+  useEffect(() => {
+    const previous = layersRef.current;
+    layersRef.current = layers;
+    if (chart.current && previous !== layers) {
+      applyLayers(chart.current, layers, previous);
+      publish(chart.current);
+    }
+  }, [layers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const onFullscreen = () => setFullscreen(document.fullscreenElement === frame.current);
     document.addEventListener("fullscreenchange", onFullscreen);
     return () => document.removeEventListener("fullscreenchange", onFullscreen);
   }, []);
+
+  /** Apply layer visibility/locks without adding undo steps; see `drawingStates`. */
+  function applyLayers(instance: Vela, doc: LayersDocument, previous?: LayersDocument) {
+    const patches = drawingStates(doc, instance.drawings.all(), previous);
+    if (!patches.length) return;
+    const store = (instance.drawings as unknown as DrawingsInternals).ctrl?.store;
+    if (typeof store?.setVisible === "function" && typeof store.setLocked === "function") {
+      const setVisible = store.setVisible as (id: string, v: boolean) => void;
+      const setLocked = store.setLocked as (id: string, v: boolean) => void;
+      for (const patch of patches) {
+        setVisible.call(store, patch.id, patch.visible);
+        setLocked.call(store, patch.id, patch.locked);
+      }
+    } else {
+      // Public fallback: one undo step per layer change.
+      instance.drawings.updateMany(
+        patches.map((p) => ({ id: p.id, patch: { visible: p.visible, locked: p.locked } })),
+      );
+    }
+  }
+
+  function publish(instance: Vela) {
+    callbacks.current.onDrawingsChange(instance.drawings.all().map(toChartDrawing));
+  }
+
+  /** Grow the loaded history; Vela backfills older chunks behind the chart. */
+  function growHistory(instance: Vela, bars: number) {
+    const state = history.current;
+    const target = Math.min(MAX_CHART_BARS, bars);
+    if (state.loading || state.genesis || target <= state.requested) return;
+    state.requested = target;
+    state.loading = true;
+    void instance.setMarket({ bars: target });
+  }
+
+  function revealNow(instance: Vela, ids: string[]) {
+    const times = instance.drawings
+      .all()
+      .filter((d) => ids.includes(d.id))
+      .flatMap((d) => d.anchors.map((a) => a.time));
+    if (!times.length) return;
+    const step = RESOLUTIONS[resolutionRef.current];
+    const min = Math.min(...times);
+    const max = Math.max(...times);
+    const pad = Math.max((max - min) * 0.3, step * 20);
+    const state = history.current;
+    const needsOlder = state.oldest > 0 && min - pad < state.oldest;
+    if (needsOlder && !state.genesis && state.requested < MAX_CHART_BARS) {
+      pendingReveal.current = ids;
+      growHistory(instance, Math.ceil((state.newest - (min - pad)) / step) + 50);
+      if (history.current.loading) return;
+    }
+    pendingReveal.current = null;
+    const end = state.newest ? Math.min(max + pad, state.newest + step * 10) : max + pad;
+    instance.setVisibleRange({ from: min - pad, to: end });
+  }
 
   const updatePreference = (patch: Partial<typeof preference>) => {
     const next = { ...preference, ...patch };
@@ -367,6 +444,14 @@ export function AnalysisChart({
   }, [fullscreen]);
 
   const drawingsApi = () => chart.current?.drawings;
+  const afterHistoryStep = () => {
+    const instance = chart.current;
+    if (!instance) return;
+    applyLayers(instance, layersRef.current);
+    publish(instance);
+    callbacks.current.onEdit();
+    setUndoState({ undo: instance.drawings.canUndo(), redo: instance.drawings.canRedo() });
+  };
   return (
     <div
       ref={frame}
@@ -401,11 +486,7 @@ export function AnalysisChart({
         <ToolButton
           label="Eraser (drag across drawings)"
           active={erasing}
-          onClick={() => {
-            const api = drawingsApi();
-            if (!api) return;
-            api.setMode(erasing ? null : "eraser");
-          }}
+          onClick={() => drawingsApi()?.setMode(erasing ? null : "eraser")}
           icon={Eraser}
         />
         <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
@@ -457,11 +538,7 @@ export function AnalysisChart({
           disabled={!undoState.undo}
           onClick={() => {
             drawingsApi()?.undo();
-            changed.current();
-            setUndoState({
-              undo: Boolean(drawingsApi()?.canUndo()),
-              redo: Boolean(drawingsApi()?.canRedo()),
-            });
+            afterHistoryStep();
           }}
           icon={Undo2}
         />
@@ -470,11 +547,7 @@ export function AnalysisChart({
           disabled={!undoState.redo}
           onClick={() => {
             drawingsApi()?.redo();
-            changed.current();
-            setUndoState({
-              undo: Boolean(drawingsApi()?.canUndo()),
-              redo: Boolean(drawingsApi()?.canRedo()),
-            });
+            afterHistoryStep();
           }}
           icon={Redo2}
         />
@@ -483,9 +556,9 @@ export function AnalysisChart({
           onClick={() => {
             const api = drawingsApi();
             const ids = api?.all().map((d) => d.id) ?? [];
-            if (!api || !ids.length || !confirm("Remove every drawing from this chart?")) return;
+            if (!api || !ids.length) return;
+            if (!confirm("Remove every drawing from this chart, in all layers?")) return;
             api.removeMany(ids);
-            changed.current();
           }}
           icon={Trash2}
         />
@@ -521,8 +594,7 @@ export function AnalysisChart({
           {penSeen
             ? "Stylus detected. The pen tip draws, a pen tap selects a drawing, the eraser end erases, and fingers pan and zoom. Turn off “Stylus draws” to drag drawings with the pen."
             : "Draw with a stylus, mouse or finger after choosing a tool. With a stylus, the pen tip draws without choosing a tool first."}{" "}
-          Tap a drawing to change its style; the chart's side toolbar has Fibonacci, channel,
-          pattern and measuring tools.
+          Scroll back for older candles. New drawings go to the active layer.
         </p>
       )}
     </div>

@@ -346,4 +346,96 @@ describe("chart history requests", () => {
     expect(response.status).toBe(400);
     expect((await response.json()).error).toContain("20,000 candles");
   });
+
+  it("returns the latest candles without dates, anchored to where a candle file ends", async () => {
+    importCsvDataset({
+      name: "Test candles",
+      symbol: "TEST",
+      resolution: "5m",
+      currency: "USD",
+      priceBasis: "raw",
+      content: csv,
+    });
+    const response = await historyRoute.POST(
+      json("/api/market-data/history", {
+        provider: "market-csv",
+        symbol: "TEST",
+        resolution: "5m",
+        to: Date.now(),
+        limit: 5,
+      }),
+    );
+    expect(response.status).toBe(200);
+    const { bars } = await response.json();
+    expect(bars).toHaveLength(5);
+    expect(bars.at(-1)).toMatchObject({ open: 111 });
+  });
+
+  it("bounds how many latest candles one request can ask for", async () => {
+    const response = await historyRoute.POST(
+      json("/api/market-data/history", {
+        provider: "market-csv",
+        symbol: "TEST",
+        resolution: "5m",
+        to: Date.now(),
+        limit: 50_000,
+      }),
+    );
+    expect(response.status).toBe(400);
+  });
+});
+
+describe("chart analyses keep their drawing layers", () => {
+  it("saves folders, layers and assignments with the analysis", async () => {
+    const layers = {
+      version: 1,
+      folders: [{ id: "folder-a", name: "Weekly", visible: false, locked: false, collapsed: true }],
+      layers: [
+        { id: "layer-main", name: "Main", folderId: null, visible: true, locked: false },
+        { id: "layer-b", name: "Supply", folderId: "folder-a", visible: true, locked: true },
+      ],
+      activeLayerId: "layer-b",
+      assignments: { "dw-1": "layer-b" },
+    };
+    const { analysis } = await (
+      await analysesRoute.POST(json("/api/analyses", { ...source, layers }))
+    ).json();
+    const loaded = await analysisRoute.GET(
+      new Request("http://journal.test"),
+      context(analysis.id),
+    );
+    expect((await loaded.json()).analysis.layers).toEqual(layers);
+  });
+
+  it("opens older analyses with every drawing on one layer", async () => {
+    const { analysis } = await (await analysesRoute.POST(json("/api/analyses", source))).json();
+    expect(analysis.layers.layers).toHaveLength(1);
+    expect(analysis.layers.activeLayerId).toBe(analysis.layers.layers[0].id);
+  });
+
+  it("rejects layers that reference missing folders", async () => {
+    const response = await analysesRoute.POST(
+      json("/api/analyses", {
+        ...source,
+        layers: {
+          version: 1,
+          folders: [],
+          layers: [{ id: "l", name: "L", folderId: "ghost", visible: true, locked: false }],
+          activeLayerId: "l",
+          assignments: {},
+        },
+      }),
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("finds a symbol's analyses for reopening its drawings", async () => {
+    await analysesRoute.POST(json("/api/analyses", source));
+    await analysesRoute.POST(json("/api/analyses", { ...source, symbol: "OTHER" }));
+    const response = await analysesRoute.GET(
+      new Request("http://journal.test/api/analyses?provider=market-csv&symbol=TEST"),
+    );
+    const { analyses } = await response.json();
+    expect(analyses.map((a: { symbol: string }) => a.symbol)).toEqual(["TEST"]);
+  });
 });

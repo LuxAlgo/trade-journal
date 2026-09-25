@@ -123,7 +123,9 @@ an earlier saved estimate. Replay starts at 4× speed.
 Configure these under **Settings → Market data**. Connections are used only for
 market prices; they do not create broker-sync accounts, place orders, or change Vela.
 Public sources require an explicit Enable source action. No source is contacted just
-because Settings or Reports is opened.
+because Settings or Reports is opened. **Charts** is the exception by design: an open chart
+requests its symbol's candles and polls for new ones while visible and not paused (see
+[charts.md](charts.md#live-updates) for the pace).
 
 | Source                | Setup                                                                                                   | Symbols and coverage                                                                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |

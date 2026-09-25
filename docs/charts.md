@@ -1,26 +1,75 @@
 # Charts and chart analyses
 
-**Charts** is a standalone market chart for the symbol you are studying, drawn on
-[Vela](https://www.npmjs.com/package/@luxalgo/vela). Mark it up with a stylus, mouse or
-finger, save the analysis, and embed it in the daily journal (or any note) as an image
-that opens the chart for editing.
+**Charts** is a live market chart for the symbol you are studying, drawn on
+[Vela](https://www.npmjs.com/package/@luxalgo/vela). Pick a symbol and it shows the latest
+candles and keeps updating. Draw with a stylus, mouse or finger; everything saves as you
+go. Organise drawings in layers and folders, get alerts when price crosses your lines, and
+put the analysis in the daily journal with one click.
 
 ## Use it
 
 1. Configure a source under **Settings → Market data**: a provider connection, an enabled
-   public crypto feed, or an uploaded candle CSV (see [market-data.md](market-data.md)).
-2. Open **Charts**, choose the source, the provider's exact symbol, a resolution and a UTC
-   date range, then **Load chart**. That is the only moment a provider is contacted.
-   A range is limited to 20,000 candles.
-3. Draw. The quick toolbar has pan/select, pen, highlighter, trend line, horizontal line,
+   public crypto feed (Binance, Coinbase), or an uploaded candle CSV (see
+   [market-data.md](market-data.md)).
+2. Open **Charts**, choose the source, type the provider's exact symbol and press **Open**.
+   The chart loads the latest 500 candles; there are no dates to enter. The page reopens
+   the last symbol you watched, and recent symbols stay one tap away.
+3. Switch candle size with the **1m · 5m · 15m · 1h · 1d** buttons. Scroll or drag back in
+   time and older candles load automatically (up to 20,000).
+4. Draw. The quick toolbar has pan/select, pen, highlighter, trend line, horizontal line,
    rectangle, arrow, text and eraser, plus ink color, stroke width, undo, redo, clear and
-   full screen. Vela's own side toolbar adds Fibonacci, channels, patterns, measuring and
-   more. Tap a drawing to edit its style.
-4. Give it a title, notes and a journal day, then **Save analysis**, or **Save & add to
-   journal** to append the embed to that day's note.
+   full screen. Vela's side toolbar adds Fibonacci, channels, patterns, measuring and more.
 
-From a journal day, **Chart analysis** opens Charts with that day preselected. Every note
-editor has a **Chart** menu that inserts a saved analysis at the cursor.
+From a journal day, **Chart analysis** opens Charts with that day chosen for **Add**. Every
+note editor has a **Chart** menu that inserts a saved analysis at the cursor.
+
+## Live updates
+
+While the chart is open and the tab is visible, it polls the source for the forming candle:
+every 15 s on 1m, 30 s on 5m, 1 min on 15m, 2 min on 1h and 5 min on 1d. Each poll is a
+request to your provider plan, so the pace follows the candle size (Vela's own default,
+every 3 s, would be too costly on paid plans). **Pause** stops polling; hiding the tab
+pauses it too, and returning fetches whatever was missed. A failed request is retried
+briefly before an error shows. A candle CSV is read back from its own last candle, and a
+chart opened while the market is closed widens its window until it finds the last sessions.
+
+The header shows the last price and the change against the previous candle.
+
+## Saving
+
+There is no save button. The first drawing, title or note creates the analysis; after that,
+changes save about a second after you stop, and again when you hide or leave the page. The
+status in the **Analysis** card says **Saving…**, **Saved** with the time, or the error with
+**Retry**.
+
+- Each symbol reopens its most recent analysis, drawings and layers included. **New analysis**
+  in the Analysis menu starts a fresh board on the same symbol; the menu lists them all.
+- The PNG snapshot the journal shows refreshes at most every 15 seconds while you work, and on
+  leaving.
+- **Add** puts the analysis in the chosen journal day's note (today by default), once.
+
+## Layers and folders
+
+Folders hold layers, and layers hold drawings.
+
+- The filled dot marks the **active layer**: new drawings go there. Choosing a hidden or
+  locked layer shows and unlocks it (and its folder) so a new drawing is never invisible.
+- The eye hides, and the lock freezes, a layer or a whole folder. A folder's switch overrides
+  its layers. Hidden drawings stay hidden through undo and redo, are left out of the snapshot,
+  and never raise alerts.
+- Expand a layer to list its drawings: select one on the chart, move it to another layer, or
+  delete it. The layer menu renames, reorders, moves the layer into or out of a folder, shows
+  its drawings on the chart (loading older history if needed) or deletes it; its drawings can
+  move to another layer or go with it. Deleting a folder keeps its layers.
+- Double-click a layer or folder name to rename it.
+
+## Line alerts
+
+With **Line alerts** on, the page watches live closes and alerts when price crosses a visible
+horizontal line, horizontal ray, ray, extended line or trend line (trend lines are priced
+along their slope, within their span). Alerts appear in the card and, if you allow it, as
+browser notifications. Each line alerts at most once a minute. Alerts only run while the
+page is open; there is no background service.
 
 ## Stylus behavior
 
@@ -37,38 +86,37 @@ With **Stylus draws, fingers pan** on (the default, remembered per browser):
   duration, so a resting palm never bends the stroke in progress.
 - Swipes inside the chart never trigger browser back navigation.
 
-Vela handles pen input natively (pointer events, `touch-action: none` on the chart). Stroke
-width does not vary with pen pressure; Vela's freehand strokes have a fixed width.
+Stroke width does not vary with pen pressure; Vela's freehand strokes have a fixed width.
 
 ## How it is stored
 
-`chart_analyses` keeps the source (provider, symbol, dataset, resolution, loaded range,
-visible range), the Vela drawings document, notes, the optional journal day and a PNG
-snapshot from `chart.renderer.screenshot()`.
+`chart_analyses` keeps the source (provider, symbol, dataset), the candle size, the loaded
+and visible ranges, the Vela drawings document, the layers document (`layers_json`), notes,
+the optional journal day and a PNG snapshot.
 
+- **Candles are never stored**, as elsewhere in the journal; reopening requests them again.
+- **Drawings are anchored to time and price**, not pixels, so they survive another candle size.
 - **Size limits** keep every save below the 10 MB request body Next buffers when middleware
   is present: snapshots up to 4 MB (large high-density exports are downscaled first) and
   drawings up to 3 MB. If a snapshot cannot be exported, the old one is cleared rather than
   left showing outdated drawings.
-- **Candles are never stored**, as elsewhere in the journal. Reopening an analysis shows its
-  snapshot; **Load chart** requests the candles again. For CSV sources the resolved file is
-  saved, so reopening does not become ambiguous when more files are uploaded.
-- **Drawings are anchored to time and price**, not pixels, so they survive reloading at
-  another range or resolution.
 - **The journal embed is a standard Markdown image**:
   `![Title chart analysis](/api/analyses/<id>/image)`. It stays readable in exports and other
-  Markdown tools. In the app it renders as a figure linking to `/charts?id=<id>`. Saving again
-  replaces the snapshot, so every note that embeds it shows the update. Deleting an analysis
-  leaves the note text alone and shows a placeholder.
-- JSON export includes analyses (source, drawings, notes) without snapshot images, as it does
-  for attachment binaries. Back up the data directory to keep snapshots.
+  Markdown tools. In the app it renders as a figure linking to `/charts?id=<id>`. Deleting an
+  analysis leaves the note text alone and shows a placeholder.
+- JSON export includes analyses (source, drawings, layers, notes) without snapshot images, as
+  it does for attachment binaries. Back up the data directory to keep snapshots.
 
 ## Code map
 
-- `lib/chart-analysis.ts`: document validation, embed Markdown, UTC day ranges.
-- `lib/stylus.ts`: palette, widths and the per-browser stylus preference.
+- `lib/live-market.ts`: the Vela data provider (history windows, polling, retries).
+- `lib/chart-layers.ts`: the folders/layers model and the visibility/lock rules.
+- `lib/price-alerts.ts`: line pricing and crossing detection.
+- `lib/chart-analysis.ts`: document validation, embed Markdown, drawing labels.
+- `lib/stylus.ts`, `lib/recent-symbols.ts`: per-browser preferences.
 - `server/chart-analyses.ts`: input validation, persistence, journal embedding.
-- `app/api/analyses/**`: CRUD plus `/image`; `app/api/market-data/history`: symbol candles.
-- `components/analysis-chart.tsx`: Vela chart, quick toolbar and stylus routing.
-- `app/charts/page.tsx`: source controls, save flow and saved analyses.
-- `components/rich-editor.tsx`: the **Chart** insert menu and the embed renderer.
+- `app/api/analyses/**`: CRUD plus `/image`; `app/api/market-data/history`: candles by window
+  or "latest N".
+- `components/analysis-chart.tsx`: the live Vela chart and quick toolbar;
+  `components/chart-stylus.ts`: stylus routing; `components/layers-panel.tsx`: the layer tree.
+- `app/charts/page.tsx`: symbol selection, autosave, alerts, journal and analysis lists.

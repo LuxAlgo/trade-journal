@@ -225,6 +225,8 @@ export const chartAnalyses = sqliteTable(
     /** Vela `DrawingsDocument` (time+price anchors). */
     drawingsJson: text("drawings_json").notNull(),
     drawingCount: integer("drawing_count").notNull().default(0),
+    /** Folders and layers grouping the drawings (`LayersDocument`); null = one default layer. */
+    layersJson: text("layers_json"),
     notes: text("notes").notNull().default(""),
     /** Optional journal day ("YYYY-MM-DD") the analysis belongs to. */
     dayDate: text("day_date"),
@@ -232,7 +234,10 @@ export const chartAnalyses = sqliteTable(
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
-  (table) => [index("chart_analyses_day").on(table.dayDate)],
+  (table) => [
+    index("chart_analyses_day").on(table.dayDate),
+    index("chart_analyses_symbol").on(table.provider, table.symbol),
+  ],
 );
 export const noteTemplates = sqliteTable("note_templates", {
   id: text("id").primaryKey(),

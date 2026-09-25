@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { chartAnalyses, db, journalDays } from "@/db";
 import { isResolution, type Resolution } from "@/lib/market-data";
 import {
@@ -11,6 +11,7 @@ import {
   type ChartAnalysisSummary,
   type DrawingsDocument,
 } from "@/lib/chart-analysis";
+import { layersProblem, parseLayers, type LayersDocument } from "@/lib/chart-layers";
 import { providerFor } from "./market-data/connections";
 import { RequestError, requireValue } from "./api";
 import { newId, nowIso } from "./ids";
@@ -45,6 +46,7 @@ export interface AnalysisInput {
   notes?: string;
   dayDate?: string | null;
   drawings?: DrawingsDocument;
+  layers?: LayersDocument;
   /** null clears a snapshot that no longer matches the drawings. */
   image?: Buffer | null;
 }
@@ -131,6 +133,11 @@ export function parseAnalysisInput(body: unknown, partial: boolean): AnalysisInp
     requireValue(!problem, problem ?? "");
     input.drawings = b.drawings as DrawingsDocument;
   }
+  if (has("layers")) {
+    const problem = layersProblem(b.layers);
+    requireValue(!problem, problem ?? "");
+    input.layers = b.layers as LayersDocument;
+  }
   if (b.image === null) input.image = null;
   else if (has("image")) {
     const image = decodePngDataUrl(b.image);
@@ -157,15 +164,23 @@ const summaryColumns = {
 
 /** The image is served separately; listings only report whether one exists. */
 const toSummary = (
-  row: Omit<Row, "image" | "drawingsJson" | "notes" | "visibleFrom" | "visibleTo">,
+  row: Omit<Row, "image" | "drawingsJson" | "layersJson" | "notes" | "visibleFrom" | "visibleTo">,
   hasImage: boolean,
 ): ChartAnalysisSummary => ({ ...row, resolution: row.resolution as Resolution, hasImage });
 
-export function listAnalyses(options: { day?: string; limit?: number } = {}) {
+export function listAnalyses(
+  options: { day?: string; provider?: string; symbol?: string; limit?: number } = {},
+) {
   const rows = db
     .select({ ...summaryColumns, hasImage: sql<number>`${chartAnalyses.image} IS NOT NULL` })
     .from(chartAnalyses)
-    .where(options.day ? eq(chartAnalyses.dayDate, options.day) : undefined)
+    .where(
+      and(
+        options.day ? eq(chartAnalyses.dayDate, options.day) : undefined,
+        options.provider ? eq(chartAnalyses.provider, options.provider) : undefined,
+        options.symbol ? eq(chartAnalyses.symbol, options.symbol) : undefined,
+      ),
+    )
     .orderBy(desc(chartAnalyses.updatedAt))
     .limit(options.limit ?? 200)
     .all();
@@ -181,18 +196,20 @@ export function getAnalysis(id: string): ChartAnalysis | null {
       visibleTo: chartAnalyses.visibleTo,
       notes: chartAnalyses.notes,
       drawingsJson: chartAnalyses.drawingsJson,
+      layersJson: chartAnalyses.layersJson,
     })
     .from(chartAnalyses)
     .where(eq(chartAnalyses.id, id))
     .get();
   if (!row) return null;
-  const { hasImage, drawingsJson, visibleFrom, visibleTo, notes, ...rest } = row;
+  const { hasImage, drawingsJson, layersJson, visibleFrom, visibleTo, notes, ...rest } = row;
   return {
     ...toSummary(rest, Boolean(hasImage)),
     visibleFrom,
     visibleTo,
     notes,
     drawings: parseDrawings(drawingsJson),
+    layers: parseLayers(layersJson),
   };
 }
 
@@ -204,9 +221,10 @@ export const analysisImage = (id: string): Buffer | null =>
     .get()?.image ?? null;
 
 const columns = (input: AnalysisInput) => {
-  const { drawings, ...rest } = input;
+  const { drawings, layers, ...rest } = input;
   return {
     ...rest,
+    ...(layers ? { layersJson: JSON.stringify(layers) } : {}),
     ...(drawings
       ? { drawingsJson: JSON.stringify(drawings), drawingCount: drawings.drawings.length }
       : {}),

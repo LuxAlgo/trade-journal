@@ -2,14 +2,35 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
-import { BookOpenText, CandlestickChart, Trash2 } from "lucide-react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Bell,
+  BellOff,
+  BookOpenText,
+  ChevronDown,
+  Crosshair,
+  Pause,
+  Play,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { dayKeyOf } from "@luxalgo/journal-core";
-import { AnalysisChart, type AnalysisChartHandle } from "@/components/analysis-chart";
+import {
+  AnalysisChart,
+  type AnalysisChartHandle,
+  type ChartDrawing,
+} from "@/components/analysis-chart";
 import { FilterBar } from "@/components/filter-bar";
+import { LayersPanel } from "@/components/layers-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OptionSelect } from "@/components/ui/option-select";
@@ -17,27 +38,36 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   analysisImagePath,
   analysisLabel,
-  defaultLookbackMs,
+  drawingLabel,
   drawingsProblem,
-  MAX_SNAPSHOT_BYTES,
-  EMPTY_DRAWINGS,
   isDayKey,
-  maxSpanMs,
-  utcDay,
-  utcDayRange,
+  MAX_SNAPSHOT_BYTES,
   type ChartAnalysis,
   type ChartAnalysisSummary,
   type DrawingsDocument,
 } from "@/lib/chart-analysis";
 import {
+  assignDrawing,
+  defaultLayers,
+  effectiveLayer,
+  layerOf,
+  setActiveLayer,
+  syncAssignments,
+  type LayersDocument,
+} from "@/lib/chart-layers";
+import { INITIAL_BARS, type LatestBar, type LiveStatus } from "@/lib/live-market";
+import {
   RESOLUTIONS,
+  isResolution,
   type MarketConnection,
-  type MarketHistory,
   type Resolution,
 } from "@/lib/market-data";
 import type { MarketCsvDataset } from "@/lib/market-csv";
 import { providerInfo } from "@/lib/market-providers";
+import { lineCrossings, type LineCrossing } from "@/lib/price-alerts";
+import { recentSymbols, type RecentSymbol } from "@/lib/recent-symbols";
 import { postJson, useApi } from "@/lib/use-api";
+import { cn, fmtNumber } from "@/lib/utils";
 
 export default function ChartsPage() {
   return (
@@ -47,96 +77,385 @@ export default function ChartsPage() {
   );
 }
 
-/**
- * Remount the workspace only when the user opens another analysis, not when saving a
- * new one writes its id into the URL (that would drop the live chart).
- */
+interface Board {
+  /** Remounts the chart: another source, symbol or analysis. */
+  key: number;
+  provider: string;
+  dataset: string | null;
+  symbol: string;
+  analysis: ChartAnalysis | null;
+}
+
+type SaveState =
+  | { state: "idle" }
+  | { state: "pending" }
+  | { state: "saving" }
+  | { state: "saved"; at: number }
+  | { state: "error"; message: string };
+
+const SAVE_DELAY_MS = 1200;
+/** Snapshots are heavier than drawings; refresh the journal image at most this often. */
+const SNAPSHOT_EVERY_MS = 15_000;
+const ALERT_COOLDOWN_MS = 60_000;
+const ALERTS_KEY = "journal-chart-alerts-v1";
+
+/** What a save needs from the chart, kept after each edit so a save still works once the
+ *  chart has unmounted (navigating away within the save delay). */
+interface ChartCapture {
+  drawings: DrawingsDocument;
+  visible: { from: number; to: number } | null;
+  loaded: { from: number; to: number } | null;
+}
+
 function ChartLab() {
   const params = useSearchParams();
   const router = useRouter();
-  const id = params.get("id");
-  const day = params.get("day");
-  const symbol = params.get("symbol");
-  const shown = useRef(id);
-  const [mount, setMount] = useState({ id, n: 0 });
-  useEffect(() => {
-    if (id === shown.current) return;
-    shown.current = id;
-    setMount((current) => ({ id, n: current.n + 1 }));
-  }, [id]);
-  return (
-    <ChartWorkspace
-      key={mount.n}
-      id={mount.id}
-      initialDay={isDayKey(day) ? day : null}
-      initialSymbol={symbol ?? ""}
-      onSaved={(saved) => {
-        shown.current = saved;
-        router.replace(`/charts?id=${encodeURIComponent(saved)}`, { scroll: false });
-      }}
-    />
-  );
-}
-
-interface Loaded {
-  history: MarketHistory;
-  provider: string;
-  dataset: string;
-  from: number;
-  to: number;
-}
-
-function ChartWorkspace({
-  id,
-  initialDay,
-  initialSymbol,
-  onSaved,
-}: {
-  id: string | null;
-  initialDay: string | null;
-  initialSymbol: string;
-  onSaved: (id: string) => void;
-}) {
   const { data: settings } = useApi<{ timeZone: string }>("/api/settings");
   const today = dayKeyOf(new Date().toISOString(), settings?.timeZone ?? "UTC");
   const { data: connections, error: connectionError } = useApi<{
     connections: MarketConnection[];
   }>("/api/market-data/connections");
   const available = connections?.connections.filter((c) => c.configured) ?? [];
-  const { data: saved, error: savedError } = useApi<{ analysis: ChartAnalysis }>(
-    id ? `/api/analyses/${encodeURIComponent(id)}` : null,
-  );
-  const { data: list, refresh: refreshList } = useApi<{ analyses: ChartAnalysisSummary[] }>(
+  const { data: allAnalyses, refresh: refreshAll } = useApi<{ analyses: ChartAnalysisSummary[] }>(
     "/api/analyses",
   );
 
-  const [provider, setProvider] = useState("");
-  const [symbol, setSymbol] = useState(initialSymbol);
-  const [dataset, setDataset] = useState("");
-  const [resolution, setResolution] = useState<Resolution>("5m");
-  const [fromDay, setFromDay] = useState(() => utcDay(Date.now() - defaultLookbackMs("5m")));
-  const [toDay, setToDay] = useState(() => utcDay(Date.now()));
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState("");
-  const request = useRef<AbortController | null>(null);
-  useEffect(() => () => request.current?.abort(), []);
+  // ── Selection ──
+  const [provider, setProvider] = useState(params.get("provider") ?? "");
+  const [dataset, setDataset] = useState<string>(params.get("dataset") ?? "");
+  const [symbolDraft, setSymbolDraft] = useState(params.get("symbol") ?? "");
+  const tfParam = params.get("tf");
+  const [resolution, setResolution] = useState<Resolution>(isResolution(tfParam) ? tfParam : "5m");
+  const [live, setLive] = useState(true);
+  const [board, setBoard] = useState<Board | null>(null);
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState("");
+  const [recent, setRecent] = useState<RecentSymbol[]>([]);
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => setRecent(recentSymbols.read()), []);
 
-  const [analysisId, setAnalysisId] = useState(id);
+  // ── The open analysis ──
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
-  const [dayDate, setDayDate] = useState(initialDay ?? "");
-  const [seed, setSeed] = useState<{
-    drawings: DrawingsDocument;
-    visible: { from: number; to: number } | null;
-  }>({ drawings: EMPTY_DRAWINGS, visible: null });
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState("");
-  const [saveError, setSaveError] = useState("");
-  const [journalDay, setJournalDay] = useState<string | null>(null);
-  const [updatedAt, setUpdatedAt] = useState("");
+  const dayParam = params.get("day");
+  const [journalDay, setJournalDay] = useState(isDayKey(dayParam) ? dayParam : "");
+  const [layers, setLayers] = useState<LayersDocument>(defaultLayers);
+  const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>({ state: "idle" });
+  const [journalStatus, setJournalStatus] = useState<{ day: string } | { error: string } | null>(
+    null,
+  );
   const chart = useRef<AnalysisChartHandle>(null);
+  const { data: symbolAnalyses, refresh: refreshSymbolAnalyses } = useApi<{
+    analyses: ChartAnalysisSummary[];
+  }>(
+    board
+      ? `/api/analyses?provider=${encodeURIComponent(board.provider)}&symbol=${encodeURIComponent(board.symbol)}`
+      : null,
+  );
+
+  // ── Live market ──
+  const [status, setStatus] = useState<LiveStatus>({ state: "idle" });
+  const [latest, setLatest] = useState<LatestBar | null>(null);
+  const [alertsOn, setAlertsOn] = useState(false);
+  const [alerts, setAlerts] = useState<(LineCrossing & { label: string; at: number })[]>([]);
+  useEffect(() => {
+    try {
+      setAlertsOn(localStorage.getItem(ALERTS_KEY) === "on");
+    } catch {
+      // Stays off.
+    }
+  }, []);
+  const lastClose = useRef<{ time: number; close: number } | null>(null);
+  const alertedAt = useRef(new Map<string, number>());
+
+  // Latest values for async work (autosave, alerts) without re-subscribing.
+  const state = useRef({ analysisId, title, notes, layers, board, resolution, drawings, alertsOn });
+  state.current = { analysisId, title, notes, layers, board, resolution, drawings, alertsOn };
+
+  // ── Autosave ──
+  const saver = useRef({
+    timer: null as ReturnType<typeof setTimeout> | null,
+    dirty: false,
+    running: null as Promise<void> | null,
+    again: false,
+    imageAt: 0,
+    capture: null as ChartCapture | null,
+  });
+  const capture = (): ChartCapture | null => {
+    const handle = chart.current;
+    if (!handle) return saver.current.capture;
+    saver.current.capture = {
+      drawings: handle.drawings(),
+      visible: handle.visibleRange(),
+      loaded: handle.loadedRange(),
+    };
+    return saver.current.capture;
+  };
+
+  const flush = useCallback(
+    async (options: { final?: boolean; create?: boolean } = {}): Promise<string | null> => {
+      const s = saver.current;
+      if (s.timer) clearTimeout(s.timer);
+      s.timer = null;
+      if (s.running) {
+        s.again = true;
+        await s.running;
+        return state.current.analysisId;
+      }
+      const current = state.current;
+      if (!current.board) return current.analysisId;
+      const refreshSnapshot =
+        Boolean(current.analysisId) && options.final && Date.now() - s.imageAt >= SNAPSHOT_EVERY_MS;
+      if (!s.dirty && !options.create && !refreshSnapshot) return current.analysisId;
+      const handle = chart.current;
+      const captured = capture();
+      if (!captured) return current.analysisId;
+      // Viewing a chart creates nothing; the first drawing, title or note does.
+      const worth =
+        captured.drawings.drawings.length > 0 || current.title.trim() || current.notes.trim();
+      if (!current.analysisId && !worth && !options.create) {
+        s.dirty = false;
+        setSaveState({ state: "idle" });
+        return null;
+      }
+      const board = current.board;
+      const run = (async () => {
+        s.dirty = false;
+        setSaveState({ state: "saving" });
+        try {
+          const problem = drawingsProblem(captured.drawings);
+          if (problem) throw new Error(problem);
+          const step = RESOLUTIONS[current.resolution];
+          const now = Date.now();
+          const rangeFrom = Math.round(captured.loaded?.from ?? now - INITIAL_BARS * step);
+          const rangeTo = Math.max(Math.round(captured.loaded?.to ?? now), rangeFrom + 1);
+          const visible =
+            captured.visible && captured.visible.to > captured.visible.from
+              ? captured.visible
+              : null;
+          const body: Record<string, unknown> = {
+            title: current.title,
+            notes: current.notes,
+            symbol: board.symbol,
+            provider: board.provider,
+            dataset: board.dataset,
+            resolution: current.resolution,
+            rangeFrom,
+            rangeTo,
+            visibleFrom: visible ? Math.round(visible.from) : null,
+            visibleTo: visible ? Math.round(visible.to) : null,
+            drawings: captured.drawings,
+            layers: syncAssignments(
+              current.layers,
+              captured.drawings.drawings.map((d) => d.id),
+            ),
+          };
+          if (
+            handle &&
+            (options.final || !current.analysisId || now - s.imageAt >= SNAPSHOT_EVERY_MS)
+          ) {
+            // A missing snapshot clears the old one rather than showing outdated drawings.
+            body.image = await fitSnapshot(handle.screenshot());
+            s.imageAt = now;
+          }
+          const result = current.analysisId
+            ? await postJson<{ analysis: ChartAnalysis }>(
+                `/api/analyses/${encodeURIComponent(current.analysisId)}`,
+                body,
+                "PATCH",
+              )
+            : await postJson<{ analysis: ChartAnalysis }>("/api/analyses", body);
+          // A board switched mid-save must not adopt this id.
+          if (!current.analysisId && state.current.board === board) {
+            state.current.analysisId = result.analysis.id;
+            setAnalysisId(result.analysis.id);
+            refreshSymbolAnalyses();
+          }
+          refreshAll();
+          if (state.current.board === board) setSaveState({ state: "saved", at: Date.now() });
+        } catch (cause) {
+          if (state.current.board !== board) return;
+          s.dirty = true;
+          setSaveState({
+            state: "error",
+            message: cause instanceof Error ? cause.message : "Could not save.",
+          });
+        }
+      })();
+      s.running = run;
+      await run;
+      s.running = null;
+      if (s.again) {
+        s.again = false;
+        if (s.dirty) await flush();
+      }
+      return state.current.analysisId;
+    },
+    [refreshAll, refreshSymbolAnalyses],
+  );
+
+  const schedule = useCallback(() => {
+    const s = saver.current;
+    s.dirty = true;
+    capture();
+    setSaveState({ state: "pending" });
+    if (s.timer) clearTimeout(s.timer);
+    s.timer = setTimeout(() => void flush(), SAVE_DELAY_MS);
+  }, [flush]);
+
+  // Save when the tab is hidden or closed, and on leaving the page.
+  useEffect(() => {
+    const hide = () => {
+      if (document.visibilityState === "hidden") void flush({ final: true });
+    };
+    const unload = (event: BeforeUnloadEvent) => {
+      if (saver.current.dirty || saver.current.running) {
+        void flush({ final: true });
+        event.preventDefault();
+      }
+    };
+    document.addEventListener("visibilitychange", hide);
+    window.addEventListener("beforeunload", unload);
+    return () => {
+      document.removeEventListener("visibilitychange", hide);
+      window.removeEventListener("beforeunload", unload);
+      void flush({ final: true });
+    };
+  }, [flush]);
+
+  // Keep the URL shareable, with the analysis id once it exists.
+  useEffect(() => {
+    if (!board) return;
+    const next = new URLSearchParams();
+    next.set("provider", board.provider);
+    if (board.dataset) next.set("dataset", board.dataset);
+    next.set("symbol", board.symbol);
+    next.set("tf", resolution);
+    if (analysisId) next.set("id", analysisId);
+    const url = `/charts?${next}`;
+    if (`${window.location.pathname}${window.location.search}` !== url)
+      router.replace(url, { scroll: false });
+  }, [board, analysisId, resolution, router]);
+
+  // ── Opening a chart ──
+  const boardKey = useRef(0);
+  const openBoard = useCallback(
+    async (target: {
+      provider?: string;
+      dataset?: string | null;
+      symbol?: string;
+      analysisId?: string;
+      fresh?: boolean;
+    }) => {
+      setOpening(true);
+      setOpenError("");
+      try {
+        await flush({ final: true });
+        const read = async <T,>(url: string): Promise<T> => {
+          const response = await fetch(url);
+          const body = await response.json();
+          if (!response.ok) throw new Error(body.error ?? "Request failed.");
+          return body as T;
+        };
+        let analysis: ChartAnalysis | null = null;
+        if (target.analysisId) {
+          analysis = (
+            await read<{ analysis: ChartAnalysis }>(
+              `/api/analyses/${encodeURIComponent(target.analysisId)}`,
+            )
+          ).analysis;
+        } else if (!target.fresh && target.provider && target.symbol) {
+          // Each symbol reopens its latest analysis, drawings included.
+          const list = await read<{ analyses: ChartAnalysisSummary[] }>(
+            `/api/analyses?provider=${encodeURIComponent(target.provider)}&symbol=${encodeURIComponent(target.symbol.trim())}`,
+          );
+          const newest = list.analyses[0];
+          if (newest)
+            analysis = (
+              await read<{ analysis: ChartAnalysis }>(
+                `/api/analyses/${encodeURIComponent(newest.id)}`,
+              )
+            ).analysis;
+        }
+        const nextProvider = analysis?.provider ?? target.provider!;
+        const nextSymbol = analysis?.symbol ?? target.symbol!.trim();
+        const nextDataset = analysis ? analysis.dataset : (target.dataset ?? null);
+        boardKey.current += 1;
+        saver.current = {
+          timer: null,
+          dirty: false,
+          running: null,
+          again: false,
+          imageAt: analysis ? Date.now() : 0,
+          capture: null,
+        };
+        lastClose.current = null;
+        alertedAt.current.clear();
+        setLatest(null);
+        setStatus({ state: "loading" });
+        setProvider(nextProvider);
+        setDataset(nextDataset ?? "");
+        setSymbolDraft(nextSymbol);
+        state.current.analysisId = analysis?.id ?? null;
+        setAnalysisId(analysis?.id ?? null);
+        setTitle(analysis?.title ?? "");
+        setNotes(analysis?.notes ?? "");
+        setLayers(analysis?.layers ?? defaultLayers());
+        setDrawings([]);
+        setSelectedId(null);
+        setJournalStatus(null);
+        if (analysis?.dayDate) setJournalDay(analysis.dayDate);
+        if (analysis) setResolution(analysis.resolution);
+        setSaveState(
+          analysis ? { state: "saved", at: Date.parse(analysis.updatedAt) } : { state: "idle" },
+        );
+        const next: Board = {
+          key: boardKey.current,
+          provider: nextProvider,
+          dataset: nextDataset,
+          symbol: nextSymbol,
+          analysis,
+        };
+        state.current.board = next;
+        setBoard(next);
+        setRecent(
+          recentSymbols.add({ provider: nextProvider, dataset: nextDataset, symbol: nextSymbol }),
+        );
+      } catch (cause) {
+        setOpenError(cause instanceof Error ? cause.message : "Could not open the chart.");
+      } finally {
+        setOpening(false);
+      }
+    },
+    [flush],
+  );
+
+  // First open: the linked analysis, the linked symbol, or the last symbol you watched.
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || !connections) return;
+    started.current = true;
+    const id = params.get("id");
+    const symbol = params.get("symbol");
+    const fromUrl = params.get("provider");
+    const connected = (id: string) => available.some((a) => a.id === id);
+    const last = recentSymbols.read().find((r) => connected(r.provider));
+    if (id) void openBoard({ analysisId: id });
+    else if (symbol && fromUrl && connected(fromUrl))
+      void openBoard({ provider: fromUrl, dataset: params.get("dataset"), symbol });
+    else if (last) void openBoard(last);
+    else if (available.length && !connected(provider)) setProvider(available[0]!.id);
+  }, [connections, available, params, openBoard, provider]);
+
+  // Links to another analysis (journal embeds, shared URLs) open it in place.
+  const linkedId = params.get("id");
+  useEffect(() => {
+    if (!started.current || !linkedId || opening || linkedId === state.current.analysisId) return;
+    void openBoard({ analysisId: linkedId });
+  }, [linkedId, openBoard, opening]);
 
   const info = providerInfo(provider);
   const { data: csv } = useApi<{ datasets: MarketCsvDataset[] }>(
@@ -145,220 +464,159 @@ function ChartWorkspace({
   const resolutions = (info?.resolutions ?? (Object.keys(RESOLUTIONS) as Resolution[])).filter(
     (value): value is Resolution => value in RESOLUTIONS,
   );
-
-  // Pick the only connection, or the saved analysis's source, once connections load.
-  useEffect(() => {
-    if (provider || !available.length || id) return;
-    setProvider(available[0]!.id);
-  }, [available, provider, id]);
-
-  const initialized = useRef(false);
-  useEffect(() => {
-    const analysis = saved?.analysis;
-    if (!analysis || initialized.current) return;
-    initialized.current = true;
-    setProvider(analysis.provider);
-    setSymbol(analysis.symbol);
-    setDataset(analysis.dataset ?? "");
-    setResolution(analysis.resolution);
-    setFromDay(utcDay(analysis.rangeFrom));
-    setToDay(utcDay(analysis.rangeTo - 1));
-    setTitle(analysis.title);
-    setNotes(analysis.notes);
-    setDayDate(analysis.dayDate ?? "");
-    setUpdatedAt(analysis.updatedAt);
-    setSeed({
-      drawings: analysis.drawings,
-      visible:
-        analysis.visibleFrom !== null && analysis.visibleTo !== null
-          ? { from: analysis.visibleFrom, to: analysis.visibleTo }
-          : null,
-    });
-  }, [saved]);
-
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    // In-app links (sidebar, saved analyses, New analysis) navigate without unloading the
-    // page; ask before they drop unsaved drawings. Capture runs before Next's Link handler.
-    const guard = (event: MouseEvent) => {
-      const link = (event.target as Element | null)?.closest?.("a[href]");
-      if (!(link instanceof HTMLAnchorElement) || link.target === "_blank") return;
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
-      const url = new URL(link.href, window.location.href);
-      if (url.origin !== window.location.origin) return;
-      if (url.pathname === window.location.pathname && url.search === window.location.search)
-        return;
-      if (confirm("Leave without saving this chart analysis? Unsaved drawings will be lost."))
-        return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
-    window.addEventListener("beforeunload", warn);
-    document.addEventListener("click", guard, true);
-    return () => {
-      window.removeEventListener("beforeunload", warn);
-      document.removeEventListener("click", guard, true);
-    };
-  }, [dirty]);
-
-  const range = utcDayRange(fromDay, toDay);
-  const rangeProblem = !range
-    ? "Choose a start date on or before the end date, not in the future."
-    : range.to - range.from > maxSpanMs(resolution)
-      ? "That range holds more than 20,000 candles. Shorten it or choose a coarser resolution."
-      : "";
-  const connected = available.some((item) => item.id === provider);
-  const canLoad =
-    connected && symbol.trim() && !rangeProblem && !(info?.datasets && !dataset) && !loading;
-
-  const load = async () => {
-    if (!canLoad || !range) return;
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    setLoading(true);
-    setLoadError("");
-    try {
-      const response = await fetch("/api/market-data/history", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider,
-          symbol: symbol.trim(),
-          dataset: dataset || undefined,
-          resolution,
-          from: range.from,
-          to: range.to,
-        }),
-        signal: controller.signal,
-      });
-      const body = (await response.json()) as MarketHistory & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "History request failed.");
-      if (!body.bars.length)
-        throw new Error("No candles in that range. Check the symbol, dates and resolution.");
-      if (!controller.signal.aborted) {
-        // Reloading another source, range or resolution changes what a save would store.
-        if (
-          loaded &&
-          (loaded.provider !== provider ||
-            loaded.history.symbol !== body.symbol ||
-            loaded.history.resolution !== body.resolution ||
-            loaded.from !== range.from ||
-            loaded.to !== range.to)
-        )
-          setDirty(true);
-        setLoaded({ history: body, provider, dataset, from: range.from, to: range.to });
-      }
-    } catch (cause) {
-      if (!controller.signal.aborted)
-        setLoadError(cause instanceof Error ? cause.message : "History request failed.");
-    } finally {
-      if (!controller.signal.aborted) setLoading(false);
-    }
-  };
-
-  const save = async (addToJournal: boolean) => {
-    const handle = chart.current;
-    if (!handle || !loaded) return;
-    if (addToJournal && !dayDate) {
-      setSaveError("Choose the journal day to add this analysis to.");
+  const needsDataset = Boolean(info?.datasets);
+  const canOpen =
+    available.some((a) => a.id === provider) &&
+    symbolDraft.trim().length > 0 &&
+    !(needsDataset && !dataset) &&
+    !opening;
+  const openTyped = () => {
+    if (!canOpen) return;
+    const symbol = symbolDraft.trim();
+    if (
+      board &&
+      board.provider === provider &&
+      board.symbol === symbol &&
+      (board.dataset ?? "") === dataset
+    )
       return;
-    }
-    setSaving(true);
-    setSaveError("");
-    setStatus("");
-    try {
-      const visible = handle.visibleRange();
-      const drawings = handle.drawings();
-      const problem = drawingsProblem(drawings);
-      if (problem) throw new Error(problem);
-      const image = await fitSnapshot(handle.screenshot());
-      const body = {
-        title,
-        notes,
-        dayDate: dayDate || null,
-        symbol: loaded.history.symbol,
-        provider: loaded.provider,
-        // Pin the dataset the source resolved, so reopening never becomes ambiguous.
-        dataset: loaded.dataset || loaded.history.datasetId || null,
-        resolution: loaded.history.resolution,
-        rangeFrom: loaded.from,
-        rangeTo: loaded.to,
-        visibleFrom: visible ? Math.round(visible.from) : null,
-        visibleTo: visible ? Math.round(visible.to) : null,
-        drawings,
-        // Without a fresh snapshot, clear the old one rather than embed outdated drawings.
-        image,
-        addToJournal,
-      };
-      const { analysis } = analysisId
-        ? await postJson<{ analysis: ChartAnalysis }>(
-            `/api/analyses/${encodeURIComponent(analysisId)}`,
-            body,
-            "PATCH",
-          )
-        : await postJson<{ analysis: ChartAnalysis }>("/api/analyses", body);
-      setDirty(false);
-      setUpdatedAt(analysis.updatedAt);
-      setJournalDay(addToJournal ? analysis.dayDate : null);
-      setStatus(
-        addToJournal
-          ? `Saved and added to the ${analysis.dayDate} journal.`
-          : image
-            ? "Saved."
-            : "Saved without a snapshot; the chart image could not be exported.",
-      );
-      refreshList();
-      if (!analysisId) {
-        setAnalysisId(analysis.id);
-        onSaved(analysis.id);
+    void openBoard({ provider, dataset: dataset || null, symbol });
+  };
+
+  // ── Chart callbacks ──
+  const onDrawingCreated = useCallback((id: string) => {
+    setLayers((doc) => {
+      const active = doc.layers.find((l) => l.id === doc.activeLayerId)!;
+      const effective = effectiveLayer(doc, active);
+      // Never file a new drawing where it would vanish or freeze.
+      const ready = effective.visible && !effective.locked ? doc : setActiveLayer(doc, active.id);
+      return assignDrawing(ready, id, ready.activeLayerId);
+    });
+  }, []);
+  const onDrawingsChange = useCallback((next: ChartDrawing[]) => {
+    setDrawings(next);
+    setLayers((doc) =>
+      syncAssignments(
+        doc,
+        next.map((d) => d.id),
+      ),
+    );
+  }, []);
+  const changeLayers = (next: LayersDocument) => {
+    setLayers(next);
+    state.current.layers = next;
+    schedule();
+  };
+
+  const onLatest = useCallback((update: LatestBar) => {
+    setLatest(update);
+    const bar = { time: update.bar.time, close: update.bar.close };
+    const previous = lastClose.current;
+    lastClose.current = bar;
+    if (!previous || !state.current.alertsOn || bar.time < previous.time) return;
+    const now = Date.now();
+    const hits = lineCrossings(
+      state.current.drawings.filter((d) => layerVisible(state.current.layers, d.id)),
+      previous,
+      bar,
+    ).filter((hit) => now - (alertedAt.current.get(hit.drawingId) ?? 0) > ALERT_COOLDOWN_MS);
+    if (!hits.length) return;
+    const symbol = state.current.board?.symbol ?? "";
+    for (const hit of hits) {
+      alertedAt.current.set(hit.drawingId, now);
+      const drawing = state.current.drawings.find((d) => d.id === hit.drawingId);
+      const label = drawingLabel(hit.type, drawing?.text);
+      const message = `${symbol} crossed ${hit.direction === "up" ? "above" : "below"} ${label} at ${fmtNumber(hit.price)}`;
+      try {
+        if (typeof Notification !== "undefined" && Notification.permission === "granted")
+          new Notification("Chart alert", { body: message, tag: `${symbol}-${hit.drawingId}` });
+      } catch {
+        // The in-page log still shows it.
       }
+      setAlerts((current) => [{ ...hit, label: message, at: now }, ...current].slice(0, 20));
+    }
+  }, []);
+
+  const toggleAlerts = async () => {
+    const next = !alertsOn;
+    setAlertsOn(next);
+    try {
+      localStorage.setItem(ALERTS_KEY, next ? "on" : "off");
+    } catch {
+      // Per-page only.
+    }
+    if (next && typeof Notification !== "undefined" && Notification.permission === "default")
+      await Notification.requestPermission().catch(() => "denied");
+  };
+
+  const addToJournal = async () => {
+    const day = journalDay || today;
+    setJournalDay(day);
+    setJournalStatus(null);
+    try {
+      const id = await flush({ final: true, create: true });
+      if (!id) throw new Error("Open a chart first.");
+      await postJson(
+        `/api/analyses/${encodeURIComponent(id)}`,
+        { dayDate: day, addToJournal: true },
+        "PATCH",
+      );
+      setJournalStatus({ day });
+      refreshAll();
     } catch (cause) {
-      setSaveError(cause instanceof Error ? cause.message : "Could not save the analysis.");
-    } finally {
-      setSaving(false);
+      setJournalStatus({
+        error: cause instanceof Error ? cause.message : "Could not add to the journal.",
+      });
     }
   };
 
-  const remove = async (target: ChartAnalysisSummary) => {
+  const deleteAnalysis = async (target: ChartAnalysisSummary) => {
     if (!confirm(`Delete "${analysisLabel(target)}"? Journal notes keep a placeholder.`)) return;
     try {
+      if (target.id === analysisId) {
+        // Stop the pending save from recreating it.
+        if (saver.current.timer) clearTimeout(saver.current.timer);
+        saver.current.dirty = false;
+        await saver.current.running;
+      }
       await postJson(`/api/analyses/${encodeURIComponent(target.id)}`, undefined, "DELETE");
-      refreshList();
-      if (target.id === analysisId) window.location.assign("/charts");
+      refreshAll();
+      refreshSymbolAnalyses();
+      if (target.id === analysisId && board) {
+        state.current.analysisId = null;
+        setAnalysisId(null);
+        void openBoard({
+          provider: board.provider,
+          dataset: board.dataset,
+          symbol: board.symbol,
+          fresh: true,
+        });
+      }
     } catch (cause) {
-      setSaveError(cause instanceof Error ? cause.message : "Could not delete the analysis.");
+      setOpenError(cause instanceof Error ? cause.message : "Could not delete the analysis.");
     }
   };
 
-  const invalidateSource = () => setLoadError("");
-  const openedSaved = saved?.analysis;
+  const change = latest && latest.previousClose ? latest.bar.close - latest.previousClose : null;
+  const changePct = change !== null && latest?.previousClose ? change / latest.previousClose : null;
   return (
     <div>
       <FilterBar
-        title={analysisId ? `Charts · ${analysisLabel({ title, symbol, resolution })}` : "Charts"}
-        actions={
-          <Link
-            href="/charts"
-            className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent"
-          >
-            New analysis
-          </Link>
-        }
+        title={board ? `Charts · ${board.symbol}` : "Charts"}
+        actions={<LiveBadge status={status} live={live} />}
       />
-      <div className="grid gap-3 p-4 2xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-3 p-4 2xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-3">
           <Card>
             <CardContent className="space-y-3 pt-4">
-              {(connectionError || savedError) && (
+              {connectionError && (
                 <p role="alert" className="text-sm text-destructive">
-                  {connectionError || savedError}
+                  {connectionError}
                 </p>
               )}
               {connections && !available.length && (
                 <p className="text-sm text-muted-foreground">
-                  Charts load candles from a market data source you choose.{" "}
+                  Charts stream candles from a market data source you choose.{" "}
                   <Link className="underline" href="/settings#market-data">
                     Connect a provider or upload a candle CSV in Settings
                   </Link>
@@ -366,20 +624,25 @@ function ChartWorkspace({
                 </p>
               )}
               {available.length > 0 && (
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-                  <div className="space-y-1 lg:col-span-2">
-                    <Label htmlFor="chart-provider">Data source</Label>
+                <form
+                  className="flex flex-wrap items-end gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    openTyped();
+                  }}
+                >
+                  <div className="w-44 space-y-1">
+                    <Label htmlFor="chart-provider">Source</Label>
                     <OptionSelect
                       id="chart-provider"
                       value={provider}
                       onValueChange={(value) => {
-                        invalidateSource();
                         setProvider(value);
                         setDataset("");
                       }}
                     >
                       <option value="" disabled>
-                        Choose a data source
+                        Choose a source
                       </option>
                       {available.map((item) => (
                         <option key={item.id} value={item.id}>
@@ -388,80 +651,12 @@ function ChartWorkspace({
                       ))}
                     </OptionSelect>
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="chart-symbol">Symbol</Label>
-                    <Input
-                      id="chart-symbol"
-                      value={symbol}
-                      placeholder="AAPL"
-                      autoCapitalize="characters"
-                      onChange={(event) => {
-                        invalidateSource();
-                        setSymbol(event.target.value);
-                      }}
-                      onKeyDown={(event) => event.key === "Enter" && void load()}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="chart-resolution">Resolution</Label>
-                    <OptionSelect
-                      id="chart-resolution"
-                      value={resolution}
-                      onValueChange={(value) => {
-                        invalidateSource();
-                        const next = value as Resolution;
-                        setResolution(next);
-                        // Keep the end date; widen or narrow the start to a sensible window.
-                        setFromDay(
-                          utcDay(Date.parse(`${toDay}T00:00:00Z`) - defaultLookbackMs(next)),
-                        );
-                      }}
-                    >
-                      {resolutions.map((value) => (
-                        <option key={value} value={value}>
-                          {value}
-                        </option>
-                      ))}
-                    </OptionSelect>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>From (UTC)</Label>
-                    <DatePicker
-                      label="History start date"
-                      value={fromDay}
-                      max={toDay}
-                      onValueChange={(value) => {
-                        invalidateSource();
-                        setFromDay(value);
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label>To (UTC)</Label>
-                    <DatePicker
-                      label="History end date"
-                      value={toDay}
-                      min={fromDay}
-                      max={utcDay(Date.now())}
-                      onValueChange={(value) => {
-                        invalidateSource();
-                        setToDay(value);
-                      }}
-                    />
-                  </div>
-                  {(info?.datasets || info?.mode === "csv") && (
-                    <div className="space-y-1 lg:col-span-2">
-                      <Label htmlFor="chart-dataset">Data feed / dataset</Label>
-                      <OptionSelect
-                        id="chart-dataset"
-                        value={dataset}
-                        onValueChange={(value) => {
-                          invalidateSource();
-                          setDataset(value);
-                        }}
-                      >
+                  {(needsDataset || info?.mode === "csv") && (
+                    <div className="w-48 space-y-1">
+                      <Label htmlFor="chart-dataset">Feed / file</Label>
+                      <OptionSelect id="chart-dataset" value={dataset} onValueChange={setDataset}>
                         {(
-                          info.datasets ?? [
+                          info?.datasets ?? [
                             { value: "", label: "Automatic matching file" },
                             ...(csv?.datasets ?? []).map((item) => ({
                               value: item.id,
@@ -476,96 +671,153 @@ function ChartWorkspace({
                       </OptionSelect>
                     </div>
                   )}
-                  {info?.id === "london-strategic-edge" && (
-                    <div className="space-y-1 lg:col-span-2">
-                      <Label htmlFor="chart-dataset">Dataset (optional)</Label>
-                      <Input
-                        id="chart-dataset"
-                        value={dataset}
-                        placeholder="Leave blank for automatic selection"
-                        onChange={(event) => {
-                          invalidateSource();
-                          setDataset(event.target.value);
-                        }}
-                      />
-                    </div>
-                  )}
-                  <div className="flex items-end gap-2 lg:col-span-2">
-                    <Button disabled={!canLoad} onClick={() => void load()} className="w-full">
-                      <CandlestickChart />
-                      {loading ? "Loading candles…" : loaded ? "Reload chart" : "Load chart"}
-                    </Button>
-                    {loading && (
-                      <Button variant="outline" onClick={() => request.current?.abort()}>
-                        Stop
-                      </Button>
-                    )}
+                  <div className="w-36 space-y-1">
+                    <Label htmlFor="chart-symbol">Symbol</Label>
+                    <Input
+                      id="chart-symbol"
+                      value={symbolDraft}
+                      placeholder="AAPL"
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      onChange={(event) => setSymbolDraft(event.target.value)}
+                    />
                   </div>
+                  <Button type="submit" disabled={!canOpen}>
+                    {opening ? "Opening…" : "Open"}
+                  </Button>
+                  <div
+                    role="radiogroup"
+                    aria-label="Candle size"
+                    className="flex items-center rounded-md border p-0.5"
+                  >
+                    {resolutions.map((value) => (
+                      <Button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={resolution === value}
+                        size="sm"
+                        variant={resolution === value ? "secondary" : "ghost"}
+                        className="h-7 px-2.5"
+                        onClick={() => {
+                          if (value === resolution) return;
+                          setResolution(value);
+                          lastClose.current = null;
+                          if (state.current.analysisId) schedule();
+                        }}
+                      >
+                        {value}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-pressed={!live}
+                    onClick={() => setLive(!live)}
+                  >
+                    {live ? <Pause /> : <Play />}
+                    {live ? "Pause" : "Go live"}
+                  </Button>
+                </form>
+              )}
+              {recent.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1" aria-label="Recent symbols">
+                  {recent.map((item) => {
+                    const current =
+                      board?.provider === item.provider &&
+                      board.symbol === item.symbol &&
+                      (board.dataset ?? null) === (item.dataset ?? null);
+                    const name = providerInfo(item.provider)?.name ?? item.provider;
+                    return (
+                      <Button
+                        key={`${item.provider}|${item.dataset ?? ""}|${item.symbol}`}
+                        type="button"
+                        size="sm"
+                        variant={current ? "secondary" : "ghost"}
+                        className="h-7 gap-1 px-2"
+                        disabled={!available.some((a) => a.id === item.provider) || opening}
+                        title={`${item.symbol} on ${name}`}
+                        onClick={() => {
+                          if (!current) void openBoard(item);
+                        }}
+                      >
+                        <span className="font-medium">{item.symbol}</span>
+                        <span className="text-[11px] text-muted-foreground">{name}</span>
+                      </Button>
+                    );
+                  })}
                 </div>
               )}
-              {available.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {info?.symbolHint} Loading makes a request to the selected source and uses your
-                  plan&apos;s allowance. Candles are shown, not stored; drawings stay anchored to
-                  time and price when you change the range or resolution.
-                </p>
-              )}
-              {(rangeProblem || loadError) && (
+              {openError && (
                 <p role="alert" className="text-sm text-destructive">
-                  {loadError || rangeProblem}
+                  {openError}
                 </p>
               )}
-              {openedSaved && !loaded && connections && !connected && (
-                <p role="alert" className="text-sm text-destructive">
-                  This analysis used{" "}
-                  {providerInfo(openedSaved.provider)?.name ?? openedSaved.provider}, which is not
-                  connected. Connect it in Settings, or choose another source to redraw on.
-                </p>
-              )}
-              {loaded && (loaded.history.warnings.length > 0 || loaded.history.truncated) && (
-                <ul className="list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-                  {loaded.history.warnings.map((warning) => (
-                    <li key={warning}>{warning}</li>
-                  ))}
-                  {loaded.history.truncated && (
-                    <li>History was truncated. Shorten the range for complete coverage.</li>
+              {board && (
+                <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                  <span className="text-lg font-semibold tracking-tight">{board.symbol}</span>
+                  {latest ? (
+                    <>
+                      <span className="tnum text-lg font-semibold">
+                        {fmtNumber(latest.bar.close)}
+                      </span>
+                      {change !== null && changePct !== null && (
+                        <span className="tnum text-sm text-muted-foreground">
+                          {change >= 0 ? "+" : "−"}
+                          {fmtNumber(Math.abs(change))} ({change >= 0 ? "+" : "−"}
+                          {(Math.abs(changePct) * 100).toFixed(2)}%) vs previous candle
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    status.state !== "error" && (
+                      <span className="text-sm text-muted-foreground">Loading candles…</span>
+                    )
                   )}
-                </ul>
+                  {status.state !== "error" && status.updatedAt && (
+                    <span className="text-xs text-muted-foreground">
+                      Updated {new Date(status.updatedAt).toLocaleTimeString()}
+                    </span>
+                  )}
+                </div>
+              )}
+              {status.state === "error" && status.message && (
+                <p role="alert" className="text-sm text-destructive">
+                  {status.message}
+                </p>
               )}
             </CardContent>
           </Card>
 
-          {loaded ? (
+          {board ? (
             <AnalysisChart
-              history={loaded.history}
-              initialDrawings={seed.drawings}
-              initialVisible={seed.visible}
-              onChange={() => setDirty(true)}
+              key={board.key}
+              source={{ provider: board.provider, dataset: board.dataset }}
+              symbol={board.symbol}
+              resolution={resolution}
+              live={live}
+              initialDrawings={board.analysis?.drawings ?? { version: 1, drawings: [] }}
+              initialVisible={
+                board.analysis?.visibleFrom != null && board.analysis.visibleTo != null
+                  ? { from: board.analysis.visibleFrom, to: board.analysis.visibleTo }
+                  : null
+              }
+              layers={layers}
+              onDrawingCreated={onDrawingCreated}
+              onDrawingsChange={onDrawingsChange}
+              onEdit={schedule}
+              onStatus={setStatus}
+              onLatest={onLatest}
+              onSelect={setSelectedId}
               chartRef={chart}
             />
-          ) : openedSaved ? (
-            <Card>
-              <CardContent className="space-y-3 pt-4">
-                {openedSaved.hasImage && (
-                  <img
-                    src={`${analysisImagePath(openedSaved.id)}?v=${encodeURIComponent(updatedAt)}`}
-                    alt={`${analysisLabel(openedSaved)} saved snapshot`}
-                    className="max-h-[60vh] w-full rounded-md border object-contain"
-                  />
-                )}
-                <p className="text-sm text-muted-foreground">
-                  Saved snapshot with {openedSaved.drawingCount} drawing
-                  {openedSaved.drawingCount === 1 ? "" : "s"}. Load the chart to keep editing; the
-                  candles are requested again from{" "}
-                  {providerInfo(openedSaved.provider)?.name ?? openedSaved.provider}.
-                </p>
-              </CardContent>
-            </Card>
           ) : (
             available.length > 0 && (
               <Card>
                 <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                  Choose a symbol and load the chart to start drawing.
+                  Type a symbol and press Open. The chart loads the latest candles and keeps
+                  updating; your drawings save automatically.
                 </CardContent>
               </Card>
             )
@@ -574,24 +826,68 @@ function ChartWorkspace({
 
         <div className="space-y-3">
           <Card>
-            <CardHeader>
-              <CardTitle>Save analysis</CardTitle>
+            <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+              <CardTitle>Analysis</CardTitle>
+              <SaveIndicator state={saveState} onRetry={() => void flush()} />
             </CardHeader>
             <CardContent className="space-y-3">
+              {board && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-between"
+                    >
+                      <span className="truncate">
+                        {analysisId
+                          ? analysisLabel({ title, symbol: board.symbol, resolution })
+                          : `New ${board.symbol} analysis`}
+                      </span>
+                      <ChevronDown className="size-3.5 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-72">
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        void openBoard({
+                          provider: board.provider,
+                          dataset: board.dataset,
+                          symbol: board.symbol,
+                          fresh: true,
+                        })
+                      }
+                    >
+                      <Plus className="size-3.5" /> New {board.symbol} analysis
+                    </DropdownMenuItem>
+                    {symbolAnalyses?.analyses.map((item) => (
+                      <DropdownMenuItem
+                        key={item.id}
+                        disabled={item.id === analysisId}
+                        onSelect={() => void openBoard({ analysisId: item.id })}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{analysisLabel(item)}</span>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                          {item.drawingCount} · {item.updatedAt.slice(0, 10)}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <div className="space-y-1">
                 <Label htmlFor="analysis-title">Title</Label>
                 <Input
                   id="analysis-title"
                   value={title}
                   maxLength={200}
-                  placeholder={
-                    loaded
-                      ? `${loaded.history.symbol} · ${loaded.history.resolution}`
-                      : "Opening range levels"
-                  }
+                  disabled={!board}
+                  placeholder={board ? `${board.symbol} · ${resolution}` : "Opening range levels"}
                   onChange={(event) => {
                     setTitle(event.target.value);
-                    setDirty(true);
+                    state.current.title = event.target.value;
+                    schedule();
                   }}
                 />
               </div>
@@ -601,132 +897,266 @@ function ChartWorkspace({
                   id="analysis-notes"
                   value={notes}
                   rows={3}
+                  disabled={!board}
                   placeholder="Thesis, levels to watch, invalidation…"
                   onChange={(event) => {
                     setNotes(event.target.value);
-                    setDirty(true);
+                    state.current.notes = event.target.value;
+                    schedule();
                   }}
                 />
               </div>
               <div className="space-y-1">
-                <Label>Journal day</Label>
-                <DatePicker
-                  label="Journal day"
-                  value={dayDate}
-                  onValueChange={(value) => {
-                    setDayDate(value);
-                    setDirty(true);
-                  }}
-                />
-                {!dayDate && (
+                <Label>Add to journal</Label>
+                <div className="flex gap-2">
+                  <div className="min-w-0 flex-1">
+                    <DatePicker
+                      label="Journal day"
+                      value={journalDay || today}
+                      onValueChange={setJournalDay}
+                    />
+                  </div>
                   <Button
                     type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs"
-                    onClick={() => {
-                      setDayDate(today);
-                      setDirty(true);
-                    }}
+                    variant="outline"
+                    disabled={!board}
+                    onClick={() => void addToJournal()}
                   >
-                    Use today ({today})
+                    <BookOpenText /> Add
                   </Button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button disabled={!loaded || saving} onClick={() => void save(false)}>
-                  {saving ? "Saving…" : analysisId ? "Save changes" : "Save analysis"}
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={!loaded || saving}
-                  onClick={() => void save(true)}
-                >
-                  <BookOpenText />
-                  Save &amp; add to journal
-                </Button>
-              </div>
-              {!loaded && (
-                <p className="text-xs text-muted-foreground">Load the chart to save drawings.</p>
-              )}
-              {dirty && loaded && <p className="text-xs text-muted-foreground">Unsaved changes.</p>}
-              {status && (
-                <p role="status" className="text-xs text-muted-foreground">
-                  {status}{" "}
-                  {journalDay && (
-                    <Link className="underline" href={`/journal/${journalDay}`}>
+                </div>
+                {journalStatus && "day" in journalStatus && (
+                  <p role="status" className="text-xs text-muted-foreground">
+                    Added to the {journalStatus.day} journal.{" "}
+                    <Link className="underline" href={`/journal/${journalStatus.day}`}>
                       Open journal day
                     </Link>
-                  )}
+                  </p>
+                )}
+                {journalStatus && "error" in journalStatus && (
+                  <p role="alert" className="text-xs text-destructive">
+                    {journalStatus.error}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  The journal shows a snapshot that refreshes as you keep working here.
                 </p>
+              </div>
+              {analysisId && symbolAnalyses && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() => {
+                    const current = symbolAnalyses.analyses.find((a) => a.id === analysisId);
+                    if (current) void deleteAnalysis(current);
+                  }}
+                >
+                  <Trash2 /> Delete this analysis
+                </Button>
               )}
-              {saveError && (
-                <p role="alert" className="text-xs text-destructive">
-                  {saveError}
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                The journal shows the saved snapshot. Saving again updates every note that embeds
-                it.
-              </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Saved analyses</CardTitle>
+              <CardTitle>Layers</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {board ? (
+                <LayersPanel
+                  key={board.key}
+                  layers={layers}
+                  drawings={drawings}
+                  selectedId={selectedId}
+                  onChange={changeLayers}
+                  onRevealDrawings={(ids) => chart.current?.reveal(ids)}
+                  onSelectDrawing={(id) => chart.current?.select(id)}
+                  onDeleteDrawings={(ids) => chart.current?.remove(ids)}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">Open a chart to organise drawings.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+              <CardTitle>Line alerts</CardTitle>
+              <Button
+                type="button"
+                size="sm"
+                variant={alertsOn ? "secondary" : "outline"}
+                aria-pressed={alertsOn}
+                onClick={() => void toggleAlerts()}
+              >
+                {alertsOn ? <Bell /> : <BellOff />}
+                {alertsOn ? "On" : "Off"}
+              </Button>
             </CardHeader>
             <CardContent className="space-y-2">
-              {list?.analyses.length === 0 && (
-                <p className="text-sm text-muted-foreground">No saved analyses yet.</p>
+              <p className="text-xs text-muted-foreground">
+                While this page is open and live, get an alert when the price crosses a visible
+                horizontal line, ray or trend line.
+              </p>
+              {alerts.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No alerts yet.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {alerts.map((alert) => (
+                    <li
+                      key={`${alert.drawingId}-${alert.at}`}
+                      className="flex items-start gap-2 text-xs"
+                    >
+                      <button
+                        type="button"
+                        aria-label="Show the line on the chart"
+                        className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => chart.current?.reveal([alert.drawingId])}
+                      >
+                        <Crosshair className="size-3.5" />
+                      </button>
+                      <span className="min-w-0 flex-1">
+                        <span className="font-medium">
+                          {alert.direction === "up" ? "▲ Above" : "▼ Below"}
+                        </span>{" "}
+                        {alert.label}
+                        <span className="block text-muted-foreground">
+                          {new Date(alert.at).toLocaleTimeString()}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               )}
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 2xl:grid-cols-1">
-                {list?.analyses.map((item) => (
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>All analyses</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {allAnalyses?.analyses.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Nothing saved yet. Draw on a chart and it saves itself.
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 2xl:grid-cols-2">
+                {allAnalyses?.analyses.slice(0, showAll ? undefined : 8).map((item) => (
                   <div
                     key={item.id}
-                    className={`min-w-0 rounded-md border p-2 ${item.id === analysisId ? "ring-1 ring-primary" : ""}`}
+                    className={cn(
+                      "min-w-0 rounded-md border p-1.5",
+                      item.id === analysisId && "ring-1 ring-primary",
+                    )}
                   >
-                    <Link href={`/charts?id=${encodeURIComponent(item.id)}`} className="block">
+                    <button
+                      type="button"
+                      className="block w-full text-left"
+                      disabled={opening}
+                      onClick={() => {
+                        if (item.id !== analysisId) void openBoard({ analysisId: item.id });
+                      }}
+                    >
                       {item.hasImage ? (
                         <img
                           src={`${analysisImagePath(item.id)}?v=${encodeURIComponent(item.updatedAt)}`}
                           alt=""
                           loading="lazy"
-                          className="mb-1.5 aspect-video w-full rounded object-cover"
+                          className="mb-1 aspect-video w-full rounded object-cover"
                         />
                       ) : (
-                        <div className="mb-1.5 flex aspect-video items-center justify-center rounded bg-muted text-xs text-muted-foreground">
+                        <div className="mb-1 flex aspect-video items-center justify-center rounded bg-muted text-[11px] text-muted-foreground">
                           No snapshot
                         </div>
                       )}
                       <span className="block truncate text-xs font-medium">
                         {analysisLabel(item)}
                       </span>
-                    </Link>
-                    <div className="mt-0.5 flex items-center justify-between gap-1 text-[11px] text-muted-foreground">
-                      <span className="truncate">
-                        {item.symbol} · {item.resolution}
-                        {item.dayDate ? ` · ${item.dayDate}` : ""}
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {item.symbol} · {item.drawingCount} drawing
+                        {item.drawingCount === 1 ? "" : "s"}
                       </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 shrink-0"
-                        aria-label={`Delete ${analysisLabel(item)}`}
-                        onClick={() => void remove(item)}
-                      >
-                        <Trash2 className="size-3" />
-                      </Button>
-                    </div>
+                    </button>
                   </div>
                 ))}
               </div>
+              {(allAnalyses?.analyses.length ?? 0) > 8 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowAll(!showAll)}
+                >
+                  {showAll ? "Show fewer" : `Show all ${allAnalyses!.analyses.length}`}
+                </Button>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+const layerVisible = (doc: LayersDocument, drawingId: string) =>
+  effectiveLayer(doc, layerOf(doc, drawingId)).visible;
+
+function LiveBadge({ status, live }: { status: LiveStatus; live: boolean }) {
+  const label =
+    status.state === "error"
+      ? "Data error"
+      : status.state === "idle"
+        ? "No chart"
+        : status.state === "loading"
+          ? "Loading"
+          : !live || status.state === "paused"
+            ? "Paused"
+            : "Live";
+  return (
+    <span
+      role="status"
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
+        label === "Live" && "border-primary/50",
+        label === "Data error" && "border-destructive/60 text-destructive",
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          "size-2 rounded-full",
+          label === "Live" ? "animate-pulse bg-primary" : "bg-muted-foreground",
+        )}
+      />
+      {label}
+    </span>
+  );
+}
+
+function SaveIndicator({ state, onRetry }: { state: SaveState; onRetry: () => void }) {
+  if (state.state === "error")
+    return (
+      <span role="alert" className="flex items-center gap-2 text-xs text-destructive">
+        Not saved: {state.message}
+        <Button type="button" size="sm" variant="ghost" className="h-6 px-2" onClick={onRetry}>
+          Retry
+        </Button>
+      </span>
+    );
+  const text =
+    state.state === "saving" || state.state === "pending"
+      ? "Saving…"
+      : state.state === "saved"
+        ? `Saved ${new Date(state.at).toLocaleTimeString()}`
+        : "Saves automatically";
+  return (
+    <span role="status" className="text-xs text-muted-foreground">
+      {text}
+    </span>
   );
 }
 
