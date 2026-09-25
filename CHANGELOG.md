@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Charts: a standalone Vela chart for any symbol with stylus drawing (pen, highlighter, hardware eraser, palm rejection), saved chart analyses, and journal embeds that reopen the chart
 - Customizable dashboard: drag cards to rearrange, hide and restore them, save named layouts; responsive layout with a mobile navigation drawer
 - Privacy mode that masks monetary values across the app while keeping counts, ratios and chart shapes
 - Markdown notes with formatting toolbar, reusable templates, exact trade links, and image/PDF attachments on trades, days and notebook notes

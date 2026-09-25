@@ -20,8 +20,10 @@ import {
   importSources,
   importSourceAliases,
   importBatches,
+  chartAnalyses,
 } from "@/db";
 import { readFilters } from "@luxalgo/journal-core";
+import { parseDrawings } from "@/lib/chart-analysis";
 import { queryTrades } from "@/server/trades-query";
 import {
   getJournalDefaults,
@@ -102,6 +104,16 @@ export const GET = handler(async (request: Request) => {
     propEntries: db.select().from(propEntries).all(),
     propReceipts: db.select().from(propReceipts).all(),
     propAudit: db.select().from(propAudit).all(),
+    // Drawings and sources; snapshot images stay in the data directory like attachments.
+    chartAnalyses: db
+      .select()
+      .from(chartAnalyses)
+      .all()
+      .map(({ image, drawingsJson, ...analysis }) => ({
+        ...analysis,
+        drawings: parseDrawings(drawingsJson),
+        hasSnapshot: image !== null,
+      })),
     journalDefaults: getJournalDefaults(),
     settings: {
       timeZone: getTimeZone(),

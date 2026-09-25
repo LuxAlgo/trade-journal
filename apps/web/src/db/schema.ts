@@ -205,6 +205,35 @@ export const attachments = sqliteTable("attachments", {
   data: blob("data", { mode: "buffer" }).notNull(),
   createdAt: text("created_at").notNull(),
 });
+/**
+ * Saved chart analyses: the market source to reload, the user's Vela drawings, and a PNG
+ * snapshot for journal embeds. Candles are never stored; reopening requests them again.
+ */
+export const chartAnalyses = sqliteTable(
+  "chart_analyses",
+  {
+    id: text("id").primaryKey(),
+    title: text("title").notNull().default(""),
+    symbol: text("symbol").notNull(),
+    provider: text("provider").notNull(),
+    dataset: text("dataset"),
+    resolution: text("resolution").notNull(),
+    rangeFrom: integer("range_from").notNull(),
+    rangeTo: integer("range_to").notNull(),
+    visibleFrom: integer("visible_from"),
+    visibleTo: integer("visible_to"),
+    /** Vela `DrawingsDocument` (time+price anchors). */
+    drawingsJson: text("drawings_json").notNull(),
+    drawingCount: integer("drawing_count").notNull().default(0),
+    notes: text("notes").notNull().default(""),
+    /** Optional journal day ("YYYY-MM-DD") the analysis belongs to. */
+    dayDate: text("day_date"),
+    image: blob("image", { mode: "buffer" }),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [index("chart_analyses_day").on(table.dayDate)],
+);
 export const noteTemplates = sqliteTable("note_templates", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

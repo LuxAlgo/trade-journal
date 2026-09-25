@@ -2,6 +2,7 @@
 import { AiRecap } from "@/components/ai-recap";
 
 import Link from "next/link";
+import { CandlestickChart } from "lucide-react";
 import { Suspense, use, useRef, useState } from "react";
 import type { IntradayPoint, TradeMetrics } from "@luxalgo/journal-core";
 import { EquityArea } from "@/components/charts/equity-area";
@@ -183,6 +184,12 @@ function JournalDay({ date }: { date: string }) {
           <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
             <CardTitle>Day note</CardTitle>
             <div className="flex items-center gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/charts?day=${date}`}>
+                  <CandlestickChart />
+                  Chart analysis
+                </Link>
+              </Button>
               <VoiceNote
                 onPrepare={() => noteEditor.current?.focus()}
                 onText={(text) =>
@@ -215,7 +222,12 @@ function JournalDay({ date }: { date: string }) {
               />
             </div>
             {data ? (
-              <RichEditor editorRef={noteEditor} value={noteValue} onChange={scheduleSave} />
+              <RichEditor
+                editorRef={noteEditor}
+                value={noteValue}
+                onChange={scheduleSave}
+                analysisDay={date}
+              />
             ) : error ? (
               <p role="alert" className="text-sm text-destructive">
                 {error}
