@@ -2,6 +2,7 @@ import {
   blob,
   index,
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -204,6 +205,108 @@ export const attachments = sqliteTable("attachments", {
   size: integer("size").notNull(),
   data: blob("data", { mode: "buffer" }).notNull(),
   createdAt: text("created_at").notNull(),
+});
+/**
+ * Saved chart analyses: the market source to reload, the user's Vela drawings, and a PNG
+ * snapshot for journal embeds. Candles are never stored; reopening requests them again.
+ */
+export const chartAnalyses = sqliteTable(
+  "chart_analyses",
+  {
+    id: text("id").primaryKey(),
+    title: text("title").notNull().default(""),
+    symbol: text("symbol").notNull(),
+    provider: text("provider").notNull(),
+    dataset: text("dataset"),
+    resolution: text("resolution").notNull(),
+    rangeFrom: integer("range_from").notNull(),
+    rangeTo: integer("range_to").notNull(),
+    visibleFrom: integer("visible_from"),
+    visibleTo: integer("visible_to"),
+    /** Vela `DrawingsDocument` (time+price anchors). */
+    drawingsJson: text("drawings_json").notNull(),
+    drawingCount: integer("drawing_count").notNull().default(0),
+    /** Folders and layers grouping the drawings (`LayersDocument`); null = one default layer. */
+    layersJson: text("layers_json"),
+    /** Indicators on the chart (`StoredIndicator[]`); null = none. */
+    indicatorsJson: text("indicators_json"),
+    /** Support/resistance zones (`SrZone[]`); null = none. */
+    zonesJson: text("zones_json"),
+    notes: text("notes").notNull().default(""),
+    /** Optional journal day ("YYYY-MM-DD") the analysis belongs to. */
+    dayDate: text("day_date"),
+    image: blob("image", { mode: "buffer" }),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("chart_analyses_day").on(table.dayDate),
+    index("chart_analyses_symbol").on(table.provider, table.symbol),
+  ],
+);
+
+/**
+ * A chart analysis as it stood on one journal day: the analysis keeps evolving, and each
+ * day it was edited keeps its own frozen copy. Today's copy follows every save until the
+ * day ends in the journal timezone.
+ */
+export const chartAnalysisSnapshots = sqliteTable(
+  "chart_analysis_snapshots",
+  {
+    analysisId: text("analysis_id")
+      .notNull()
+      .references(() => chartAnalyses.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    title: text("title").notNull().default(""),
+    symbol: text("symbol").notNull(),
+    provider: text("provider").notNull(),
+    dataset: text("dataset"),
+    resolution: text("resolution").notNull(),
+    rangeFrom: integer("range_from").notNull(),
+    rangeTo: integer("range_to").notNull(),
+    visibleFrom: integer("visible_from"),
+    visibleTo: integer("visible_to"),
+    drawingsJson: text("drawings_json").notNull(),
+    drawingCount: integer("drawing_count").notNull().default(0),
+    layersJson: text("layers_json"),
+    indicatorsJson: text("indicators_json"),
+    zonesJson: text("zones_json"),
+    notes: text("notes").notNull().default(""),
+    image: blob("image", { mode: "buffer" }),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.analysisId, table.day] }),
+    index("chart_analysis_snapshots_day").on(table.day),
+  ],
+);
+/**
+ * Economic calendar events from an opted-in source, kept so past weeks stay on the chart
+ * after the source moves on (the public feed only serves the current week).
+ */
+export const economicEvents = sqliteTable(
+  "economic_events",
+  {
+    id: text("id").primaryKey(),
+    source: text("source").notNull(),
+    title: text("title").notNull(),
+    currency: text("currency").notNull(),
+    time: integer("time").notNull(),
+    impact: text("impact").notNull(),
+    forecast: text("forecast").notNull().default(""),
+    previous: text("previous").notNull().default(""),
+    fetchedAt: text("fetched_at").notNull(),
+  },
+  (table) => [index("economic_events_time").on(table.time)],
+);
+/** User-written Pine Script indicators ("My indicators"), shared by every chart. */
+export const chartScripts = sqliteTable("chart_scripts", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  source: text("source").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
 });
 export const noteTemplates = sqliteTable("note_templates", {
   id: text("id").primaryKey(),

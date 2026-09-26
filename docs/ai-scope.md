@@ -8,9 +8,12 @@ Ask your journal and daily recaps use the account selection and analysis filters
 - Answers are labeled with their scope. Changing filters clears the answer and invalidates pending responses, including a switch away from and back to the same account. Leaving a page also invalidates pending responses.
 - A daily note is still shared by date across accounts. Recaps for an account or other trade subset do not include that shared note in the provider context. An all-account, otherwise unfiltered day recap can still use the note. Date range filters alone do not narrow that day's trades further.
 - A completed recap appends a labeled section to the latest draft, preserving edits made during generation. A response from an obsolete scope cannot append or save a recap.
-- Single-trade critique continues to use the trade key and is unchanged.
+- Single-trade critique continues to use the trade key.
+- Chart analyses linked to a recap follow the same rule: analyses embedded in the shared note are sent only with the note (all accounts, otherwise unfiltered). The day's versions of analyses (see [charts.md](charts.md#day-versions)) are sent for a filtered recap only when they chart a symbol traded in that subset. A critique sends analyses embedded in the trade's notes and the versions of its entry day on its symbol. A day's version is always sent as it was that day, never the live analysis. At most three are sent, each as text plus its PNG snapshot; see [charts.md](charts.md#ai-reviews-with-chart-analyses).
 
 ## API contract
+
+Recap also accepts `includeAnalyses: false` to leave linked chart analyses out (critique accepts the same field). Both return the analyses used as `analyses: [{ id, label, image }]`.
 
 Both routes require a `filters` object using the journal's `AnalysisFilters` string fields; `{}` explicitly requests all trades. Ask also requires `question`, and recap requires a valid `date` in `YYYY-MM-DD` format. The UI sends `timeZone`; a mismatch with the server setting requires a page refresh. The routes reject unknown request fields, invalid filters, reversed ranges and missing account IDs.
 

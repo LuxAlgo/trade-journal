@@ -12,6 +12,7 @@ import {
 import { providerInfo } from "@/lib/market-providers";
 import type { MarketCsvDataset } from "@/lib/market-csv";
 import { replayFrame } from "@/lib/trade-replay";
+import { VELA_TIMEFRAME } from "@/lib/chart-analysis";
 import { useApi } from "@/lib/use-api";
 import { fmtMoney } from "@/lib/utils";
 import { TradeChart, type ChartExecution, type ChartTrade } from "./trade-chart";
@@ -574,9 +575,7 @@ function ReplayChart({
       const dark = () => document.documentElement.classList.contains("dark");
       const instance = new Vela(host.current, {
         symbol: history.symbol,
-        timeframe: { "1m": "1", "5m": "5", "15m": "15", "1h": "60", "1d": "1D" }[
-          history.resolution
-        ],
+        timeframe: VELA_TIMEFRAME[history.resolution],
         data: latest.current.bars,
         live: false,
         height: 420,

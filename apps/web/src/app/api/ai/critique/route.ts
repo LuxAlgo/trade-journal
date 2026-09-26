@@ -1,12 +1,22 @@
-import { bad, handler, ok } from "@/server/api";
+import { dayKeyOf } from "@luxalgo/journal-core";
+import { bad, handler, ok, requireValue } from "@/server/api";
+import { analysesPrompt, analysesUsed, analysisImages, linkedAnalyses } from "@/server/ai-analyses";
+import { getTimeZone } from "@/server/settings";
 import { runAi } from "@/server/ai";
 import { listExecutions } from "@/server/executions";
 import { getTradeByKey, rowToTrade } from "@/server/trades-query";
 
 /** Critique one trade: entries, exits, sizing, and the trader's own annotations. */
 export const POST = handler(async (request: Request) => {
-  const { key } = (await request.json()) as { key?: string };
+  const { key, includeAnalyses } = (await request.json()) as {
+    key?: string;
+    includeAnalyses?: unknown;
+  };
   if (!key) return bad("key is required");
+  requireValue(
+    includeAnalyses === undefined || typeof includeAnalyses === "boolean",
+    "includeAnalyses must be true or false",
+  );
   const row = getTradeByKey(key);
   if (!row) return bad("Trade not found", 404);
   const trade = rowToTrade(row);
@@ -14,11 +24,21 @@ export const POST = handler(async (request: Request) => {
     a.executedAt.localeCompare(b.executedAt),
   );
 
+  // Linked: embedded in the trade's notes, or assigned to its entry day on its symbol.
+  const linked =
+    includeAnalyses === false
+      ? []
+      : linkedAnalyses({
+          notes: [row.notes],
+          day: dayKeyOf(trade.openedAt, getTimeZone()),
+          symbols: [trade.symbol],
+        });
+
   const critique = await runAi(
-    `Critique this single trade in under 150 words. Focus on execution quality visible in the
+    `Critique this single trade in under ${linked.length ? 220 : 150} words. Focus on execution quality visible in the
 fills (entry clustering, scaling, exit discipline), risk (stop honored or not, R multiple),
 and the trader's own tags/mistakes. End with one concrete instruction for the next
-occurrence of this setup.
+occurrence of this setup.${linked.length ? " Say whether the entry, stop and exit respected the levels and zones in the linked chart analyses." : ""}
 
 Trade: ${trade.symbol} ${trade.direction}, status ${trade.status}
 Net P&L: ${trade.netPnl.toFixed(2)} (gross ${trade.grossPnl.toFixed(2)}, fees ${trade.fees.toFixed(2)})
@@ -28,8 +48,12 @@ Rating: ${row.rating ?? "unrated"} | tags: ${(trade.annotations?.tags ?? []).joi
 Notes: ${row.notes ?? "none"}
 
 Fills:
-${fills.map((fill) => `${fill.executedAt} ${fill.side} ${fill.quantity} @ ${fill.price}${fill.fee ? ` fee ${fill.fee}` : ""}`).join("\n")}`,
+${fills.map((fill) => `${fill.executedAt} ${fill.side} ${fill.quantity} @ ${fill.price}${fill.fee ? ` fee ${fill.fee}` : ""}`).join("\n")}
+
+${analysesPrompt(linked)}`,
+    linked.length ? 1500 : 1200,
+    analysisImages(linked),
   );
 
-  return ok({ critique });
+  return ok({ critique, analyses: analysesUsed(linked) });
 });

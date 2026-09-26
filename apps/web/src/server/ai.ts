@@ -12,13 +12,19 @@ import { AI_PROVIDER_NAMES } from "@/lib/ai-settings";
 export const aiConfigured = (): boolean => getAiKey(getAiProvider()) !== null;
 
 const SYSTEM = `You are the reflection layer of a trader's journal.
-You see only the trader's own recorded data — trades, stats, and notes. Ground every
+You see only the trader's own recorded data — trades, stats, notes, and chart analyses they
+drew (sometimes as images). Ground every
 statement in those numbers; never invent trades, prices, or market context you weren't given.
 Be direct and specific like a good trading coach: name the behavior, cite the numbers,
 say what to keep and what to fix. No platitudes, no disclaimers about trading being risky —
 the trader knows. Keep it tight.`;
 
-export const runAi = async (prompt: string, maxOutputTokens = 1200): Promise<string> => {
+/** `images` are PNGs sent after the prompt, in order; the prompt should refer to them. */
+export const runAi = async (
+  prompt: string,
+  maxOutputTokens = 1200,
+  images: Buffer[] = [],
+): Promise<string> => {
   const provider = getAiProvider();
   const apiKey = getAiKey(provider);
   if (!apiKey) {
@@ -35,7 +41,23 @@ export const runAi = async (prompt: string, maxOutputTokens = 1200): Promise<str
           : createAnthropic({ apiKey })(model),
       ...(provider === "openai" ? { providerOptions: { openai: { store: false } } } : {}),
       system: SYSTEM,
-      prompt,
+      ...(images.length
+        ? {
+            messages: [
+              {
+                role: "user" as const,
+                content: [
+                  { type: "text" as const, text: prompt },
+                  ...images.map((image) => ({
+                    type: "image" as const,
+                    image,
+                    mediaType: "image/png",
+                  })),
+                ],
+              },
+            ],
+          }
+        : { prompt }),
       maxOutputTokens,
     });
     if (!result.text.trim()) throw new Error("AI returned no text. Check the model or try again.");

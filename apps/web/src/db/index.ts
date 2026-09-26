@@ -21,6 +21,17 @@ const createDb = () => {
   if (!executionColumns.some((column) => column.name === "import_metadata_json")) {
     sqlite.exec("ALTER TABLE executions ADD COLUMN import_metadata_json TEXT");
   }
+  // Additive upgrade: analyses saved before drawing layers keep their drawings on one layer.
+  const analysisColumns = sqlite.pragma("table_info(chart_analyses)") as { name: string }[];
+  if (!analysisColumns.some((column) => column.name === "layers_json")) {
+    sqlite.exec("ALTER TABLE chart_analyses ADD COLUMN layers_json TEXT");
+  }
+  if (!analysisColumns.some((column) => column.name === "indicators_json")) {
+    sqlite.exec("ALTER TABLE chart_analyses ADD COLUMN indicators_json TEXT");
+  }
+  if (!analysisColumns.some((column) => column.name === "zones_json")) {
+    sqlite.exec("ALTER TABLE chart_analyses ADD COLUMN zones_json TEXT");
+  }
   // Materialize CSV bounds once so connection and range lookups never scan candle JSON.
   const csvColumns = sqlite.pragma("table_info(market_csv_datasets)") as { name: string }[];
   sqlite.transaction(() => {

@@ -1286,6 +1286,20 @@ body.dashboard-is-dragging * {
   }
 }
 
+/* Chart analysis: every touch inside the chart (canvas and Vela's floating popups) belongs to
+   the chart, so a sideways swipe never becomes browser back navigation, and a long pen press
+   never selects text. Taps still click. */
+.journal-analysis-chart {
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.journal-analysis-chart,
+.journal-analysis-chart * {
+  touch-action: none;
+}
+
 .journal-markdown {
   font-size: 0.875rem;
   line-height: 1.7;

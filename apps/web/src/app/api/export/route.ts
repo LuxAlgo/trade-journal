@@ -20,8 +20,15 @@ import {
   importSources,
   importSourceAliases,
   importBatches,
+  chartAnalyses,
+  chartAnalysisSnapshots,
+  chartScripts,
 } from "@/db";
 import { readFilters } from "@luxalgo/journal-core";
+import { parseDrawings } from "@/lib/chart-analysis";
+import { parseLayers } from "@/lib/chart-layers";
+import { parseIndicators } from "@/lib/chart-indicators";
+import { parseZones } from "@/lib/sr-zones";
 import { queryTrades } from "@/server/trades-query";
 import {
   getJournalDefaults,
@@ -30,6 +37,7 @@ import {
   getImportTimeZone,
 } from "@/server/settings";
 import { handler, ok } from "@/server/api";
+import { getChartPreferences } from "@/server/chart-preferences";
 import { attachmentExportRecord, EXPORT_ATTACHMENTS_NOTE } from "@/lib/export-format";
 
 /**
@@ -102,11 +110,39 @@ export const GET = handler(async (request: Request) => {
     propEntries: db.select().from(propEntries).all(),
     propReceipts: db.select().from(propReceipts).all(),
     propAudit: db.select().from(propAudit).all(),
+    // Drawings and sources; snapshot images stay in the data directory like attachments.
+    chartAnalyses: db
+      .select()
+      .from(chartAnalyses)
+      .all()
+      .map(({ image, drawingsJson, layersJson, indicatorsJson, zonesJson, ...analysis }) => ({
+        ...analysis,
+        drawings: parseDrawings(drawingsJson),
+        layers: parseLayers(layersJson),
+        indicators: parseIndicators(indicatorsJson),
+        zones: parseZones(zonesJson),
+        hasSnapshot: image !== null,
+      })),
+    // Each day's version of an analysis, without its picture.
+    chartAnalysisSnapshots: db
+      .select()
+      .from(chartAnalysisSnapshots)
+      .all()
+      .map(({ image, drawingsJson, layersJson, indicatorsJson, zonesJson, ...snapshot }) => ({
+        ...snapshot,
+        drawings: parseDrawings(drawingsJson),
+        layers: parseLayers(layersJson),
+        indicators: parseIndicators(indicatorsJson),
+        zones: parseZones(zonesJson),
+        hasSnapshot: image !== null,
+      })),
+    chartScripts: db.select().from(chartScripts).all(),
     journalDefaults: getJournalDefaults(),
     settings: {
       timeZone: getTimeZone(),
       importTimeZone: getImportTimeZone(),
       multipliers: getMultipliers(),
+      chartPreferences: getChartPreferences(),
     },
     // Metadata only: attachment binaries stay in the data directory.
     attachments: db

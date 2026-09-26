@@ -134,6 +134,36 @@ CREATE TABLE IF NOT EXISTS settings (
 
 CREATE TABLE IF NOT EXISTS attachments (id TEXT PRIMARY KEY, owner_type TEXT NOT NULL, owner_id TEXT NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL, data BLOB NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS attachments_owner ON attachments(owner_type, owner_id);
+CREATE TABLE IF NOT EXISTS chart_analyses (
+ id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT '', symbol TEXT NOT NULL, provider TEXT NOT NULL,
+ dataset TEXT, resolution TEXT NOT NULL, range_from INTEGER NOT NULL, range_to INTEGER NOT NULL,
+ visible_from INTEGER, visible_to INTEGER, drawings_json TEXT NOT NULL,
+ drawing_count INTEGER NOT NULL DEFAULT 0, layers_json TEXT, indicators_json TEXT, zones_json TEXT,
+ notes TEXT NOT NULL DEFAULT '', day_date TEXT,
+ image BLOB, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chart_analyses_day ON chart_analyses(day_date);
+CREATE INDEX IF NOT EXISTS chart_analyses_symbol ON chart_analyses(provider, symbol);
+CREATE TABLE IF NOT EXISTS chart_analysis_snapshots (
+ analysis_id TEXT NOT NULL REFERENCES chart_analyses(id) ON DELETE CASCADE, day TEXT NOT NULL,
+ title TEXT NOT NULL DEFAULT '', symbol TEXT NOT NULL, provider TEXT NOT NULL, dataset TEXT,
+ resolution TEXT NOT NULL, range_from INTEGER NOT NULL, range_to INTEGER NOT NULL,
+ visible_from INTEGER, visible_to INTEGER, drawings_json TEXT NOT NULL,
+ drawing_count INTEGER NOT NULL DEFAULT 0, layers_json TEXT, indicators_json TEXT, zones_json TEXT,
+ notes TEXT NOT NULL DEFAULT '', image BLOB, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+ PRIMARY KEY (analysis_id, day)
+);
+CREATE INDEX IF NOT EXISTS chart_analysis_snapshots_day ON chart_analysis_snapshots(day);
+CREATE TABLE IF NOT EXISTS economic_events (
+ id TEXT PRIMARY KEY, source TEXT NOT NULL, title TEXT NOT NULL, currency TEXT NOT NULL,
+ time INTEGER NOT NULL, impact TEXT NOT NULL, forecast TEXT NOT NULL DEFAULT '',
+ previous TEXT NOT NULL DEFAULT '', fetched_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS economic_events_time ON economic_events(time);
+CREATE TABLE IF NOT EXISTS chart_scripts (
+ id TEXT PRIMARY KEY, name TEXT NOT NULL, source TEXT NOT NULL,
+ created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS note_templates (id TEXT PRIMARY KEY, name TEXT NOT NULL, content TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS trade_rule_checks (id TEXT PRIMARY KEY, trade_key TEXT NOT NULL, playbook_id TEXT NOT NULL, rule TEXT NOT NULL, followed INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS trade_rule_checks_trade ON trade_rule_checks(trade_key);
