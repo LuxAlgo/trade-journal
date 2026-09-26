@@ -104,6 +104,16 @@ import { recentSymbols, type RecentSymbol } from "@/lib/recent-symbols";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn, fmtNumber } from "@/lib/utils";
 import { BackgroundAlerts } from "@/components/background-alerts";
+import { CompanionChart } from "@/components/companion-chart";
+import { MultiviewGrid, MultiviewMenu } from "@/components/multiview";
+import { createChartSync } from "@/lib/chart-sync";
+import {
+  DEFAULT_MULTIVIEW,
+  multiviewPreference,
+  paneMarket,
+  type CompanionPane,
+  type MultiviewState,
+} from "@/lib/multiview";
 import { TimeframeBar } from "@/components/timeframe-bar";
 import { OverlaysPanel } from "@/components/overlays-panel";
 import { ZonesPanel } from "@/components/zones-panel";
@@ -294,6 +304,37 @@ function ChartLab() {
     snapshots: AnalysisSnapshotSummary[];
   }>(analysisId ? `/api/analyses/${encodeURIComponent(analysisId)}/snapshots` : null);
   const chart = useRef<AnalysisChartHandle>(null);
+
+  // ── Multiview: optional extra charts kept in step with the main one ──
+  const [multiview, setMultiview] = useState<MultiviewState>(DEFAULT_MULTIVIEW);
+  useEffect(() => setMultiview(multiviewPreference.read()), []);
+  const multiviewRef = useRef(multiview);
+  multiviewRef.current = multiview;
+  const changeMultiview = (next: MultiviewState) => {
+    setMultiview(next);
+    multiviewPreference.write(next);
+  };
+  const changePane = (index: number, patch: Partial<CompanionPane>) =>
+    changeMultiview({
+      ...multiview,
+      panes: multiview.panes.map((p, i) => (i === index ? { ...p, ...patch } : p)),
+    });
+  const [chartSync] = useState(() => createChartSync(DEFAULT_MULTIVIEW.sync));
+  useEffect(() => chartSync.setOptions(multiview.sync), [chartSync, multiview.sync]);
+  const mainSync = useMemo(() => ({ bus: chartSync, id: "main" }), [chartSync]);
+  /** The main chart's drawings, for the extra charts on its symbol (read-only). */
+  const [mirror, setMirror] = useState<DrawingsDocument | null>(null);
+  const mirrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshMirror = useCallback(() => {
+    const current = multiviewRef.current;
+    if (!current.enabled || !current.mirrorDrawings) return;
+    if (mirrorTimer.current) clearTimeout(mirrorTimer.current);
+    mirrorTimer.current = setTimeout(() => setMirror(chart.current?.drawings() ?? null), 300);
+  }, []);
+  useEffect(() => {
+    if (multiview.enabled && multiview.mirrorDrawings) refreshMirror();
+    else setMirror(null);
+  }, [multiview.enabled, multiview.mirrorDrawings, refreshMirror]);
   const { data: symbolAnalyses, refresh: refreshSymbolAnalyses } = useApi<{
     analyses: ChartAnalysisSummary[];
   }>(
@@ -800,15 +841,19 @@ function ChartLab() {
       return assignDrawing(ready, id, ready.activeLayerId);
     });
   }, []);
-  const onDrawingsChange = useCallback((next: ChartDrawing[]) => {
-    setDrawings(next);
-    setLayers((doc) =>
-      syncAssignments(
-        doc,
-        next.map((d) => d.id),
-      ),
-    );
-  }, []);
+  const onDrawingsChange = useCallback(
+    (next: ChartDrawing[]) => {
+      setDrawings(next);
+      refreshMirror();
+      setLayers((doc) =>
+        syncAssignments(
+          doc,
+          next.map((d) => d.id),
+        ),
+      );
+    },
+    [refreshMirror],
+  );
   const changeLayers = (next: LayersDocument) => {
     setLayers(next);
     state.current.layers = next;
@@ -1284,6 +1329,7 @@ function ChartLab() {
                     {live ? <Pause /> : <Play />}
                     {live ? "Pause" : "Go live"}
                   </Button>
+                  {board && <MultiviewMenu state={multiview} onChange={changeMultiview} />}
                 </form>
               )}
               {watchlist.length > 0 && (
@@ -1438,97 +1484,138 @@ function ChartLab() {
           </Card>
 
           {board ? (
-            <AnalysisChart
-              key={board.key}
-              source={{ provider: board.provider, dataset: board.dataset }}
-              symbol={board.symbol}
-              resolution={resolution}
-              live={live}
-              initialDrawings={board.analysis?.drawings ?? { version: 1, drawings: [] }}
-              initialVisible={
-                board.analysis?.visibleFrom != null && board.analysis.visibleTo != null
-                  ? { from: board.analysis.visibleFrom, to: board.analysis.visibleTo }
-                  : null
+            <MultiviewGrid
+              state={multiview}
+              main={
+                <AnalysisChart
+                  key={board.key}
+                  source={{ provider: board.provider, dataset: board.dataset }}
+                  symbol={board.symbol}
+                  resolution={resolution}
+                  live={live}
+                  initialDrawings={board.analysis?.drawings ?? { version: 1, drawings: [] }}
+                  initialVisible={
+                    board.analysis?.visibleFrom != null && board.analysis.visibleTo != null
+                      ? { from: board.analysis.visibleFrom, to: board.analysis.visibleTo }
+                      : null
+                  }
+                  initialIndicators={board.indicators}
+                  onIndicatorsChange={onIndicatorsChange}
+                  onIndicatorAlert={onIndicatorAlert}
+                  overlay={overlay}
+                  overlayHooks={overlayHooks}
+                  capturing={placing !== null}
+                  toolbarExtras={
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        title="Colours, chart type, formats, symbol and drawing defaults"
+                        onClick={() => setAppearanceOpen(true)}
+                      >
+                        <Palette /> Appearance
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={placing === "missed" ? "secondary" : "ghost"}
+                        aria-pressed={placing === "missed"}
+                        title="Log a setup you did not take: click the chart where you saw it"
+                        onClick={() => {
+                          setZoneEdge(null);
+                          setPlacing(placing === "missed" ? null : "missed");
+                        }}
+                      >
+                        <Diamond className="text-violet-500" /> Missed trade
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={placing === "zone" ? "secondary" : "ghost"}
+                        aria-pressed={placing === "zone"}
+                        title="Add a support or resistance zone: click its two edges"
+                        onClick={() => {
+                          setZoneEdge(null);
+                          setPlacing(placing === "zone" ? null : "zone");
+                        }}
+                      >
+                        <Rows3 /> Zone
+                      </Button>
+                    </>
+                  }
+                  layers={layers}
+                  onDrawingCreated={onDrawingCreated}
+                  onDrawingsChange={onDrawingsChange}
+                  onEdit={schedule}
+                  onStatus={setStatus}
+                  onLatest={onLatest}
+                  onSelect={(_id, ids) => setSelectedIds(ids)}
+                  appearance={appearance}
+                  onLookEdited={onLookEdited}
+                  onDrawingPrefs={onDrawingPrefs}
+                  onToolStyle={onToolStyle}
+                  sidePanel={{
+                    title: "Layers",
+                    count: drawings.length,
+                    content: (
+                      <LayersPanel
+                        key={board.key}
+                        layers={layers}
+                        drawings={drawings}
+                        selectedIds={selectedIds}
+                        onChange={changeLayers}
+                        onRevealDrawings={(ids) => chart.current?.reveal(ids)}
+                        onSelectDrawing={(id) => chart.current?.select(id)}
+                        onSelectMany={(ids) => chart.current?.selectMany(ids)}
+                        onDeleteDrawings={(ids) => chart.current?.remove(ids)}
+                        onUpdateDrawings={(patches) => chart.current?.updateDrawings(patches)}
+                        onDuplicate={(ids) => chart.current?.duplicate(ids) ?? []}
+                        onFront={(ids) => chart.current?.bringToFront(ids)}
+                        onBack={(ids) => chart.current?.sendToBack(ids)}
+                        onEditDrawing={(id) => chart.current?.editDrawing(id)}
+                      />
+                    ),
+                  }}
+                  chartRef={chart}
+                  sync={mainSync}
+                />
               }
-              initialIndicators={board.indicators}
-              onIndicatorsChange={onIndicatorsChange}
-              onIndicatorAlert={onIndicatorAlert}
-              overlay={overlay}
-              overlayHooks={overlayHooks}
-              capturing={placing !== null}
-              toolbarExtras={
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    title="Colours, chart type, formats, symbol and drawing defaults"
-                    onClick={() => setAppearanceOpen(true)}
-                  >
-                    <Palette /> Appearance
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={placing === "missed" ? "secondary" : "ghost"}
-                    aria-pressed={placing === "missed"}
-                    title="Log a setup you did not take: click the chart where you saw it"
-                    onClick={() => {
-                      setZoneEdge(null);
-                      setPlacing(placing === "missed" ? null : "missed");
+              companions={multiview.panes.slice(0, multiview.count).map((pane, index) => {
+                const market = paneMarket(pane, { symbol: board.symbol, resolution });
+                const key = symbolPrefsKey(board.provider, market.symbol);
+                return (
+                  <CompanionChart
+                    key={`${pane.id}-${board.provider}-${market.symbol}`}
+                    source={{ provider: board.provider, dataset: board.dataset }}
+                    pane={pane}
+                    symbol={market.symbol}
+                    resolution={market.resolution}
+                    mainSymbol={board.symbol}
+                    live={live}
+                    look={{
+                      style: effectiveStyle(prefs, key),
+                      timeZone: appearance.timeZone,
+                      decimals: prefs.symbols[key]?.decimals,
+                      volume: prefs.defaults.volume,
                     }}
-                  >
-                    <Diamond className="text-violet-500" /> Missed trade
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={placing === "zone" ? "secondary" : "ghost"}
-                    aria-pressed={placing === "zone"}
-                    title="Add a support or resistance zone: click its two edges"
-                    onClick={() => {
-                      setZoneEdge(null);
-                      setPlacing(placing === "zone" ? null : "zone");
-                    }}
-                  >
-                    <Rows3 /> Zone
-                  </Button>
-                </>
-              }
-              layers={layers}
-              onDrawingCreated={onDrawingCreated}
-              onDrawingsChange={onDrawingsChange}
-              onEdit={schedule}
-              onStatus={setStatus}
-              onLatest={onLatest}
-              onSelect={(_id, ids) => setSelectedIds(ids)}
-              appearance={appearance}
-              onLookEdited={onLookEdited}
-              onDrawingPrefs={onDrawingPrefs}
-              onToolStyle={onToolStyle}
-              sidePanel={{
-                title: "Layers",
-                count: drawings.length,
-                content: (
-                  <LayersPanel
-                    key={board.key}
-                    layers={layers}
-                    drawings={drawings}
-                    selectedIds={selectedIds}
-                    onChange={changeLayers}
-                    onRevealDrawings={(ids) => chart.current?.reveal(ids)}
-                    onSelectDrawing={(id) => chart.current?.select(id)}
-                    onSelectMany={(ids) => chart.current?.selectMany(ids)}
-                    onDeleteDrawings={(ids) => chart.current?.remove(ids)}
-                    onUpdateDrawings={(patches) => chart.current?.updateDrawings(patches)}
-                    onDuplicate={(ids) => chart.current?.duplicate(ids) ?? []}
-                    onFront={(ids) => chart.current?.bringToFront(ids)}
-                    onBack={(ids) => chart.current?.sendToBack(ids)}
-                    onEditDrawing={(id) => chart.current?.editDrawing(id)}
+                    mirror={market.symbol === board.symbol ? mirror : null}
+                    sync={chartSync}
+                    onChange={(patch) => changePane(index, patch)}
+                    onClose={() =>
+                      changeMultiview(
+                        multiview.count > 1
+                          ? {
+                              ...multiview,
+                              count: multiview.count - 1,
+                              panes: [...multiview.panes.filter((_, i) => i !== index), pane],
+                            }
+                          : { ...multiview, enabled: false },
+                      )
+                    }
                   />
-                ),
-              }}
-              chartRef={chart}
+                );
+              })}
             />
           ) : (
             available.length > 0 && (

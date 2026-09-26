@@ -89,6 +89,27 @@ and picture, as they stood when you last saved that day.
   analysis.
 - Deleting an analysis deletes its day versions.
 
+## Multiview
+
+Off by default: the page shows one chart. The layout button next to **Pause** (**Single
+chart**) turns on up to three extra charts, beside the main chart on wide screens or below it,
+remembered per browser.
+
+- Each extra chart has its own **symbol** (empty follows the main chart's), **candle size**
+  (**Same** follows the main chart's) and **indicators** (the built-in library, up to five).
+  They stream live like the main chart and use the same look; switching symbol on the main chart
+  moves the ones that follow it.
+- **Keep in step**: **Crosshair** (on by default) shows the moment under your cursor on every
+  chart; **Time window** makes scrolling or zooming any chart show the same span on the others,
+  loading older candles as needed; **Main chart's drawings on the others** shows your drawings
+  (locked) on extra charts of the same symbol, since they are anchored to time and price.
+- Extra charts are views only: drawing, saving, alerts, trades and zones stay on the main
+  chart, and nothing about them is saved with the analysis. The **×** on a chart hides it.
+
+Code: `lib/multiview.ts` (settings), `lib/chart-sync.ts` (crosshair and time sync),
+`components/companion-chart.tsx`, `components/multiview.tsx` (menu and layout); the main chart
+takes an optional `sync` prop.
+
 ## Layers and folders
 
 Folders hold layers, and layers hold drawings. The **Layers** panel is docked beside the chart

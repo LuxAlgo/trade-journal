@@ -62,6 +62,7 @@ import {
   type OverlayHooks,
   type OverlayState,
 } from "./chart-overlays";
+import type { ChartSync } from "@/lib/chart-sync";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
 import { PortalContainer } from "./ui/portal-container";
@@ -210,6 +211,7 @@ export function AnalysisChart({
   capturing,
   toolbarExtras,
   sidePanel,
+  sync,
   layers,
   onDrawingCreated,
   onDrawingsChange,
@@ -243,6 +245,8 @@ export function AnalysisChart({
   toolbarExtras?: React.ReactNode;
   /** Docked beside the chart (below it on narrow screens), toggled from the toolbar. */
   sidePanel?: { title: string; count?: number; content: React.ReactNode };
+  /** Multiview: keeps this chart's crosshair and time window in step with the others. */
+  sync?: { bus: ChartSync; id: string };
   layers: LayersDocument;
   onDrawingCreated: (id: string) => void;
   /** Every drawing on the chart, after any change (for the layers panel and alerts). */
@@ -602,6 +606,23 @@ export function AnalysisChart({
           growHistory(instance, state.requested * 2);
         }),
       ];
+      if (sync) {
+        const following = { current: false };
+        offs.push(
+          instance.renderer.onCrosshairMove((e) => sync.bus.crosshair(sync.id, e.time)),
+          instance.on("viewport:changed", ({ from, to }) => {
+            if (!following.current) sync.bus.range(sync.id, { from, to });
+          }),
+          sync.bus.subscribe(sync.id, {
+            crosshair: (time) => instance.renderer.setExternalCrosshair(time, null),
+            range: (range) => {
+              following.current = true;
+              instance.setVisibleRange(range);
+              setTimeout(() => (following.current = false), 50);
+            },
+          }),
+        );
+      }
       setTool(instance.drawings.getTool());
       refresh();
 
