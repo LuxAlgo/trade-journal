@@ -103,6 +103,7 @@ import { lineCrossings } from "@/lib/price-alerts";
 import { recentSymbols, type RecentSymbol } from "@/lib/recent-symbols";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn, fmtNumber } from "@/lib/utils";
+import { BackgroundAlerts } from "@/components/background-alerts";
 import { TimeframeBar } from "@/components/timeframe-bar";
 import { OverlaysPanel } from "@/components/overlays-panel";
 import { ZonesPanel } from "@/components/zones-panel";
@@ -1922,6 +1923,13 @@ function ChartLab() {
                   ))}
                 </ul>
               )}
+              <BackgroundAlerts
+                analysisId={analysisId}
+                disabledReason={
+                  viewing ? "A day's version is read-only; open the live analysis." : undefined
+                }
+                ensureAnalysis={() => flush({ create: true })}
+              />
             </CardContent>
           </Card>
 

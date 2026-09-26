@@ -163,6 +163,9 @@ zone. Alerts appear in the card and, if you allow it, as browser notifications. 
 zone alerts at most once a minute per kind. Alerts only run while the page is open; there
 is no background service.
 
+With **Keep watching when this page is closed**, the server takes over these line and zone
+alerts and notifies your browsers, the installed app or a webhook; see [alerts.md](alerts.md).
+
 ## Your trades on the chart
 
 The **On the chart** card controls what the chart draws from your journal. Every switch

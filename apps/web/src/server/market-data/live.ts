@@ -240,7 +240,10 @@ class Feed {
   }
 }
 
-const feeds = new Map<string, Feed>();
+// Process-wide, so open charts and the background alert watcher share one connection
+// per instrument even though Next.js loads them as separate module graphs.
+const feedStore = globalThis as unknown as { __journalLiveFeeds?: Map<string, Feed> };
+const feeds = (feedStore.__journalLiveFeeds ??= new Map<string, Feed>());
 
 /**
  * Listen to an instrument's live updates; returns the unsubscribe function, or null when
