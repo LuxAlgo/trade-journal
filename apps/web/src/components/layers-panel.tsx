@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -22,6 +22,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Copy,
+  CornerDownRight,
   Crosshair,
   Eye,
   EyeOff,
@@ -29,6 +30,8 @@ import {
   Folder,
   FolderPlus,
   GripVertical,
+  IndentDecrease,
+  IndentIncrease,
   Layers,
   Lock,
   LockOpen,
@@ -44,11 +47,18 @@ import {
 import {
   addFolder,
   addLayer,
+  ancestorsOf,
   assignDrawings,
+  copyNesting,
+  descendantsOf,
   drawingName,
+  drawingTree,
   drawingsIn,
   effectiveLayer,
+  inFocus,
   layerOf,
+  nestDrawings,
+  parentOf,
   moveLayer,
   placeFolder,
   placeLayer,
@@ -59,13 +69,17 @@ import {
   renameLayer,
   setActiveLayer,
   setAllFoldersCollapsed,
+  setDrawInto,
+  setFocus,
   setLayerColor,
   showEverything,
   soloLayer,
   unlockEverything,
+  unnestDrawings,
   updateFolder,
   updateLayer,
   type DrawingLayer,
+  type DrawingNode,
   type LayerFolder,
   type LayersDocument,
 } from "@/lib/chart-layers";
@@ -98,7 +112,9 @@ export interface LayersPanelActions {
 }
 
 /**
- * Folders → layers → drawings. The active layer (the filled dot) receives new drawings.
+ * Folders → layers → drawings → drawings inside them (a wave's sub-waves), numbered like an
+ * outline. The active layer (the filled dot) receives new drawings, unless you chose a
+ * drawing to draw inside.
  * Eye and lock apply to everything inside; a folder's switch overrides its layers. Drag
  * layers to reorder them or into folders, and drawings (one or a checked group) onto a
  * layer; every drag has a menu equivalent for keyboards and touch.
@@ -122,6 +138,9 @@ export function LayersPanel({
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  /** Drawings whose contents are folded away in the panel. */
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
+  const root = useRef<HTMLDivElement>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const ids = drawings.map((d) => d.id);
@@ -134,6 +153,48 @@ export function LayersPanel({
     (!needle || `${nameOf(d)} ${drawingLabel(d.type)} ${d.type}`.toLowerCase().includes(needle));
   const types = [...new Set(drawings.map((d) => d.type))].sort();
   const liveChecked = [...checked].filter((id) => byId.has(id));
+  const trees = useMemo(
+    () => new Map(layers.layers.map((l) => [l.id, drawingTree(layers, l.id, ids)])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [layers, drawings],
+  );
+  const indexOf = useMemo(() => {
+    const map = new Map<string, string>();
+    const walk = (nodes: DrawingNode[]) =>
+      nodes.forEach((n) => {
+        map.set(n.id, n.index);
+        walk(n.children);
+      });
+    trees.forEach(walk);
+    return map;
+  }, [trees]);
+  /** A drawing as menus and banners name it: its outline number and name. */
+  const labelOf = (id: string) => {
+    const drawing = byId.get(id);
+    return `${indexOf.get(id) ?? ""} ${drawing ? nameOf(drawing) : "a drawing"}`.trim();
+  };
+
+  // A drawing selected on the chart opens its place in the tree and scrolls to it.
+  const selectedKey = selectedIds.length === 1 ? selectedIds[0]! : "";
+  useEffect(() => {
+    if (!selectedKey) return;
+    const ups = ancestorsOf(layers, selectedKey);
+    setCollapsedNodes((current) =>
+      ups.some((u) => current.has(u))
+        ? new Set([...current].filter((c) => !ups.includes(c)))
+        : current,
+    );
+    const layerId = layers.assignments[selectedKey];
+    if (layerId)
+      setOpen((current) => (current.has(layerId) ? current : new Set([...current, layerId])));
+    const frame = requestAnimationFrame(() =>
+      root.current
+        ?.querySelector(`[data-drawing-row="${CSS.escape(selectedKey)}"]`)
+        ?.scrollIntoView({ block: "nearest" }),
+    );
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey]);
 
   const toggleOpen = (id: string) =>
     setOpen((current) => {
@@ -183,11 +244,11 @@ export function LayersPanel({
       next = placeLayer(next, copyId, { beforeId: after.id });
     next = { ...next, activeLayerId: layers.activeLayerId };
     const copies = inside.length ? actions.onDuplicate(inside) : [];
-    onChange(assignDrawings(next, copies, copyId));
+    onChange(copyNesting(assignDrawings(next, copies, copyId), inside, copies));
     setOpen((current) => new Set([...current, copyId]));
   };
 
-  /** Duplicate drawings, each copy staying in its source's layer. */
+  /** Duplicate drawings, each copy in its source's layer and nested like its source. */
   const duplicateDrawings = (sources: string[]) => {
     const copies = actions.onDuplicate(sources);
     let next = layers;
@@ -195,7 +256,7 @@ export function LayersPanel({
       const source = sources[i];
       if (source) next = assignDrawings(next, [copy], layerOf(layers, source).id);
     });
-    onChange(next);
+    onChange(copyNesting(next, sources, copies));
     setChecked(new Set(copies));
   };
 
@@ -212,9 +273,14 @@ export function LayersPanel({
     const [kind, id] = split(source);
     const [targetKind, targetId] = split(target);
     if (kind === "drawing") {
-      if (targetKind !== "layer") return;
       // A checked drawing drags the whole checked group.
       const group = checked.has(id) ? liveChecked : [id];
+      if (targetKind === "into") {
+        onChange(nestDrawings(layers, group, targetId));
+        setCollapsedNodes((current) => new Set([...current].filter((c) => c !== targetId)));
+        return;
+      }
+      if (targetKind !== "layer") return;
       onChange(assignDrawings(layers, group, targetId));
       setOpen((current) => new Set([...current, targetId]));
     } else if (kind === "layer") {
@@ -226,26 +292,70 @@ export function LayersPanel({
     }
   };
 
-  const renderDrawing = (drawing: ChartDrawing, layer: DrawingLayer, order: string[]) => {
-    const id = drawing.id;
+  const toggleNode = (id: string) =>
+    setCollapsedNodes((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  /** While filtering, a drawing shows if it or anything inside it matches. */
+  const keep = (node: DrawingNode): boolean => {
+    const drawing = byId.get(node.id);
+    return (Boolean(drawing) && matches(drawing!)) || node.children.some(keep);
+  };
+  const visibleNodes = (nodes: DrawingNode[]) => (filtering ? nodes.filter(keep) : nodes);
+  const nodeOpen = (id: string) => filtering || !collapsedNodes.has(id);
+  /** The rows in display order, for shift-click ranges and "All". */
+  const flatten = (nodes: DrawingNode[]): string[] =>
+    visibleNodes(nodes).flatMap((n) => [n.id, ...(nodeOpen(n.id) ? flatten(n.children) : [])]);
+
+  const renderNode = (
+    node: DrawingNode,
+    layer: DrawingLayer,
+    order: string[],
+    siblings: DrawingNode[],
+  ): React.ReactNode => {
+    const id = node.id;
+    const drawing = byId.get(id);
+    if (!drawing) return null;
     const layerState = effectiveLayer(layers, layer);
     const name = nameOf(drawing);
+    const inside = descendantsOf(layers, id).filter((d) => byId.has(d));
+    const tree = [id, ...inside];
+    const shownChildren = visibleNodes(node.children);
+    const expanded = node.children.length > 0 && nodeOpen(id);
+    const above = siblings[siblings.findIndex((s) => s.id === id) - 1];
+    const parent = parentOf(layers, id);
+    const insideHidden = inside.length > 0 && inside.every((d) => byId.get(d)?.visible === false);
+    const focused = layers.focusId === id;
+    const target = layers.drawInto === id;
     return (
       <DrawingRow
         key={id}
         id={id}
+        index={node.index}
         name={name}
         color={drawing.color}
         selected={selectedIds.includes(id)}
         checked={checked.has(id)}
         visible={drawing.visible}
         locked={drawing.locked}
-        forcedHidden={!layerState.visible}
+        forcedHidden={!layerState.visible || !inFocus(layers, id)}
         forcedLocked={layerState.locked}
         editing={editing === `drawing:${id}`}
+        insideCount={inside.length}
+        expanded={expanded}
+        drawInto={target}
+        focused={focused}
+        dropAccepts={
+          dragging !== null && dragging.startsWith("drawing:") && dragging !== `drawing:${id}`
+        }
+        onToggle={() => toggleNode(id)}
+        onStopDrawInto={() => onChange(setDrawInto(layers, null))}
         onCheck={(range) => toggleChecked(id, range, order)}
         onOpen={() => {
-          actions.onRevealDrawings([id]);
+          actions.onRevealDrawings(tree);
           actions.onSelectDrawing(id);
         }}
         onRename={(value) => {
@@ -253,13 +363,64 @@ export function LayersPanel({
           if (value !== null) onChange(renameDrawing(layers, id, value));
         }}
         onStartRename={() => setEditing(`drawing:${id}`)}
-        onVisible={() => setDrawings([id], { visible: !drawing.visible })}
-        onLocked={() => setDrawings([id], { locked: !drawing.locked })}
+        // Eye and lock on a drawing apply to everything inside it.
+        onVisible={() => setDrawings(tree, { visible: !drawing.visible })}
+        onLocked={() => setDrawings(tree, { locked: !drawing.locked })}
         menu={
           <>
             <DropdownMenuItem onSelect={() => setEditing(`drawing:${id}`)}>
               <Pencil className="size-3.5" /> Rename
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                actions.onRevealDrawings(tree);
+                actions.onSelectDrawing(id);
+              }}
+            >
+              <Crosshair className="size-3.5" />
+              {inside.length ? "Go to it and what is inside" : "Go to it on the chart"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                onChange(setFocus(layers, focused ? null : id, drawings));
+                if (!focused) actions.onRevealDrawings(tree);
+              }}
+            >
+              <Focus className="size-3.5" />
+              {focused ? "Stop focusing" : "Focus on this (hide the rest)"}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                onChange(setDrawInto(layers, target ? null : id));
+                setCollapsedNodes((current) => new Set([...current].filter((c) => c !== id)));
+              }}
+            >
+              <CornerDownRight className="size-3.5" />
+              {target ? "Stop drawing inside this" : "Draw inside this"}
+            </DropdownMenuItem>
+            {inside.length > 0 && (
+              <DropdownMenuItem onSelect={() => setDrawings(inside, { visible: insideHidden })}>
+                {insideHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                {insideHidden ? "Show what is inside" : "Hide what is inside"} ({inside.length})
+              </DropdownMenuItem>
+            )}
+            {above && (
+              <DropdownMenuItem
+                onSelect={() => {
+                  onChange(nestDrawings(layers, [id], above.id));
+                  setCollapsedNodes(
+                    (current) => new Set([...current].filter((c) => c !== above.id)),
+                  );
+                }}
+              >
+                <IndentIncrease className="size-3.5" /> Put inside the one above
+              </DropdownMenuItem>
+            )}
+            {parent && (
+              <DropdownMenuItem onSelect={() => onChange(unnestDrawings(layers, [id]))}>
+                <IndentDecrease className="size-3.5" /> Take out of {labelOf(parent)}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={() => actions.onEditDrawing(id)}>
               <SlidersHorizontal className="size-3.5" /> Edit style on the chart
             </DropdownMenuItem>
@@ -272,6 +433,11 @@ export function LayersPanel({
             <DropdownMenuItem onSelect={() => duplicateDrawings([id])}>
               <Copy className="size-3.5" /> Duplicate
             </DropdownMenuItem>
+            {inside.length > 0 && (
+              <DropdownMenuItem onSelect={() => duplicateDrawings(tree)}>
+                <Copy className="size-3.5" /> Duplicate with what is inside
+              </DropdownMenuItem>
+            )}
             {layers.layers
               .filter((l) => l.id !== layer.id)
               .map((l) => (
@@ -286,11 +452,29 @@ export function LayersPanel({
               className="text-destructive"
               onSelect={() => actions.onDeleteDrawings([id])}
             >
-              <Trash2 className="size-3.5" /> Delete
+              <Trash2 className="size-3.5" />
+              {inside.length ? "Delete (keep what is inside)" : "Delete"}
             </DropdownMenuItem>
+            {inside.length > 0 && (
+              <DropdownMenuItem
+                className="text-destructive"
+                onSelect={() => {
+                  if (confirm(`Delete ${name} and the ${inside.length} drawings inside it?`))
+                    actions.onDeleteDrawings(tree);
+                }}
+              >
+                <Trash2 className="size-3.5" /> Delete with what is inside ({inside.length})
+              </DropdownMenuItem>
+            )}
           </>
         }
-      />
+      >
+        {expanded && shownChildren.length > 0 && (
+          <ul className="ml-3 space-y-0.5 border-l pl-1">
+            {shownChildren.map((child) => renderNode(child, layer, order, node.children))}
+          </ul>
+        )}
+      </DrawingRow>
     );
   };
 
@@ -302,7 +486,8 @@ export function LayersPanel({
     const active = layers.activeLayerId === layer.id;
     const expanded = open.has(layer.id) || (filtering && shown.length > 0);
     const hiddenCount = inside.filter((id) => byId.get(id)?.visible === false).length;
-    const order = shown.map((d) => d.id);
+    const tree = trees.get(layer.id) ?? [];
+    const order = flatten(tree);
     const allChecked = order.length > 0 && order.every((id) => checked.has(id));
     return (
       <li key={layer.id} className={cn(folder && "ml-4")}>
@@ -492,7 +677,7 @@ export function LayersPanel({
         </DropTarget>
         {expanded && (
           <ul className="mb-1 ml-6 space-y-0.5">
-            {shown.length > 1 && (
+            {order.length > 1 && (
               <li className="px-1">
                 <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <input
@@ -509,7 +694,7 @@ export function LayersPanel({
                       })
                     }
                   />
-                  All {shown.length}
+                  All {order.length}
                 </label>
               </li>
             )}
@@ -520,7 +705,7 @@ export function LayersPanel({
                   : "No drawings. Drag some here."}
               </li>
             )}
-            {shown.map((drawing) => renderDrawing(drawing, layer, order))}
+            {visibleNodes(tree).map((node) => renderNode(node, layer, order, tree))}
           </ul>
         )}
       </li>
@@ -530,7 +715,7 @@ export function LayersPanel({
   const topLevel = layers.layers.filter((l) => !l.folderId);
   const anyCollapsed = layers.folders.some((f) => f.collapsed);
   return (
-    <div className="space-y-2">
+    <div ref={root} className="space-y-2">
       <div className="flex flex-wrap items-center gap-1">
         <Button
           type="button"
@@ -578,6 +763,44 @@ export function LayersPanel({
           />
         </span>
       </div>
+      {(layers.focusId || layers.drawInto) && (
+        <div
+          role="status"
+          className="space-y-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1.5 text-xs"
+        >
+          {layers.focusId && (
+            <p className="flex items-center gap-1.5">
+              <Focus aria-hidden="true" className="size-3.5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                Focused on <strong>{labelOf(layers.focusId)}</strong>: only it and what is inside
+                show{layers.drawInto ? "" : ", and new drawings go inside it"}.
+              </span>
+              <button
+                type="button"
+                className="shrink-0 underline"
+                onClick={() => onChange(setFocus(layers, null, drawings))}
+              >
+                Show everything
+              </button>
+            </p>
+          )}
+          {layers.drawInto && (
+            <p className="flex items-center gap-1.5">
+              <CornerDownRight aria-hidden="true" className="size-3.5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                New drawings go inside <strong>{labelOf(layers.drawInto)}</strong>.
+              </span>
+              <button
+                type="button"
+                className="shrink-0 underline"
+                onClick={() => onChange(setDrawInto(layers, null))}
+              >
+                Stop
+              </button>
+            </p>
+          )}
+        </div>
+      )}
       {drawings.length > 0 && (
         <div className="flex gap-1">
           <label className="relative min-w-0 flex-1">
@@ -619,6 +842,11 @@ export function LayersPanel({
           onVisible={(visible) => setDrawings(liveChecked, { visible })}
           onLocked={(locked) => setDrawings(liveChecked, { locked })}
           onMove={(layer) => onChange(assignDrawings(layers, liveChecked, layer))}
+          nestTargets={[...indexOf.keys()]
+            .filter((id) => !checked.has(id) && byId.has(id))
+            .map((id) => ({ id, label: labelOf(id) }))}
+          onNest={(parent) => onChange(nestDrawings(layers, liveChecked, parent))}
+          onUnnest={() => onChange(unnestDrawings(layers, liveChecked))}
           onStyle={(style) => setDrawings(liveChecked, { style })}
           onFront={() => actions.onFront(liveChecked)}
           onBack={() => actions.onBack(liveChecked)}
@@ -910,6 +1138,7 @@ function DragHandleRow({
 
 function DrawingRow({
   id,
+  index,
   name,
   color,
   selected,
@@ -919,6 +1148,13 @@ function DrawingRow({
   forcedHidden,
   forcedLocked,
   editing,
+  insideCount,
+  expanded,
+  drawInto,
+  focused,
+  dropAccepts,
+  onToggle,
+  onStopDrawInto,
   onCheck,
   onOpen,
   onRename,
@@ -926,8 +1162,11 @@ function DrawingRow({
   onVisible,
   onLocked,
   menu,
+  children,
 }: {
   id: string;
+  /** Outline number within its layer: 1, 1.2, 1.2.3. */
+  index: string;
   name: string;
   color?: string;
   selected: boolean;
@@ -937,6 +1176,16 @@ function DrawingRow({
   forcedHidden: boolean;
   forcedLocked: boolean;
   editing: boolean;
+  /** Drawings inside this one, at any depth. */
+  insideCount: number;
+  expanded: boolean;
+  /** New drawings go inside this one. */
+  drawInto: boolean;
+  focused: boolean;
+  /** A drawing being dragged can be dropped here to go inside this one. */
+  dropAccepts: boolean;
+  onToggle: () => void;
+  onStopDrawInto: () => void;
   onCheck: (range: boolean) => void;
   onOpen: () => void;
   onRename: (name: string | null) => void;
@@ -944,79 +1193,131 @@ function DrawingRow({
   onVisible: () => void;
   onLocked: () => void;
   menu: React.ReactNode;
+  children?: React.ReactNode;
 }) {
+  const hasInside = insideCount > 0;
   return (
-    <li>
-      <DragHandleRow
-        id={`drawing:${id}`}
-        className={cn(
-          "flex items-center gap-1 rounded px-1 text-xs",
-          selected ? "bg-primary/15" : checked ? "bg-accent/60" : "hover:bg-accent/40",
-          !visible && "opacity-60",
-        )}
-      >
-        <input
-          type="checkbox"
-          aria-label={`Check ${name}`}
-          checked={checked}
-          onChange={() => undefined}
-          onClick={(e) => onCheck(e.shiftKey)}
-          className="shrink-0"
-        />
-        <span
-          aria-hidden="true"
-          className="size-2.5 shrink-0 rounded-full border"
-          style={color ? { backgroundColor: color, borderColor: color } : undefined}
-        />
-        {editing ? (
-          <NameInput value={name} label="Drawing name" onDone={onRename} />
-        ) : (
-          <button
-            type="button"
-            className="min-w-0 flex-1 truncate py-1 text-left"
-            onClick={onOpen}
-            onDoubleClick={onStartRename}
-          >
-            {name}
-          </button>
-        )}
-        <IconToggle
-          small
-          label={forcedHidden ? "Hidden by its layer" : visible ? `Hide ${name}` : `Show ${name}`}
-          on={visible}
-          disabled={forcedHidden}
-          onIcon={Eye}
-          offIcon={EyeOff}
-          onClick={onVisible}
-        />
-        <IconToggle
-          small
-          label={forcedLocked ? "Locked by its layer" : locked ? `Unlock ${name}` : `Lock ${name}`}
-          on={!locked}
-          disabled={forcedLocked}
-          onIcon={LockOpen}
-          offIcon={Lock}
-          onClick={onLocked}
-        />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+    <li data-drawing-row={id}>
+      <DropTarget id={`into:${id}`} accepts={dropAccepts}>
+        <DragHandleRow
+          id={`drawing:${id}`}
+          className={cn(
+            "flex items-center gap-1 rounded px-1 text-xs",
+            selected ? "bg-primary/15" : checked ? "bg-accent/60" : "hover:bg-accent/40",
+            (drawInto || focused) && "ring-1 ring-primary/60",
+            !visible && "opacity-60",
+          )}
+        >
+          <input
+            type="checkbox"
+            aria-label={`Check ${name}`}
+            checked={checked}
+            onChange={() => undefined}
+            onClick={(e) => onCheck(e.shiftKey)}
+            className="shrink-0"
+          />
+          {hasInside ? (
             <button
               type="button"
-              aria-label={`${name} options`}
-              className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+              aria-label={expanded ? `Collapse ${name}` : `Expand ${name}`}
+              aria-expanded={expanded}
+              onClick={onToggle}
+              className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
             >
-              <MoreHorizontal className="size-3" />
+              {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
             </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-56"
-            onCloseAutoFocus={(e) => e.preventDefault()}
-          >
-            {menu}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </DragHandleRow>
+          ) : (
+            <span aria-hidden="true" className="size-5 shrink-0" />
+          )}
+          <span
+            aria-hidden="true"
+            className="size-2.5 shrink-0 rounded-full border"
+            style={color ? { backgroundColor: color, borderColor: color } : undefined}
+          />
+          <span className="tnum shrink-0 text-[10px] text-muted-foreground">{index}</span>
+          {editing ? (
+            <NameInput value={name} label="Drawing name" onDone={onRename} />
+          ) : (
+            <button
+              type="button"
+              className="min-w-0 flex-1 truncate py-1 text-left"
+              onClick={onOpen}
+              onDoubleClick={onStartRename}
+            >
+              {name}
+              {hasInside && !expanded && (
+                <span className="tnum ml-1 text-muted-foreground">+{insideCount}</span>
+              )}
+            </button>
+          )}
+          {focused && (
+            <HoverHint content="Focused: only this and what is inside show">
+              <Focus aria-label="Focused" className="size-3 shrink-0 text-primary" />
+            </HoverHint>
+          )}
+          {drawInto && (
+            <HoverHint content="New drawings go inside this. Click to stop.">
+              <button
+                type="button"
+                aria-label={`Stop drawing inside ${name}`}
+                onClick={onStopDrawInto}
+                className="flex size-6 shrink-0 items-center justify-center rounded text-primary hover:bg-accent"
+              >
+                <CornerDownRight className="size-3" />
+              </button>
+            </HoverHint>
+          )}
+          <IconToggle
+            small
+            label={
+              forcedHidden
+                ? "Hidden by its layer or the focus"
+                : visible
+                  ? `Hide ${name}${hasInside ? " and what is inside" : ""}`
+                  : `Show ${name}${hasInside ? " and what is inside" : ""}`
+            }
+            on={visible}
+            disabled={forcedHidden}
+            onIcon={Eye}
+            offIcon={EyeOff}
+            onClick={onVisible}
+          />
+          <IconToggle
+            small
+            label={
+              forcedLocked
+                ? "Locked by its layer"
+                : locked
+                  ? `Unlock ${name}${hasInside ? " and what is inside" : ""}`
+                  : `Lock ${name}${hasInside ? " and what is inside" : ""}`
+            }
+            on={!locked}
+            disabled={forcedLocked}
+            onIcon={LockOpen}
+            offIcon={Lock}
+            onClick={onLocked}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`${name} options`}
+                className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+              >
+                <MoreHorizontal className="size-3" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-64"
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
+              {menu}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </DragHandleRow>
+      </DropTarget>
+      {children}
     </li>
   );
 }
@@ -1030,6 +1331,9 @@ function BulkBar({
   onVisible,
   onLocked,
   onMove,
+  nestTargets,
+  onNest,
+  onUnnest,
   onStyle,
   onFront,
   onBack,
@@ -1044,6 +1348,10 @@ function BulkBar({
   onVisible: (visible: boolean) => void;
   onLocked: (locked: boolean) => void;
   onMove: (layer: string) => void;
+  /** Drawings the checked ones can go inside, labelled with their outline number. */
+  nestTargets: { id: string; label: string }[];
+  onNest: (parent: string) => void;
+  onUnnest: () => void;
   onStyle: (style: Record<string, unknown>) => void;
   onFront: () => void;
   onBack: () => void;
@@ -1079,6 +1387,7 @@ function BulkBar({
         <IconButton label="Bring to front" icon={ArrowUpToLine} onClick={onFront} />
         <IconButton label="Send to back" icon={ArrowDownToLine} onClick={onBack} />
         <IconButton label="Duplicate" icon={Copy} onClick={onDuplicate} />
+        <IconButton label="Take out one level" icon={IndentDecrease} onClick={onUnnest} />
         <IconButton label="Delete" icon={Trash2} onClick={onDelete} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -1095,6 +1404,21 @@ function BulkBar({
             </option>
           ))}
         </select>
+        {nestTargets.length > 0 && (
+          <select
+            aria-label="Put checked drawings inside another drawing"
+            value=""
+            onChange={(e) => e.target.value && onNest(e.target.value)}
+            className="h-7 max-w-40 rounded border bg-background px-1"
+          >
+            <option value="">Put inside…</option>
+            {nestTargets.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        )}
         <ColorRow onPick={(color) => onStyle({ lineColor: color })} />
       </div>
       <div className="flex flex-wrap items-center gap-1">

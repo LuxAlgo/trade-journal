@@ -1,7 +1,8 @@
 /**
- * Drawing layers for chart analyses: folders hold layers, layers hold drawings. Layers own
- * visibility and locking; a drawing hidden or locked by its layer is enforced on the chart.
- * Everything here is pure so the chart, the panel and the server agree on one model.
+ * Drawing layers for chart analyses: folders hold layers, layers hold drawings, and a drawing
+ * can hold other drawings (the sub-waves of a wave), to any depth. Layers own visibility and
+ * locking; a drawing hidden or locked by its layer is enforced on the chart. Everything here
+ * is pure so the chart, the panel and the server agree on one model.
  */
 
 export interface LayerFolder {
@@ -33,11 +34,23 @@ export interface LayersDocument {
   assignments: Record<string, string>;
   /** Vela drawing id → a name you gave it in the panel. */
   names?: Record<string, string>;
+  /**
+   * Vela drawing id → the drawing it sits inside (a sub-wave → its wave). A drawing and
+   * everything inside it share one layer.
+   */
+  parents?: Record<string, string>;
+  /** New drawings go inside this drawing (instead of at the top of the active layer). */
+  drawInto?: string;
+  /** Only this drawing and what is inside it show on the chart. */
+  focusId?: string;
+  /** Drawings outside the focus that were already hidden, kept hidden when focus ends. */
+  focusHidden?: string[];
 }
 
 export const MAX_FOLDERS = 50;
 export const MAX_LAYERS = 200;
 export const MAX_LAYER_NAME = 80;
+const MAX_DRAWING_REFS = 5000;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -113,6 +126,8 @@ export function layersProblem(value: unknown): string | null {
   for (const [drawing, layer] of entries)
     if (drawing.length > 100 || typeof layer !== "string" || !layerIds.has(layer))
       return "A drawing is assigned to a missing layer.";
+  const nesting = nestingProblem(doc);
+  if (nesting) return nesting;
   if (doc.names !== undefined) {
     if (!doc.names || typeof doc.names !== "object" || Array.isArray(doc.names))
       return "Drawing names are invalid.";
@@ -122,6 +137,41 @@ export function layersProblem(value: unknown): string | null {
       if (drawing.length > 100 || typeof name !== "string" || name.length > MAX_LAYER_NAME)
         return "A drawing name is invalid.";
   }
+  return null;
+}
+
+const isRef = (value: unknown) =>
+  typeof value === "string" && value.length > 0 && value.length <= 100;
+
+function nestingProblem(doc: Partial<LayersDocument>): string | null {
+  if (doc.parents !== undefined) {
+    if (!doc.parents || typeof doc.parents !== "object" || Array.isArray(doc.parents))
+      return "Drawing nesting is invalid.";
+    const entries = Object.entries(doc.parents);
+    if (entries.length > MAX_DRAWING_REFS) return "Too many nested drawings.";
+    for (const [child, parent] of entries)
+      if (!isRef(child) || !isRef(parent) || child === parent)
+        return "A nested drawing is invalid.";
+    // Walking up from any drawing must end: a drawing can never sit inside itself.
+    for (const [child] of entries) {
+      const seen = new Set([child]);
+      for (let at = doc.parents[child]; at; at = doc.parents[at]) {
+        if (seen.has(at)) return "Drawing nesting has a loop.";
+        seen.add(at);
+      }
+    }
+  }
+  for (const key of ["drawInto", "focusId"] as const)
+    if (doc[key] !== undefined && !isRef(doc[key])) return "A drawing reference is invalid.";
+  if (
+    doc.focusHidden !== undefined &&
+    !(
+      Array.isArray(doc.focusHidden) &&
+      doc.focusHidden.length <= MAX_DRAWING_REFS &&
+      doc.focusHidden.every(isRef)
+    )
+  )
+    return "Focus settings are invalid.";
   return null;
 }
 
@@ -157,8 +207,53 @@ export function syncAssignments(doc: LayersDocument, drawingIds: string[]): Laye
     names = Object.fromEntries(Object.entries(names).filter(([id]) => present.has(id)));
     changed = true;
   }
-  return changed ? { ...doc, assignments, ...(names ? { names } : {}) } : doc;
+  const next = changed ? { ...doc, assignments, ...(names ? { names } : {}) } : doc;
+  return syncNesting(next, present);
 }
+
+/**
+ * Nesting after drawings come and go: a deleted drawing's contents move up to the nearest
+ * drawing still there (or the top of the layer), and a link across layers is dropped.
+ */
+function syncNesting(doc: LayersDocument, present: Set<string>): LayersDocument {
+  let next = doc;
+  const parents = doc.parents;
+  if (parents) {
+    const kept: Record<string, string> = {};
+    let changed = false;
+    for (const [child, parent] of Object.entries(parents)) {
+      if (!present.has(child)) {
+        changed = true;
+        continue;
+      }
+      let at: string | undefined = parent;
+      const seen = new Set([child]);
+      while (at && !present.has(at) && !seen.has(at)) {
+        seen.add(at);
+        at = parents[at];
+      }
+      const valid = at && present.has(at) && doc.assignments[at] === doc.assignments[child];
+      if (valid) kept[child] = at!;
+      if (!valid || at !== parent) changed = true;
+    }
+    if (changed) next = withParents(next, kept);
+  }
+  for (const key of ["drawInto", "focusId"] as const)
+    if (next[key] && !present.has(next[key])) next = without(next, key);
+  if (!next.focusId && next.focusHidden) next = without(next, "focusHidden");
+  return next;
+}
+
+const without = (doc: LayersDocument, key: "drawInto" | "focusId" | "focusHidden") => {
+  const { [key]: _gone, ...rest } = doc;
+  return rest as LayersDocument;
+};
+
+const withParents = (doc: LayersDocument, parents: Record<string, string>): LayersDocument => {
+  if (Object.keys(parents).length) return { ...doc, parents };
+  const { parents: _gone, ...rest } = doc;
+  return rest;
+};
 
 export const layerOf = (doc: LayersDocument, drawingId: string) =>
   doc.layers.find((l) => l.id === (doc.assignments[drawingId] ?? doc.activeLayerId)) ??
@@ -176,6 +271,16 @@ export function effectiveLayer(doc: LayersDocument, layer: DrawingLayer) {
   };
 }
 
+/** What a drawing is forced to: its layer's state, and hidden when outside the focus. */
+export function effectiveDrawing(doc: LayersDocument, drawingId: string) {
+  const layer = effectiveLayer(doc, layerOf(doc, drawingId));
+  return { visible: layer.visible && inFocus(doc, drawingId), locked: layer.locked };
+}
+
+/** Whether a drawing shows under the current focus (always, with no focus). */
+export const inFocus = (doc: LayersDocument, drawingId: string) =>
+  !doc.focusId || drawingId === doc.focusId || ancestorsOf(doc, drawingId).includes(doc.focusId);
+
 /**
  * The visibility/lock each drawing must have. `previous` is the document before a change:
  * a drawing moving out of a hidden or locked state is restored; otherwise a drawing keeps
@@ -187,10 +292,16 @@ export function drawingStates(
   previous?: LayersDocument,
 ): { id: string; visible: boolean; locked: boolean }[] {
   const patches: { id: string; visible: boolean; locked: boolean }[] = [];
+  // Leaving or changing a focus brings back what it hid, except drawings you hid yourself.
+  const keepHidden = new Set(previous?.focusId ? (previous.focusHidden ?? []) : []);
   for (const drawing of drawings) {
-    const now = effectiveLayer(doc, layerOf(doc, drawing.id));
-    const before = previous ? effectiveLayer(previous, layerOf(previous, drawing.id)) : now;
-    const visible = !now.visible ? false : !before.visible ? true : drawing.visible;
+    const now = effectiveDrawing(doc, drawing.id);
+    const before = previous ? effectiveDrawing(previous, drawing.id) : now;
+    const visible = !now.visible
+      ? false
+      : !before.visible
+        ? !keepHidden.has(drawing.id)
+        : drawing.visible;
     const locked = now.locked ? true : before.locked ? false : drawing.locked;
     if (visible !== drawing.visible || locked !== drawing.locked)
       patches.push({ id: drawing.id, visible, locked });
@@ -394,11 +505,18 @@ export function placeFolder(doc: LayersDocument, id: string, beforeId: string): 
   return { ...doc, folders: [...rest.slice(0, index), folder, ...rest.slice(index)] };
 }
 
+/**
+ * Move drawings to a layer, each with everything inside it. A moved drawing lands at the top
+ * of that layer unless the drawing it sits inside moves with it.
+ */
 export function assignDrawings(doc: LayersDocument, drawingIds: string[], layer: string) {
   if (!doc.layers.some((l) => l.id === layer)) return doc;
+  const moving = new Set(drawingIds.flatMap((id) => [id, ...descendantsOf(doc, id)]));
   const assignments = { ...doc.assignments };
-  for (const id of drawingIds) assignments[id] = layer;
-  return { ...doc, assignments };
+  for (const id of moving) assignments[id] = layer;
+  const parents = { ...doc.parents };
+  for (const id of drawingIds) if (parents[id] && !moving.has(parents[id])) delete parents[id];
+  return withParents({ ...doc, assignments }, parents);
 }
 
 /** Name a drawing in the panel; an empty name goes back to its type. */
@@ -440,8 +558,9 @@ export function soloLayer(doc: LayersDocument, id: string): LayersDocument {
   };
 }
 
+/** Every layer and folder shown, and any focus ended. */
 export const showEverything = (doc: LayersDocument): LayersDocument => ({
-  ...doc,
+  ...without(without(doc, "focusId"), "focusHidden"),
   layers: doc.layers.map((l) => ({ ...l, visible: true })),
   folders: doc.folders.map((f) => ({ ...f, visible: true })),
 });
@@ -456,3 +575,190 @@ export const setAllFoldersCollapsed = (doc: LayersDocument, collapsed: boolean) 
   ...doc,
   folders: doc.folders.map((f) => ({ ...f, collapsed })),
 });
+
+// ── Drawings inside drawings: sub-waves inside a wave ──
+
+export const parentOf = (doc: LayersDocument, drawingId: string) =>
+  doc.parents?.[drawingId] ?? null;
+
+/** The drawings a drawing sits inside, nearest first. */
+export function ancestorsOf(doc: LayersDocument, drawingId: string): string[] {
+  const out: string[] = [];
+  const seen = new Set([drawingId]);
+  for (let at = doc.parents?.[drawingId]; at && !seen.has(at); at = doc.parents?.[at]) {
+    out.push(at);
+    seen.add(at);
+  }
+  return out;
+}
+
+/** Everything inside a drawing, at any depth, in nesting order. */
+export function descendantsOf(doc: LayersDocument, drawingId: string): string[] {
+  const children = new Map<string, string[]>();
+  for (const [child, parent] of Object.entries(doc.parents ?? {}))
+    children.set(parent, [...(children.get(parent) ?? []), child]);
+  const out: string[] = [];
+  const seen = new Set([drawingId]);
+  const walk = (id: string) => {
+    for (const child of children.get(id) ?? []) {
+      if (seen.has(child)) continue;
+      seen.add(child);
+      out.push(child);
+      walk(child);
+    }
+  };
+  walk(drawingId);
+  return out;
+}
+
+/**
+ * Put drawings inside another one, with what is inside them; they join its layer. A drawing
+ * can't go inside itself or inside something it contains, so those are left where they are.
+ */
+export function nestDrawings(
+  doc: LayersDocument,
+  drawingIds: string[],
+  parentId: string,
+): LayersDocument {
+  const blocked = new Set([parentId, ...ancestorsOf(doc, parentId)]);
+  const moving = drawingIds.filter((id) => !blocked.has(id));
+  if (!moving.length) return doc;
+  const layer = layerOf(doc, parentId).id;
+  const assignments = { ...doc.assignments };
+  const parents = { ...doc.parents };
+  for (const id of moving) {
+    parents[id] = parentId;
+    for (const inside of [id, ...descendantsOf(doc, id)]) assignments[inside] = layer;
+  }
+  return { ...doc, assignments, parents };
+}
+
+/** Take drawings one level out: into the drawing that held their parent, or the layer's top. */
+export function unnestDrawings(doc: LayersDocument, drawingIds: string[]): LayersDocument {
+  const parents = { ...doc.parents };
+  let changed = false;
+  for (const id of drawingIds) {
+    const parent = parents[id];
+    if (!parent) continue;
+    changed = true;
+    const up = parents[parent];
+    if (up) parents[id] = up;
+    else delete parents[id];
+  }
+  return changed ? withParents(doc, parents) : doc;
+}
+
+/** Keep copies nested like their sources (a copied wave keeps its copied sub-waves). */
+export function copyNesting(
+  doc: LayersDocument,
+  sources: string[],
+  copies: string[],
+): LayersDocument {
+  const copyOf = new Map(sources.map((source, i) => [source, copies[i]]));
+  const parents = { ...doc.parents };
+  sources.forEach((source, i) => {
+    const copy = copies[i];
+    const parent = doc.parents?.[source];
+    if (!copy || !parent) return;
+    const target = copyOf.get(parent) ?? parent;
+    if (doc.assignments[target] === doc.assignments[copy]) parents[copy] = target;
+  });
+  return withParents(doc, parents);
+}
+
+/** New drawings go inside this drawing, or back to the active layer's top with null. */
+export const setDrawInto = (doc: LayersDocument, drawingId: string | null): LayersDocument =>
+  drawingId ? { ...doc, drawInto: drawingId } : without(doc, "drawInto");
+
+/**
+ * Show only a drawing and what is inside it, or everything again with null. `drawings` are
+ * the chart's, to remember which ones outside the focus you had hidden yourself.
+ */
+export function setFocus(
+  doc: LayersDocument,
+  drawingId: string | null,
+  drawings: { id: string; visible: boolean }[],
+): LayersDocument {
+  if (!drawingId) return without(without(doc, "focusId"), "focusHidden");
+  const inside = new Set([drawingId, ...descendantsOf(doc, drawingId)]);
+  // Hidden by an earlier focus counts as shown: that focus is what hid it.
+  const earlier = doc.focusId ? new Set(doc.focusHidden ?? []) : null;
+  const hidden = drawings
+    .filter((d) => !inside.has(d.id))
+    .filter((d) => (earlier && !inFocus(doc, d.id) ? earlier.has(d.id) : !d.visible))
+    .map((d) => d.id);
+  return { ...doc, focusId: drawingId, focusHidden: hidden };
+}
+
+/** Where a new drawing goes: inside the draw-into drawing or the focus, else the active layer. */
+export function placeNewDrawing(doc: LayersDocument, drawingId: string): LayersDocument {
+  const known = (id: string | undefined) => (id && doc.assignments[id] ? id : undefined);
+  let target = known(doc.drawInto);
+  const focus = known(doc.focusId);
+  // While focused, new drawings stay inside the focus, or they would vanish as they are made.
+  if (focus && (!target || !(target === focus || ancestorsOf(doc, target).includes(focus))))
+    target = focus;
+  if (!target) {
+    const active = doc.layers.find((l) => l.id === doc.activeLayerId)!;
+    const effective = effectiveLayer(doc, active);
+    // Never file a new drawing where it would vanish or freeze.
+    const ready = effective.visible && !effective.locked ? doc : setActiveLayer(doc, active.id);
+    return assignDrawing(ready, drawingId, ready.activeLayerId);
+  }
+  const layer = layerOf(doc, target);
+  const effective = effectiveLayer(doc, layer);
+  const ready = effective.visible && !effective.locked ? doc : revealLayer(doc, layer.id);
+  return {
+    ...ready,
+    assignments: { ...ready.assignments, [drawingId]: layer.id },
+    parents: { ...ready.parents, [drawingId]: target },
+  };
+}
+
+/** Show and unlock a layer and its folder, leaving the active layer as it is. */
+function revealLayer(doc: LayersDocument, id: string): LayersDocument {
+  const layer = doc.layers.find((l) => l.id === id);
+  if (!layer) return doc;
+  return {
+    ...doc,
+    layers: doc.layers.map((l) => (l.id === id ? { ...l, visible: true, locked: false } : l)),
+    folders: doc.folders.map((f) =>
+      f.id === layer.folderId ? { ...f, visible: true, locked: false } : f,
+    ),
+  };
+}
+
+/** A drawing in the panel's tree: its outline number (1, 1.2, 1.2.3) and what is inside it. */
+export interface DrawingNode {
+  id: string;
+  index: string;
+  depth: number;
+  children: DrawingNode[];
+}
+
+/** A layer's drawings as a tree, siblings in chart order. */
+export function drawingTree(
+  doc: LayersDocument,
+  layerId: string,
+  drawingIds: string[],
+): DrawingNode[] {
+  const inLayer = drawingsIn(doc, layerId, drawingIds);
+  const here = new Set(inLayer);
+  const children = new Map<string, string[]>();
+  const roots: string[] = [];
+  for (const id of inLayer) {
+    const parent = doc.parents?.[id];
+    if (parent && here.has(parent) && !ancestorsOf(doc, parent).includes(id))
+      children.set(parent, [...(children.get(parent) ?? []), id]);
+    else roots.push(id);
+  }
+  const seen = new Set<string>();
+  const build = (ids: string[], prefix: string, depth: number): DrawingNode[] =>
+    ids
+      .filter((id) => !seen.has(id) && (seen.add(id), true))
+      .map((id, i) => {
+        const index = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
+        return { id, index, depth, children: build(children.get(id) ?? [], index, depth + 1) };
+      });
+  return build(roots, "", 0);
+}

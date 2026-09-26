@@ -83,12 +83,11 @@ import {
   type DrawingsDocument,
 } from "@/lib/chart-analysis";
 import {
-  assignDrawing,
   defaultLayers,
   drawingName,
   effectiveLayer,
   layerOf,
-  setActiveLayer,
+  placeNewDrawing,
   syncAssignments,
   type LayersDocument,
 } from "@/lib/chart-layers";
@@ -1268,14 +1267,9 @@ const ChartBoard = memo(function ChartBoard({
   };
 
   // ── Chart callbacks ──
+  // Into the active layer, or inside the drawing you chose to draw into (or the focus).
   const onDrawingCreated = useCallback((id: string) => {
-    setLayers((doc) => {
-      const active = doc.layers.find((l) => l.id === doc.activeLayerId)!;
-      const effective = effectiveLayer(doc, active);
-      // Never file a new drawing where it would vanish or freeze.
-      const ready = effective.visible && !effective.locked ? doc : setActiveLayer(doc, active.id);
-      return assignDrawing(ready, id, ready.activeLayerId);
-    });
+    setLayers((doc) => placeNewDrawing(doc, id));
   }, []);
   const onDrawingsChange = useCallback((next: ChartDrawing[]) => {
     setDrawings(next);

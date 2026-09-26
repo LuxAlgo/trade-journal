@@ -161,6 +161,31 @@ toolbar shows or hides it, remembered per browser.
   closes them all.
 - Double-click a layer or folder name to rename it. Deleting a folder keeps its layers.
 
+### Drawings inside drawings
+
+A drawing can hold other drawings, to any depth: an Elliott wave holds the sub-waves of each
+of its moves, and each sub-wave can hold its own. The panel shows them as a tree numbered like
+an outline (1, 1.2, 1.2.3), so you can find a wave again and see what belongs to it. A drawing
+and everything inside it always share one layer.
+
+- **Putting drawings inside one**: choose **Draw inside this** in its menu, and every drawing
+  you make next goes inside it (a banner and an arrow on its row say so; **Stop** ends it).
+  You can also drag a drawing onto another drawing's row, use **Put inside the one above**, or
+  check drawings and pick **Put inside…**. **Take out of…** (or the bulk "take out one level")
+  moves a drawing one level up.
+- **Going to a wave**: clicking its name scrolls and zooms the chart to it and everything
+  inside it, and selects it. Selecting a drawing on the chart opens its place in the tree.
+- **Focus on this** shows only that drawing and what is inside it; new drawings go inside it
+  while focused, so they never vanish. **Show everything** (or "show every layer") ends the
+  focus, and drawings you had hidden yourself stay hidden. Focus only changes what the chart
+  shows: alerts keep watching the other lines.
+- The eye and lock on a drawing that holds others apply to all of it. **Hide what is inside**
+  hides only its sub-drawings and keeps the drawing itself.
+- The arrow beside a drawing folds what is inside it; a folded drawing shows how many it holds.
+- **Duplicate with what is inside** copies the whole tree, nested the same way. **Delete**
+  keeps what was inside (it moves one level up); **Delete with what is inside** removes it all.
+  Moving a drawing to another layer takes what is inside it along.
+
 ## Appearance and defaults
 
 **Appearance** on the chart toolbar opens the chart's settings, saved on the journal server
@@ -377,7 +402,8 @@ Chart preferences are one validated JSON document in the settings table
 
 `chart_analyses` keeps the source (provider, symbol, dataset), the candle size, the loaded
 and visible ranges, the Vela drawings document, the layers document (`layers_json`, with
-optional layer colours and drawing names), the
+optional layer colours, drawing names, which drawing each sits inside, the draw-into drawing
+and the focus), the
 indicators (`indicators_json`), support/resistance zones (`zones_json`), notes, the optional
 journal day and a PNG snapshot. Trades and missed trades are read live from the journal, not
 copied into the analysis. `economic_events` holds the stored calendar.
