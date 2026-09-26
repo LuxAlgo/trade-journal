@@ -10,6 +10,7 @@ import {
   type EventImpact,
 } from "@/lib/economic-calendar";
 import { cn } from "@/lib/utils";
+import { Section } from "./section-card";
 import { Button } from "./ui/button";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD", "CNY"];
@@ -59,81 +60,89 @@ export function OverlaysPanel({
   };
   return (
     <div className="space-y-3 text-sm">
-      <fieldset className="space-y-1.5">
-        <legend className="sr-only">Journal records</legend>
-        <Toggle
-          label={`My trades (${open} open, ${closed} closed)`}
-          checked={options.trades}
-          onChange={(trades) => set({ trades })}
-        />
-        <Toggle
-          label="Closed trades"
-          hint="Off: only open positions"
-          checked={options.closedTrades}
-          disabled={!options.trades}
-          indent
-          onChange={(closedTrades) => set({ closedTrades })}
-        />
-        <Toggle
-          label={`Missed trades (${data?.missed.length ?? 0})`}
-          hint="Violet diamonds"
-          checked={options.missed}
-          onChange={(missed) => set({ missed })}
-        />
-        <Toggle
-          label="Support/resistance zones"
-          checked={options.zones}
-          onChange={(zones) => set({ zones })}
-        />
-        <Toggle
-          label="Market sessions"
-          hint="Opens and closes, up to 1h candles"
-          checked={options.sessions}
-          onChange={(sessions) => set({ sessions })}
-        />
-      </fieldset>
-
-      <div className="space-y-1">
-        <label htmlFor="overlay-symbols" className="text-xs text-muted-foreground">
-          Also show journal symbols
-        </label>
-        <input
-          id="overlay-symbols"
-          value={extraSymbols}
-          placeholder="e.g. MES, ES"
-          onChange={(e) => onExtraSymbols(e.target.value)}
-          className="h-8 w-full rounded-md border bg-background px-2 text-sm"
-        />
-        <p className="text-[11px] text-muted-foreground">
-          {data?.symbols.length
-            ? `Matching ${data.symbols.join(", ")}.`
-            : "No journal trades match this symbol yet."}{" "}
-          Click a marker to open its trade.
-        </p>
-      </div>
-
-      <div className="space-y-2 border-t pt-3">
-        <div className="flex items-center justify-between gap-2">
+      <Section id="chart-overlays-journal" title="Journal records">
+        <fieldset className="space-y-1.5">
+          <legend className="sr-only">Journal records</legend>
           <Toggle
-            label="Economic calendar"
-            checked={options.economic}
-            disabled={!calendar?.enabled}
-            onChange={(economic) => set({ economic })}
+            label={`My trades (${open} open, ${closed} closed)`}
+            checked={options.trades}
+            onChange={(trades) => set({ trades })}
           />
-          {calendar?.enabled && (
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="size-7"
-              aria-label="Refresh the calendar"
-              disabled={busy}
-              onClick={() => void act("refresh")}
-            >
-              <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
-            </Button>
-          )}
+          <Toggle
+            label="Closed trades"
+            hint="Off: only open positions"
+            checked={options.closedTrades}
+            disabled={!options.trades}
+            indent
+            onChange={(closedTrades) => set({ closedTrades })}
+          />
+          <Toggle
+            label={`Missed trades (${data?.missed.length ?? 0})`}
+            hint="Violet diamonds"
+            checked={options.missed}
+            onChange={(missed) => set({ missed })}
+          />
+          <Toggle
+            label="Support/resistance zones"
+            checked={options.zones}
+            onChange={(zones) => set({ zones })}
+          />
+          <Toggle
+            label="Market sessions"
+            hint="Opens and closes, up to 1h candles"
+            checked={options.sessions}
+            onChange={(sessions) => set({ sessions })}
+          />
+        </fieldset>
+
+        <div className="space-y-1">
+          <label htmlFor="overlay-symbols" className="text-xs text-muted-foreground">
+            Also show journal symbols
+          </label>
+          <input
+            id="overlay-symbols"
+            value={extraSymbols}
+            placeholder="e.g. MES, ES"
+            onChange={(e) => onExtraSymbols(e.target.value)}
+            className="h-8 w-full rounded-md border bg-background px-2 text-sm"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {data?.symbols.length
+              ? `Matching ${data.symbols.join(", ")}.`
+              : "No journal trades match this symbol yet."}{" "}
+            Click a marker to open its trade.
+          </p>
         </div>
+      </Section>
+
+      <Section
+        id="chart-overlays-calendar"
+        className="border-t pt-3"
+        title="Economic calendar"
+        actions={
+          <div className="flex shrink-0 items-center gap-1">
+            <Toggle
+              label="Show"
+              checked={options.economic}
+              disabled={!calendar?.enabled}
+              onChange={(economic) => set({ economic })}
+            />
+            {calendar?.enabled && (
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-7"
+                aria-label="Refresh the calendar"
+                disabled={busy}
+                onClick={() => void act("refresh")}
+              >
+                <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
+              </Button>
+            )}
+          </div>
+        }
+      >
         {!calendar?.enabled ? (
           <div className="space-y-1.5">
             <p className="text-xs text-muted-foreground">
@@ -237,7 +246,7 @@ export function OverlaysPanel({
             </div>
           </>
         )}
-      </div>
+      </Section>
     </div>
   );
 }

@@ -27,6 +27,12 @@ click.
 From a journal day, **Chart analysis** opens Charts with that day chosen for **Add**. Every
 note editor has a **Chart** menu that inserts a saved analysis at the cursor.
 
+Every card in the sidebar (Analysis, On the chart, Support and resistance, Indicators, Alerts,
+All analyses) folds to its title bar with the arrow beside its title, showing a short summary
+while folded (the zone count, how many indicators run, and so on); its buttons, like the
+Alerts switch, keep working. Inside **On the chart**, the journal records and the economic
+calendar fold too. Folded sections are remembered per browser.
+
 ## Live updates
 
 **Binance and Coinbase update in real time.** The journal server opens the exchange's public
@@ -287,9 +293,20 @@ context, and cost more tokens than text.
 Indicators are Pine Script (v5/v6), run by [PineTS](https://github.com/LuxAlgo/PineTS) through
 Vela's Pine add-on in a Web Worker, so heavy scripts never block drawing.
 
-- **Add indicator** lists the built-ins by category: SMA, EMA, EMA ribbon, VWAP, Bollinger
-  Bands, Donchian channel, Supertrend, ATR, RSI, MACD, Stochastic, ADX/DMI, OBV, and two signal
-  scripts (EMA cross, RSI extremes) that mark the chart and raise alerts.
+- **Add indicator** lists the built-ins by category:
+  - Trend: SMA, EMA, EMA ribbon, WMA, Hull MA, VWMA, ALMA, SMA 50/200, Supertrend, Parabolic
+    SAR, Ichimoku cloud, linear regression channel, ADX/DMI, Aroon.
+  - Volatility: Bollinger Bands, Bollinger bandwidth, Donchian channel, Keltner channel, ATR,
+    standard deviation, historical volatility, Chandelier exit.
+  - Momentum: RSI, Stochastic, Stochastic RSI, MACD, CCI, Williams %R, momentum, rate of
+    change, TSI, Chande momentum oscillator, Awesome oscillator.
+  - Volume: VWAP, volume with its average, OBV, money flow index, Chaikin money flow,
+    accumulation/distribution, price-volume trend.
+  - Signals, which mark the chart and raise alerts: EMA cross, RSI extremes, golden/death
+    cross, MACD cross, Bollinger breakouts, Supertrend flips, swing highs and lows.
+- The engine has no plot offset, so Ichimoku draws its cloud as it stands under each candle
+  (no cloud projected ahead, no lagging span), and swing highs and lows are marked on the
+  candle that confirms them.
 - **New** opens the editor under the chart with a starter script. **Run on chart** applies the
   code; if it fails, the error shows (with its line when the engine reports one) and the
   previous version stays on the chart. **Save to My indicators** keeps it for every chart.

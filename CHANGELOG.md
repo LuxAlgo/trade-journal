@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Chart sidebar cards (and the journal records and economic calendar blocks) fold to their title bar, with a short summary, remembered per browser
+- 32 more built-in indicators: WMA, Hull, VWMA, ALMA, SMA 50/200, Parabolic SAR, Ichimoku, linear regression, Aroon, Keltner, Bollinger bandwidth, standard deviation, historical volatility, Chandelier exit, Stochastic RSI, CCI, Williams %R, momentum, ROC, TSI, CMO, Awesome oscillator, volume with average, MFI, Chaikin money flow, accumulation/distribution, PVT, and signal scripts for golden/death crosses, MACD crosses, Bollinger breakouts, Supertrend flips and swing points
 - Chart multiview (optional): two to four full charts at once, each with its own symbol, candle size and analysis (drawings, layers, indicators, zones, alerts, autosave, day versions), with synced crosshair and time window. The page controls follow the chart you click.
 - Installable web app: install the journal from the browser (desktop, Android, iPhone) with its own window and icon
 - Background alerts: the server keeps watching an analysis's lines and zones with no page open and sends Web Push notifications to your browsers or installed app, or to a webhook such as ntfy

@@ -54,7 +54,8 @@ import {
 } from "@/lib/chart-indicators";
 import { NEW_INDICATOR_TEMPLATE } from "@/lib/indicator-library";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { SectionCard } from "@/components/section-card";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
   DropdownMenu,
@@ -1617,6 +1618,16 @@ const ChartBoard = memo(function ChartBoard({
   const symbolPrefs = board
     ? prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]
     : undefined;
+  /** What "On the chart" shows, for its folded title bar. */
+  const overlaySummary = [
+    overlayOptions.trades && "trades",
+    overlayOptions.missed && "missed",
+    overlayOptions.zones && "zones",
+    overlayOptions.sessions && "sessions",
+    overlayOptions.economic && calendar?.enabled && "calendar",
+  ]
+    .filter(Boolean)
+    .join(", ");
   const topCard = (
     <Card>
       <CardContent className="space-y-3 pt-4">
@@ -2063,263 +2074,269 @@ const ChartBoard = memo(function ChartBoard({
         slots &&
         createPortal(
           <>
-            <Card>
-              <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
-                <CardTitle>Analysis</CardTitle>
-                <SaveIndicator state={saveState} onRetry={() => void flush()} />
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {board && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-between"
-                      >
-                        <span className="truncate">
-                          {analysisId
-                            ? analysisLabel({ title, symbol: board.symbol, resolution })
-                            : `New ${board.symbol} analysis`}
-                        </span>
-                        <ChevronDown className="size-3.5 text-muted-foreground" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-72">
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          void openBoard({
-                            provider: board.provider,
-                            dataset: board.dataset,
-                            symbol: board.symbol,
-                            fresh: true,
-                          })
-                        }
-                      >
-                        <Plus className="size-3.5" /> New {board.symbol} analysis
-                      </DropdownMenuItem>
-                      {symbolAnalyses?.analyses.map((item) => (
-                        <DropdownMenuItem
-                          key={item.id}
-                          disabled={item.id === analysisId}
-                          onSelect={() => void openBoard({ analysisId: item.id })}
-                        >
-                          <span className="min-w-0 flex-1 truncate">{analysisLabel(item)}</span>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">
-                            {item.drawingCount} · {item.updatedAt.slice(0, 10)}
-                          </span>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-                <div className="space-y-1">
-                  <Label htmlFor="analysis-title">Title</Label>
-                  <Input
-                    id="analysis-title"
-                    value={title}
-                    maxLength={200}
-                    disabled={!board}
-                    placeholder={board ? `${board.symbol} · ${resolution}` : "Opening range levels"}
-                    onChange={(event) => {
-                      setTitle(event.target.value);
-                      state.current.title = event.target.value;
-                      schedule();
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="analysis-notes">Notes</Label>
-                  <Textarea
-                    id="analysis-notes"
-                    value={notes}
-                    rows={3}
-                    disabled={!board}
-                    placeholder="Thesis, levels to watch, invalidation…"
-                    onChange={(event) => {
-                      setNotes(event.target.value);
-                      state.current.notes = event.target.value;
-                      schedule();
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Add to journal</Label>
-                  <div className="flex gap-2">
-                    <div className="min-w-0 flex-1">
-                      <DatePicker
-                        label="Journal day"
-                        value={journalDay || today}
-                        onValueChange={setJournalDay}
-                      />
-                    </div>
+            <SectionCard
+              id="chart-analysis"
+              title="Analysis"
+              summary={
+                board
+                  ? analysisId
+                    ? analysisLabel({ title, symbol: board.symbol, resolution })
+                    : `New ${board.symbol} analysis`
+                  : undefined
+              }
+              actions={<SaveIndicator state={saveState} onRetry={() => void flush()} />}
+              contentClassName="space-y-3"
+            >
+              {board && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={!board || Boolean(viewing)}
-                      onClick={() => void addToJournal()}
+                      size="sm"
+                      className="w-full justify-between"
                     >
-                      <BookOpenText /> Add
+                      <span className="truncate">
+                        {analysisId
+                          ? analysisLabel({ title, symbol: board.symbol, resolution })
+                          : `New ${board.symbol} analysis`}
+                      </span>
+                      <ChevronDown className="size-3.5 text-muted-foreground" />
                     </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-72">
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        void openBoard({
+                          provider: board.provider,
+                          dataset: board.dataset,
+                          symbol: board.symbol,
+                          fresh: true,
+                        })
+                      }
+                    >
+                      <Plus className="size-3.5" /> New {board.symbol} analysis
+                    </DropdownMenuItem>
+                    {symbolAnalyses?.analyses.map((item) => (
+                      <DropdownMenuItem
+                        key={item.id}
+                        disabled={item.id === analysisId}
+                        onSelect={() => void openBoard({ analysisId: item.id })}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{analysisLabel(item)}</span>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                          {item.drawingCount} · {item.updatedAt.slice(0, 10)}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              <div className="space-y-1">
+                <Label htmlFor="analysis-title">Title</Label>
+                <Input
+                  id="analysis-title"
+                  value={title}
+                  maxLength={200}
+                  disabled={!board}
+                  placeholder={board ? `${board.symbol} · ${resolution}` : "Opening range levels"}
+                  onChange={(event) => {
+                    setTitle(event.target.value);
+                    state.current.title = event.target.value;
+                    schedule();
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="analysis-notes">Notes</Label>
+                <Textarea
+                  id="analysis-notes"
+                  value={notes}
+                  rows={3}
+                  disabled={!board}
+                  placeholder="Thesis, levels to watch, invalidation…"
+                  onChange={(event) => {
+                    setNotes(event.target.value);
+                    state.current.notes = event.target.value;
+                    schedule();
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Add to journal</Label>
+                <div className="flex gap-2">
+                  <div className="min-w-0 flex-1">
+                    <DatePicker
+                      label="Journal day"
+                      value={journalDay || today}
+                      onValueChange={setJournalDay}
+                    />
                   </div>
-                  {journalStatus && "day" in journalStatus && (
-                    <p role="status" className="text-xs text-muted-foreground">
-                      Added to the {journalStatus.day} journal.{" "}
-                      <Link className="underline" href={`/journal/${journalStatus.day}`}>
-                        Open journal day
-                      </Link>
-                    </p>
-                  )}
-                  {journalStatus && "error" in journalStatus && (
-                    <p role="alert" className="text-xs text-destructive">
-                      {journalStatus.error}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Each day you work on this analysis keeps its own version in that day&apos;s
-                    journal, frozen when the day ends. <strong>Add</strong> saves the analysis as it
-                    is now as that day&apos;s version and puts it in the day note.
-                  </p>
-                </div>
-                {analysisId && (snapshotDays?.snapshots.length ?? 0) > 0 && (
-                  <div className="space-y-1">
-                    <Label>Versions by day</Label>
-                    <ul className="max-h-40 space-y-0.5 overflow-y-auto text-xs">
-                      {snapshotDays!.snapshots.map((snap) => (
-                        <li key={snap.day} className="flex items-center justify-between gap-2">
-                          <Link
-                            href={snapshotViewPath(snap.analysisId, snap.day)}
-                            className={cn(
-                              "underline-offset-2 hover:underline",
-                              viewing === snap.day && "font-semibold",
-                            )}
-                            aria-current={viewing === snap.day ? "page" : undefined}
-                          >
-                            {snap.day === today ? `${snap.day} (today, updating)` : snap.day}
-                          </Link>
-                          <span className="flex items-center gap-2 text-muted-foreground">
-                            {snap.drawingCount} drawing{snap.drawingCount === 1 ? "" : "s"}
-                            <Link href={`/journal/${snap.day}`} className="underline">
-                              Journal
-                            </Link>
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {analysisId && symbolAnalyses && (
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => {
-                      const current = symbolAnalyses.analyses.find((a) => a.id === analysisId);
-                      if (current) void deleteAnalysis(current);
-                    }}
+                    variant="outline"
+                    disabled={!board || Boolean(viewing)}
+                    onClick={() => void addToJournal()}
                   >
-                    <Trash2 /> Delete this analysis
+                    <BookOpenText /> Add
                   </Button>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>On the chart</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {board ? (
-                  <OverlaysPanel
-                    options={overlayOptions}
-                    onChange={changeOverlays}
-                    data={overlayData}
-                    extraSymbols={extraSymbols}
-                    onExtraSymbols={changeExtraSymbols}
-                    calendar={calendar}
-                    onCalendar={calendarAction}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Open a chart to see your trades on it.
+                </div>
+                {journalStatus && "day" in journalStatus && (
+                  <p role="status" className="text-xs text-muted-foreground">
+                    Added to the {journalStatus.day} journal.{" "}
+                    <Link className="underline" href={`/journal/${journalStatus.day}`}>
+                      Open journal day
+                    </Link>
                   </p>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Support and resistance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ZonesPanel
-                  zones={zones}
-                  stats={zoneStats}
-                  capturing={placing === "zone"}
-                  pending={zoneEdge !== null}
-                  disabled={!board}
-                  onAdd={() => {
-                    setZoneEdge(null);
-                    setPlacing("zone");
+                {journalStatus && "error" in journalStatus && (
+                  <p role="alert" className="text-xs text-destructive">
+                    {journalStatus.error}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Each day you work on this analysis keeps its own version in that day&apos;s
+                  journal, frozen when the day ends. <strong>Add</strong> saves the analysis as it
+                  is now as that day&apos;s version and puts it in the day note.
+                </p>
+              </div>
+              {analysisId && (snapshotDays?.snapshots.length ?? 0) > 0 && (
+                <div className="space-y-1">
+                  <Label>Versions by day</Label>
+                  <ul className="max-h-40 space-y-0.5 overflow-y-auto text-xs">
+                    {snapshotDays!.snapshots.map((snap) => (
+                      <li key={snap.day} className="flex items-center justify-between gap-2">
+                        <Link
+                          href={snapshotViewPath(snap.analysisId, snap.day)}
+                          className={cn(
+                            "underline-offset-2 hover:underline",
+                            viewing === snap.day && "font-semibold",
+                          )}
+                          aria-current={viewing === snap.day ? "page" : undefined}
+                        >
+                          {snap.day === today ? `${snap.day} (today, updating)` : snap.day}
+                        </Link>
+                        <span className="flex items-center gap-2 text-muted-foreground">
+                          {snap.drawingCount} drawing{snap.drawingCount === 1 ? "" : "s"}
+                          <Link href={`/journal/${snap.day}`} className="underline">
+                            Journal
+                          </Link>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {analysisId && symbolAnalyses && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive"
+                  onClick={() => {
+                    const current = symbolAnalyses.analyses.find((a) => a.id === analysisId);
+                    if (current) void deleteAnalysis(current);
                   }}
-                  onCancel={cancelCapture}
-                  onChange={changeZones}
-                  onReveal={(zone) => chart.current?.showTime(zone.start)}
-                />
-              </CardContent>
-            </Card>
+                >
+                  <Trash2 /> Delete this analysis
+                </Button>
+              )}
+            </SectionCard>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Indicators</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <IndicatorsPanel
-                  indicators={indicators}
-                  scripts={scripts}
-                  disabled={!board}
-                  onAdd={(ref, source) => void addIndicator(ref, source)}
-                  onNew={() =>
-                    openEditor({
-                      name: "",
-                      source: NEW_INDICATOR_TEMPLATE,
-                      scriptId: null,
-                      chartIndicatorId: null,
-                    })
-                  }
-                  onEditIndicator={(indicator) =>
-                    openEditor({
-                      name: indicator.title,
-                      source: indicator.source,
-                      scriptId: indicator.ref.kind === "script" ? indicator.ref.id : null,
-                      chartIndicatorId: indicator.id,
-                    })
-                  }
-                  onEditScript={(script) =>
-                    openEditor({
-                      name: script.name,
-                      source: script.source,
-                      scriptId: script.id,
-                      chartIndicatorId: null,
-                    })
-                  }
-                  onToggle={(id, visible) => bridge()?.setVisible(id, visible)}
-                  onSettings={(id) => bridge()?.openSettings(id)}
-                  onRemove={(id) => bridge()?.remove(id)}
+            <SectionCard
+              id="chart-overlays"
+              title="On the chart"
+              summary={board ? `${overlaySummary || "nothing"} shown` : undefined}
+            >
+              {board ? (
+                <OverlaysPanel
+                  options={overlayOptions}
+                  onChange={changeOverlays}
+                  data={overlayData}
+                  extraSymbols={extraSymbols}
+                  onExtraSymbols={changeExtraSymbols}
+                  calendar={calendar}
+                  onCalendar={calendarAction}
                 />
-                {indicatorError && (
-                  <p role="alert" className="whitespace-pre-wrap text-xs text-destructive">
-                    {indicatorError}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Open a chart to see your trades on it.
+                </p>
+              )}
+            </SectionCard>
 
-            <Card>
-              <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
-                <CardTitle>Alerts</CardTitle>
+            <SectionCard
+              id="chart-zones"
+              title="Support and resistance"
+              summary={`${zones.length} zone${zones.length === 1 ? "" : "s"}`}
+            >
+              <ZonesPanel
+                zones={zones}
+                stats={zoneStats}
+                capturing={placing === "zone"}
+                pending={zoneEdge !== null}
+                disabled={!board}
+                onAdd={() => {
+                  setZoneEdge(null);
+                  setPlacing("zone");
+                }}
+                onCancel={cancelCapture}
+                onChange={changeZones}
+                onReveal={(zone) => chart.current?.showTime(zone.start)}
+              />
+            </SectionCard>
+
+            <SectionCard
+              id="chart-indicators"
+              title="Indicators"
+              summary={`${indicators.length} on the chart`}
+              contentClassName="space-y-2"
+            >
+              <IndicatorsPanel
+                indicators={indicators}
+                scripts={scripts}
+                disabled={!board}
+                onAdd={(ref, source) => void addIndicator(ref, source)}
+                onNew={() =>
+                  openEditor({
+                    name: "",
+                    source: NEW_INDICATOR_TEMPLATE,
+                    scriptId: null,
+                    chartIndicatorId: null,
+                  })
+                }
+                onEditIndicator={(indicator) =>
+                  openEditor({
+                    name: indicator.title,
+                    source: indicator.source,
+                    scriptId: indicator.ref.kind === "script" ? indicator.ref.id : null,
+                    chartIndicatorId: indicator.id,
+                  })
+                }
+                onEditScript={(script) =>
+                  openEditor({
+                    name: script.name,
+                    source: script.source,
+                    scriptId: script.id,
+                    chartIndicatorId: null,
+                  })
+                }
+                onToggle={(id, visible) => bridge()?.setVisible(id, visible)}
+                onSettings={(id) => bridge()?.openSettings(id)}
+                onRemove={(id) => bridge()?.remove(id)}
+              />
+              {indicatorError && (
+                <p role="alert" className="whitespace-pre-wrap text-xs text-destructive">
+                  {indicatorError}
+                </p>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              id="chart-alerts"
+              title="Alerts"
+              summary={alertsOn ? `${alerts.length} recent` : "Off"}
+              actions={
                 <Button
                   type="button"
                   size="sm"
@@ -2330,122 +2347,122 @@ const ChartBoard = memo(function ChartBoard({
                   {alertsOn ? <Bell /> : <BellOff />}
                   {alertsOn ? "On" : "Off"}
                 </Button>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  While this page is open and live, get an alert when the price crosses a visible
-                  horizontal line, ray or trend line, enters or breaks a support/resistance zone, or
-                  when an indicator calls <code>alert()</code>.
-                </p>
-                {alerts.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No alerts yet.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {alerts.map((alert) => (
-                      <li key={alert.key} className="flex items-start gap-2 text-xs">
-                        {alert.drawingId ? (
-                          <button
-                            type="button"
-                            aria-label="Show the line on the chart"
-                            className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
-                            onClick={() => chart.current?.reveal([alert.drawingId!])}
-                          >
-                            <Crosshair className="size-3.5" />
-                          </button>
-                        ) : (
-                          <Bell
-                            aria-hidden="true"
-                            className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
-                          />
-                        )}
-                        <span className="min-w-0 flex-1">
-                          {alert.direction && (
-                            <span className="font-medium">
-                              {alert.direction === "up" ? "▲ Above " : "▼ Below "}
-                            </span>
-                          )}
-                          {alert.label}
-                          <span className="block text-muted-foreground">
-                            {new Date(alert.at).toLocaleTimeString()}
-                          </span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <BackgroundAlerts
-                  analysisId={analysisId}
-                  disabledReason={
-                    viewing ? "A day's version is read-only; open the live analysis." : undefined
-                  }
-                  ensureAnalysis={() => flush({ create: true })}
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>All analyses</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {allAnalyses?.analyses.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    Nothing saved yet. Draw on a chart and it saves itself.
-                  </p>
-                )}
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 2xl:grid-cols-2">
-                  {allAnalyses?.analyses.slice(0, showAll ? undefined : 8).map((item) => (
-                    <div
-                      key={item.id}
-                      className={cn(
-                        "min-w-0 rounded-md border p-1.5",
-                        item.id === analysisId && "ring-1 ring-primary",
+              }
+              contentClassName="space-y-2"
+            >
+              <p className="text-xs text-muted-foreground">
+                While this page is open and live, get an alert when the price crosses a visible
+                horizontal line, ray or trend line, enters or breaks a support/resistance zone, or
+                when an indicator calls <code>alert()</code>.
+              </p>
+              {alerts.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No alerts yet.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {alerts.map((alert) => (
+                    <li key={alert.key} className="flex items-start gap-2 text-xs">
+                      {alert.drawingId ? (
+                        <button
+                          type="button"
+                          aria-label="Show the line on the chart"
+                          className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => chart.current?.reveal([alert.drawingId!])}
+                        >
+                          <Crosshair className="size-3.5" />
+                        </button>
+                      ) : (
+                        <Bell
+                          aria-hidden="true"
+                          className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+                        />
                       )}
-                    >
-                      <button
-                        type="button"
-                        className="block w-full text-left"
-                        disabled={opening}
-                        onClick={() => {
-                          if (item.id !== analysisId) void openBoard({ analysisId: item.id });
-                        }}
-                      >
-                        {item.hasImage ? (
-                          <img
-                            src={`${analysisImagePath(item.id)}?v=${encodeURIComponent(item.updatedAt)}`}
-                            alt=""
-                            loading="lazy"
-                            className="mb-1 aspect-video w-full rounded object-cover"
-                          />
-                        ) : (
-                          <div className="mb-1 flex aspect-video items-center justify-center rounded bg-muted text-[11px] text-muted-foreground">
-                            No snapshot
-                          </div>
+                      <span className="min-w-0 flex-1">
+                        {alert.direction && (
+                          <span className="font-medium">
+                            {alert.direction === "up" ? "▲ Above " : "▼ Below "}
+                          </span>
                         )}
-                        <span className="block truncate text-xs font-medium">
-                          {analysisLabel(item)}
+                        {alert.label}
+                        <span className="block text-muted-foreground">
+                          {new Date(alert.at).toLocaleTimeString()}
                         </span>
-                        <span className="block truncate text-[11px] text-muted-foreground">
-                          {item.symbol} · {item.drawingCount} drawing
-                          {item.drawingCount === 1 ? "" : "s"}
-                        </span>
-                      </button>
-                    </div>
+                      </span>
+                    </li>
                   ))}
-                </div>
-                {(allAnalyses?.analyses.length ?? 0) > 8 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => setShowAll(!showAll)}
+                </ul>
+              )}
+              <BackgroundAlerts
+                analysisId={analysisId}
+                disabledReason={
+                  viewing ? "A day's version is read-only; open the live analysis." : undefined
+                }
+                ensureAnalysis={() => flush({ create: true })}
+              />
+            </SectionCard>
+
+            <SectionCard
+              id="chart-all-analyses"
+              title="All analyses"
+              summary={`${allAnalyses?.analyses.length ?? 0} saved`}
+              contentClassName="space-y-2"
+            >
+              {allAnalyses?.analyses.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Nothing saved yet. Draw on a chart and it saves itself.
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 2xl:grid-cols-2">
+                {allAnalyses?.analyses.slice(0, showAll ? undefined : 8).map((item) => (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      "min-w-0 rounded-md border p-1.5",
+                      item.id === analysisId && "ring-1 ring-primary",
+                    )}
                   >
-                    {showAll ? "Show fewer" : `Show all ${allAnalyses!.analyses.length}`}
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+                    <button
+                      type="button"
+                      className="block w-full text-left"
+                      disabled={opening}
+                      onClick={() => {
+                        if (item.id !== analysisId) void openBoard({ analysisId: item.id });
+                      }}
+                    >
+                      {item.hasImage ? (
+                        <img
+                          src={`${analysisImagePath(item.id)}?v=${encodeURIComponent(item.updatedAt)}`}
+                          alt=""
+                          loading="lazy"
+                          className="mb-1 aspect-video w-full rounded object-cover"
+                        />
+                      ) : (
+                        <div className="mb-1 flex aspect-video items-center justify-center rounded bg-muted text-[11px] text-muted-foreground">
+                          No snapshot
+                        </div>
+                      )}
+                      <span className="block truncate text-xs font-medium">
+                        {analysisLabel(item)}
+                      </span>
+                      <span className="block truncate text-[11px] text-muted-foreground">
+                        {item.symbol} · {item.drawingCount} drawing
+                        {item.drawingCount === 1 ? "" : "s"}
+                      </span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {(allAnalyses?.analyses.length ?? 0) > 8 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowAll(!showAll)}
+                >
+                  {showAll ? "Show fewer" : `Show all ${allAnalyses!.analyses.length}`}
+                </Button>
+              )}
+            </SectionCard>
           </>,
           slots.side,
         )}
