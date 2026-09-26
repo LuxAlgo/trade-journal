@@ -22,6 +22,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { RESOLUTIONS, type Resolution } from "@/lib/market-data";
+import { FallbackPineEngine } from "@/lib/pine-fallback-engine";
 import { VELA_TIMEFRAME, type DrawingsDocument } from "@/lib/chart-analysis";
 import { drawingStates, type LayersDocument } from "@/lib/chart-layers";
 import {
@@ -442,7 +443,7 @@ export function AnalysisChart({
     let cleanup = () => {};
     setError("");
     void (async () => {
-      const [vela, { PineWorkerEngine }] = await Promise.all([
+      const [vela, { PineEngine, PineWorkerEngine }] = await Promise.all([
         import("@luxalgo/vela"),
         import("@luxalgo/vela-pinets"),
       ]);
@@ -482,7 +483,11 @@ export function AnalysisChart({
       });
       instance.data.registerProvider(name, feed);
       // Pine Script indicators run in a Web Worker so heavy scripts never block drawing.
-      const engine = new PineWorkerEngine({ props: "strategy" });
+      // Scripts too deep for the worker's smaller stack fall back to the page's thread.
+      const engine = new FallbackPineEngine(
+        new PineWorkerEngine({ props: "strategy" }),
+        () => new PineEngine({ props: "strategy" }),
+      );
       instance.registerEngine("pine", engine);
       chart.current = instance;
       // Capture both themes' untouched defaults before any look is applied over them.

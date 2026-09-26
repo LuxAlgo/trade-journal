@@ -311,6 +311,12 @@ Vela's Pine add-on in a Web Worker, so heavy scripts never block drawing.
   code; if it fails, the error shows (with its line when the engine reports one) and the
   previous version stays on the chart. **Save to My indicators** keeps it for every chart.
   Ctrl/⌘ + Enter runs, Ctrl/⌘ + S saves, Tab indents.
+- Scripts run in a Web Worker, which browsers give about a third of the page's stack. PineTS
+  compiles recursively, so a very long expression or chain of conditions (hundreds of terms
+  joined by `+`, `and` or `or`) can overflow it. Such a script is compiled and run on the
+  page's own thread instead, automatically and only for that script (remembered for the
+  session). Past about twice the worker's limit it fails with a message asking to split the
+  expression into intermediate variables. Code: `lib/pine-fallback-engine.ts`.
 - The code button opens any indicator on the chart in the editor, built-ins included; saving a
   built-in makes your own copy. Editing a saved script updates it here at once and on other
   charts when they are next opened. Charts using a deleted script keep running their copy.
