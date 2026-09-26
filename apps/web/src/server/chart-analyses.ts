@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { chartAnalyses, db, journalDays } from "@/db";
 import { isResolution, type Resolution } from "@/lib/market-data";
 import {
-  appendAnalysisEmbed,
+  appendSnapshotEmbed,
   drawingsProblem,
   isDayKey,
   MAX_SNAPSHOT_BYTES,
@@ -17,6 +17,7 @@ import { parseZones, zonesProblem, type SrZone } from "@/lib/sr-zones";
 import { providerFor } from "./market-data/connections";
 import { RequestError, requireValue } from "./api";
 import { newId, nowIso } from "./ids";
+import { journalToday, recordSnapshot } from "./analysis-snapshots";
 
 type Row = typeof chartAnalyses.$inferSelect;
 
@@ -271,10 +272,15 @@ const columns = (input: AnalysisInput) => {
   };
 };
 
-/** Add the analysis image to its journal day note once, creating the day note if needed. */
+/**
+ * Pin the analysis as it is now to a journal day and add that day's snapshot to the day
+ * note once, creating the note if needed. The note keeps showing this version however the
+ * analysis changes later.
+ */
 function embedInJournal(analysis: ChartAnalysisSummary, day: string) {
+  recordSnapshot(analysis.id, day, { image: true });
   const current = db.select().from(journalDays).where(eq(journalDays.date, day)).get();
-  const note = appendAnalysisEmbed(current?.note ?? "", analysis);
+  const note = appendSnapshotEmbed(current?.note ?? "", analysis, day);
   if (current && note === current.note) return;
   db.insert(journalDays)
     .values({ date: day, note, updatedAt: nowIso() })
@@ -300,6 +306,8 @@ export function createAnalysis(input: AnalysisInput, options: { embed?: boolean 
         updatedAt: now,
       })
       .run();
+    // Every save keeps today's snapshot current.
+    recordSnapshot(id, journalToday(), { image: true });
     const analysis = getAnalysis(id)!;
     if (options.embed && analysis.dayDate) embedInJournal(analysis, analysis.dayDate);
     return analysis;
@@ -318,6 +326,7 @@ export function updateAnalysis(
       .where(eq(chartAnalyses.id, id))
       .run();
     if (!result.changes) return null;
+    recordSnapshot(id, journalToday(), { image: input.image !== undefined });
     const analysis = getAnalysis(id)!;
     if (options.embed) {
       requireValue(analysis.dayDate, "Choose a journal day first.");
@@ -327,6 +336,9 @@ export function updateAnalysis(
   });
 }
 
-/** Journal notes keep their embed text; a deleted analysis renders as unavailable. */
+/**
+ * Deletes the analysis and its day snapshots. Journal notes keep their embed text; a
+ * deleted analysis renders as unavailable.
+ */
 export const deleteAnalysis = (id: string): boolean =>
   db.delete(chartAnalyses).where(eq(chartAnalyses.id, id)).run().changes > 0;

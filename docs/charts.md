@@ -64,9 +64,30 @@ status in the **Analysis** card says **Saving…**, **Saved** with the time, or 
 
 - Each symbol reopens its most recent analysis, drawings and layers included. **New analysis**
   in the Analysis menu starts a fresh board on the same symbol; the menu lists them all.
-- The PNG snapshot the journal shows refreshes at most every 15 seconds while you work, and on
-  leaving.
-- **Add** puts the analysis in the chosen journal day's note (today by default), once.
+- The PNG picture refreshes at most every 15 seconds while you work, and on leaving.
+- **Add** saves the analysis as it is now as the chosen day's version (today by default) and
+  puts that version in the day's note, once.
+
+## Day versions
+
+An analysis is one live board that keeps evolving, and **every journal day you edit it keeps
+its own frozen copy**: drawings, layers, zones, indicators, title, notes, candle size, view
+and picture, as they stood when you last saved that day.
+
+- Today's version follows every save until midnight in the journal timezone (Settings), then
+  it never changes again. A day you only look at the chart saves nothing.
+- **Journal → a day → Chart analyses this day** lists that day's versions automatically, with
+  **View this version**, **Live chart**, **Add to note** and remove (which leaves the live
+  analysis and other days alone). The note editor's **Chart** menu in a day note inserts that
+  day's version too; if the day has none yet, the analysis as it is now becomes it.
+- **View this version** opens Charts at `?id=<id>&snapshot=<day>`: that day's drawings over
+  today's candles, so you can see what price did next. It is read-only; nothing you change
+  there is saved. **Make this the live version** copies it back over the live analysis (today's
+  version records that; other days are kept).
+- The **Versions by day** list in the Analysis card opens each day's version.
+- Embeds added before day versions existed (`/api/analyses/<id>/image`) keep showing the live
+  analysis.
+- Deleting an analysis deletes its day versions.
 
 ## Layers and folders
 
@@ -165,10 +186,11 @@ stored events and shows the problem. **Disable** stops fetching and keeps what w
 
 AI recaps and trade critiques also look at the chart analyses linked to what they review:
 
-- **Daily recap**: analyses embedded in the day's note and analyses assigned to that day.
+- **Daily recap**: analyses embedded in the day's note and the day's versions, so a past
+  day is reviewed with the chart as it was that day, not as it is now.
   As with the shared note, a filtered recap leaves out the note's embeds; it still includes
   the day's analyses on the symbols of the filtered trades.
-- **Trade critique**: analyses embedded in the trade's notes, then analyses assigned to the
+- **Trade critique**: analyses embedded in the trade's notes, then the versions of the
   trade's entry day on its symbol.
 
 Each linked analysis (at most three) sends its title, symbol, candle size, visible range,
@@ -257,12 +279,18 @@ copied into the analysis. `economic_events` holds the stored calendar.
   is present: snapshots up to 4 MB (large high-density exports are downscaled first) and
   drawings up to 3 MB. If a snapshot cannot be exported, the old one is cleared rather than
   left showing outdated drawings.
-- **The journal embed is a standard Markdown image**:
-  `![Title chart analysis](/api/analyses/<id>/image)`. It stays readable in exports and other
-  Markdown tools. In the app it renders as a figure linking to `/charts?id=<id>`. Deleting an
-  analysis leaves the note text alone and shows a placeholder.
-- JSON export includes analyses (source, drawings, layers, notes) without snapshot images, as
-  it does for attachment binaries. Back up the data directory to keep snapshots.
+- **Day versions** live in `chart_analysis_snapshots`, one row per analysis and journal day
+  (primary key `analysis_id, day`), with the same state columns and PNG. A save copies the
+  state into today's row, and the picture only when the save carried a new one.
+- **The journal embed is a standard Markdown image**. A day's version:
+  `![Title · 2026-09-26 chart analysis](/api/analyses/<id>/snapshots/2026-09-26/image)`, which
+  opens `/charts?id=<id>&snapshot=2026-09-26`; the live analysis:
+  `![Title chart analysis](/api/analyses/<id>/image)`, which opens `/charts?id=<id>`. Both stay
+  readable in exports and other Markdown tools. Deleting an analysis leaves the note text alone
+  and shows a placeholder.
+- JSON export includes analyses and their day versions (source, drawings, layers, notes)
+  without pictures, as it does for attachment binaries. Back up the data directory to keep
+  them.
 
 ## Code map
 
@@ -295,4 +323,6 @@ copied into the analysis. `economic_events` holds the stored calendar.
 - `lib/economic-calendar.ts`, `server/economic-calendar.ts`, `app/api/economic-events`: the
   calendar feed, storage and API.
 - `server/ai-analyses.ts`: linked analyses for AI reviews.
+- `server/analysis-snapshots.ts`, `app/api/analyses/[id]/snapshots/**`,
+  `app/api/analysis-snapshots`: day versions; `components/day-analyses.tsx`: the journal card.
 - `app/charts/page.tsx`: symbol selection, autosave, alerts, journal and analysis lists.

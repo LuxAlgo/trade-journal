@@ -199,7 +199,7 @@ describe("saved chart analyses", () => {
     expect(db.select().from(chartAnalyses).all()).toHaveLength(0);
   });
 
-  it("adds an analysis to its journal day once, however often it is saved", async () => {
+  it("adds an analysis's day version to its journal day once, however often it is saved", async () => {
     db.insert(journalDays)
       .values({ date: "2026-09-01", note: "Pre-market plan", updatedAt: "2026-09-01" })
       .run();
@@ -213,8 +213,11 @@ describe("saved chart analyses", () => {
     );
     expect(patched.status).toBe(200);
     const note = db.select().from(journalDays).get()!.note;
-    expect(note.startsWith("Pre-market plan\n\n![TEST · 5m chart analysis]")).toBe(true);
-    expect(note.split(`/api/analyses/${analysis.id}/image`)).toHaveLength(2);
+    // The note embeds that day's version, which later edits of the analysis leave alone.
+    expect(note.startsWith("Pre-market plan\n\n![TEST · 5m · 2026-09-01 chart analysis]")).toBe(
+      true,
+    );
+    expect(note.split(`/api/analyses/${analysis.id}/snapshots/2026-09-01/image`)).toHaveLength(2);
   });
 
   it("clears a snapshot that no longer matches the drawings", async () => {

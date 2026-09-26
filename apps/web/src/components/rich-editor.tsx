@@ -17,9 +17,11 @@ import { formatInlineSelection, remarkRepairSpacedEmphasis } from "@/lib/note-fo
 import { tradeLinkLabel, tradeMarkdownLink, type LinkableTrade } from "@/lib/trade-links";
 import {
   analysisEditPath,
-  analysisIdFromSrc,
+  analysisEmbedFromSrc,
   analysisLabel,
   analysisMarkdown,
+  snapshotMarkdown,
+  snapshotViewPath,
   type ChartAnalysisSummary,
 } from "@/lib/chart-analysis";
 export function Markdown({ children }: { children: string }) {
@@ -55,9 +57,12 @@ export function Markdown({ children }: { children: string }) {
  */
 function MarkdownImage({ src, alt }: { src?: string; alt: string }) {
   const [failed, setFailed] = useState(false);
-  const id = analysisIdFromSrc(src);
-  if (!id) return <img src={src} alt={alt} loading="lazy" className="max-w-full rounded-md" />;
+  const embed = analysisEmbedFromSrc(src);
+  if (!embed) return <img src={src} alt={alt} loading="lazy" className="max-w-full rounded-md" />;
+  const { id, day } = embed;
   const caption = alt.replace(/ chart analysis$/, "") || "Chart analysis";
+  // A day snapshot opens that day's version; a live embed opens the analysis to edit.
+  const href = day ? snapshotViewPath(id, day) : analysisEditPath(id);
   return (
     <span className="journal-analysis-embed my-2 block overflow-hidden rounded-lg border bg-card">
       {failed ? (
@@ -66,11 +71,7 @@ function MarkdownImage({ src, alt }: { src?: string; alt: string }) {
           image.
         </span>
       ) : (
-        <Link
-          href={analysisEditPath(id)}
-          className="block"
-          aria-label={`Open ${caption} in Charts`}
-        >
+        <Link href={href} className="block" aria-label={`Open ${caption} in Charts`}>
           <img
             src={src}
             alt={alt}
@@ -85,9 +86,16 @@ function MarkdownImage({ src, alt }: { src?: string; alt: string }) {
           <CandlestickChart aria-hidden="true" className="size-3.5 shrink-0" />
           <span className="truncate">{caption}</span>
         </span>
-        <Link href={analysisEditPath(id)} className="shrink-0 underline">
-          Open in Charts
-        </Link>
+        <span className="flex shrink-0 gap-3">
+          {day && (
+            <Link href={analysisEditPath(id)} className="underline">
+              Live chart
+            </Link>
+          )}
+          <Link href={href} className="underline">
+            {day ? `As of ${day}` : "Open in Charts"}
+          </Link>
+        </span>
       </span>
     </span>
   );
@@ -183,11 +191,30 @@ export function RichEditor({
       ref.current?.setSelectionRange(start + before.length, end + before.length);
     });
   }
-  /** Insert at the cursor (or the end), then preview so the embedded chart shows. */
-  function insertChart(analysis: ChartAnalysisSummary) {
+  const [chartError, setChartError] = useState("");
+  /**
+   * Insert at the cursor (or the end), then preview so the embedded chart shows. A day's
+   * note gets that day's snapshot (pinned now if the day has none), so it keeps showing the
+   * analysis as it was; other notes embed the live analysis.
+   */
+  async function insertChart(analysis: ChartAnalysisSummary) {
     const at = preview ? value.length : (ref.current?.selectionEnd ?? value.length);
+    setChartError("");
+    let markdown = analysisMarkdown(analysis);
+    if (analysisDay) {
+      try {
+        await postJson(
+          `/api/analyses/${encodeURIComponent(analysis.id)}/snapshots/${analysisDay}`,
+          { action: "ensure" },
+        );
+        markdown = snapshotMarkdown(analysis, analysisDay);
+      } catch (cause) {
+        setChartError(cause instanceof Error ? cause.message : "Could not add the chart.");
+        return;
+      }
+    }
     const before = value.slice(0, at);
-    const embed = `${before && !before.endsWith("\n") ? "\n\n" : before ? "\n" : ""}${analysisMarkdown(analysis)}\n`;
+    const embed = `${before && !before.endsWith("\n") ? "\n\n" : before ? "\n" : ""}${markdown}\n`;
     onChange(before + embed + value.slice(at));
     setPreview(true);
   }
@@ -289,6 +316,11 @@ export function RichEditor({
                     New chart analysis…
                   </Link>
                 </DropdownMenuItem>
+                {chartError && (
+                  <p role="alert" className="px-2 py-1.5 text-xs text-destructive">
+                    {chartError}
+                  </p>
+                )}
                 {analysesError && (
                   <p role="alert" className="px-2 py-1.5 text-xs text-destructive">
                     {analysesError}
@@ -300,7 +332,7 @@ export function RichEditor({
                   </p>
                 )}
                 {analyses?.analyses.map((analysis) => (
-                  <DropdownMenuItem key={analysis.id} onSelect={() => insertChart(analysis)}>
+                  <DropdownMenuItem key={analysis.id} onSelect={() => void insertChart(analysis)}>
                     <CandlestickChart
                       aria-hidden="true"
                       className="size-3.5 shrink-0 text-muted-foreground"

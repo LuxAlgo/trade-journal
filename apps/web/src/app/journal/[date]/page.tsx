@@ -1,6 +1,8 @@
 "use client";
 import { AiRecap } from "@/components/ai-recap";
 import { analysesUsedMarkdown } from "@/components/ai-charts-option";
+import { DayAnalyses } from "@/components/day-analyses";
+import { dayKeyOf } from "@luxalgo/journal-core";
 
 import Link from "next/link";
 import { CandlestickChart } from "lucide-react";
@@ -179,6 +181,19 @@ function JournalDay({ date }: { date: string }) {
             </Card>
           )}
           {!data && <Skeleton className="h-64" />}
+          <DayAnalyses
+            date={date}
+            today={date === dayKeyOf(new Date().toISOString(), timeZone)}
+            note={noteValue}
+            onInsert={(markdown) => {
+              const current = latestNote.current;
+              scheduleSave(
+                current.trim()
+                  ? `${current.replace(/\s+$/, "")}\n\n${markdown}\n`
+                  : `${markdown}\n`,
+              );
+            }}
+          />
         </div>
 
         <Card className="h-fit">
@@ -204,8 +219,8 @@ function JournalDay({ date }: { date: string }) {
           <CardContent>
             <p className="mb-3 text-xs text-muted-foreground">
               This note is shared across accounts. AI recaps use the selected filters and append a
-              labeled section. Shared notes are excluded from filtered AI context. Chart analyses
-              embedded here or assigned to this day are sent with their snapshots.
+              labeled section. Shared notes are excluded from filtered AI context. This day's chart
+              analyses are sent as they were that day.
             </p>
             <div className="mb-3">
               <AiRecap

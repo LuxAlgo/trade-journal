@@ -142,11 +142,43 @@ export const parseDrawings = (json: string | null | undefined): DrawingsDocument
 export const analysisImagePath = (id: string) => `/api/analyses/${encodeURIComponent(id)}/image`;
 export const analysisEditPath = (id: string) => `/charts?id=${encodeURIComponent(id)}`;
 
-/** Which saved analysis an image URL embeds, or null for any other image. */
-export function analysisIdFromSrc(src: string | undefined | null): string | null {
-  const match = src?.match(/^\/api\/analyses\/([A-Za-z0-9_-]{1,64})\/image(?:\?.*)?$/);
-  return match ? match[1]! : null;
+/** A day's frozen copy of an analysis (see `chart_analysis_snapshots`). */
+export interface AnalysisSnapshotSummary {
+  analysisId: string;
+  day: string;
+  title: string;
+  symbol: string;
+  provider: string;
+  resolution: Resolution;
+  drawingCount: number;
+  hasImage: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
+
+export interface AnalysisSnapshot extends ChartAnalysis {
+  day: string;
+}
+
+export const snapshotImagePath = (id: string, day: string) =>
+  `/api/analyses/${encodeURIComponent(id)}/snapshots/${day}/image`;
+/** Opens the chart with that day's drawings, read-only, over current candles. */
+export const snapshotViewPath = (id: string, day: string) =>
+  `/charts?id=${encodeURIComponent(id)}&snapshot=${day}`;
+
+/** Which saved analysis (and day's snapshot, if any) an image URL embeds. */
+export function analysisEmbedFromSrc(
+  src: string | undefined | null,
+): { id: string; day: string | null } | null {
+  const match = src?.match(
+    /^\/api\/analyses\/([A-Za-z0-9_-]{1,64})\/(?:snapshots\/(\d{4}-\d{2}-\d{2})\/)?image(?:\?.*)?$/,
+  );
+  return match ? { id: match[1]!, day: match[2] ?? null } : null;
+}
+
+/** Which saved analysis an image URL embeds, or null for any other image. */
+export const analysisIdFromSrc = (src: string | undefined | null): string | null =>
+  analysisEmbedFromSrc(src)?.id ?? null;
 
 export const analysisLabel = (a: Pick<ChartAnalysisSummary, "title" | "symbol" | "resolution">) =>
   a.title.trim() || `${a.symbol} · ${a.resolution}`;
@@ -164,6 +196,29 @@ export function analysisMarkdown(
     .replace(/[\r\n]+/g, " ")
     .slice(0, 200);
   return `![${alt}](${analysisImagePath(a.id)})`;
+}
+
+/** A day snapshot's embed: the image stays as the analysis was that day. */
+export function snapshotMarkdown(
+  a: Pick<ChartAnalysisSummary, "id" | "title" | "symbol" | "resolution">,
+  day: string,
+): string {
+  const alt = `${analysisLabel(a)} · ${day} chart analysis`
+    .replace(/[\\[\]]/g, "")
+    .replace(/[\r\n]+/g, " ")
+    .slice(0, 200);
+  return `![${alt}](${snapshotImagePath(a.id, day)})`;
+}
+
+/** Append a day snapshot's embed to that day's note once. */
+export function appendSnapshotEmbed(
+  note: string,
+  a: Pick<ChartAnalysisSummary, "id" | "title" | "symbol" | "resolution">,
+  day: string,
+): string {
+  if (note.includes(snapshotImagePath(a.id, day))) return note;
+  const embed = snapshotMarkdown(a, day);
+  return note.trim() ? `${note.replace(/\s+$/, "")}\n\n${embed}\n` : `${embed}\n`;
 }
 
 /** Append an analysis embed to a note once; re-saving never duplicates it. */

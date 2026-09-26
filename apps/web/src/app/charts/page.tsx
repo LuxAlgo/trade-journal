@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import {
   Bell,
   BellOff,
+  History,
   Diamond,
   Rows3,
   BookOpenText,
@@ -49,11 +50,15 @@ import { OptionSelect } from "@/components/ui/option-select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   analysisImagePath,
+  analysisEditPath,
   analysisLabel,
   drawingLabel,
   drawingsProblem,
   isDayKey,
   MAX_SNAPSHOT_BYTES,
+  snapshotViewPath,
+  type AnalysisSnapshot,
+  type AnalysisSnapshotSummary,
   type ChartAnalysis,
   type ChartAnalysisSummary,
   type DrawingsDocument,
@@ -232,6 +237,11 @@ function ChartLab() {
   const [journalStatus, setJournalStatus] = useState<{ day: string } | { error: string } | null>(
     null,
   );
+  /** A day's frozen version shown read-only, or null for the live analysis. */
+  const [viewing, setViewing] = useState<string | null>(null);
+  const { data: snapshotDays, refresh: refreshSnapshotDays } = useApi<{
+    snapshots: AnalysisSnapshotSummary[];
+  }>(analysisId ? `/api/analyses/${encodeURIComponent(analysisId)}/snapshots` : null);
   const chart = useRef<AnalysisChartHandle>(null);
   const { data: symbolAnalyses, refresh: refreshSymbolAnalyses } = useApi<{
     analyses: ChartAnalysisSummary[];
@@ -275,6 +285,7 @@ function ChartLab() {
     alertsOn,
     indicators,
     zones,
+    viewing,
   });
   state.current = {
     analysisId,
@@ -287,6 +298,7 @@ function ChartLab() {
     alertsOn,
     indicators,
     zones,
+    viewing,
   };
 
   // ── Autosave ──
@@ -320,7 +332,8 @@ function ChartLab() {
         return state.current.analysisId;
       }
       const current = state.current;
-      if (!current.board) return current.analysisId;
+      // A day's version is read-only: nothing on the chart is saved while viewing it.
+      if (!current.board || current.viewing) return current.analysisId;
       const refreshSnapshot =
         Boolean(current.analysisId) && options.final && Date.now() - s.imageAt >= SNAPSHOT_EVERY_MS;
       if (!s.dirty && !options.create && !refreshSnapshot) return current.analysisId;
@@ -396,6 +409,7 @@ function ChartLab() {
             refreshSymbolAnalyses();
           }
           refreshAll();
+          refreshSnapshotDays();
           if (state.current.board === board) setSaveState({ state: "saved", at: Date.now() });
         } catch (cause) {
           if (state.current.board !== board) return;
@@ -415,10 +429,11 @@ function ChartLab() {
       }
       return state.current.analysisId;
     },
-    [refreshAll, refreshSymbolAnalyses],
+    [refreshAll, refreshSymbolAnalyses, refreshSnapshotDays],
   );
 
   const schedule = useCallback(() => {
+    if (state.current.viewing) return;
     const s = saver.current;
     s.dirty = true;
     capture();
@@ -456,10 +471,11 @@ function ChartLab() {
     next.set("symbol", board.symbol);
     next.set("tf", resolution);
     if (analysisId) next.set("id", analysisId);
+    if (analysisId && viewing) next.set("snapshot", viewing);
     const url = `/charts?${next}`;
     if (`${window.location.pathname}${window.location.search}` !== url)
       router.replace(url, { scroll: false });
-  }, [board, analysisId, resolution, router]);
+  }, [board, analysisId, resolution, router, viewing]);
 
   // ── Opening a chart ──
   const boardKey = useRef(0);
@@ -469,6 +485,8 @@ function ChartLab() {
       dataset?: string | null;
       symbol?: string;
       analysisId?: string;
+      /** Open this day's version of the analysis, read-only. */
+      snapshotDay?: string;
       fresh?: boolean;
     }) => {
       setOpening(true);
@@ -483,7 +501,14 @@ function ChartLab() {
         };
         let analysis: ChartAnalysis | null = null;
         const saved = await read<{ scripts: ChartScript[] }>("/api/chart-scripts");
-        if (target.analysisId) {
+        const snapshotDay = target.analysisId && target.snapshotDay ? target.snapshotDay : null;
+        if (target.analysisId && snapshotDay) {
+          analysis = (
+            await read<{ snapshot: AnalysisSnapshot }>(
+              `/api/analyses/${encodeURIComponent(target.analysisId)}/snapshots/${snapshotDay}`,
+            )
+          ).snapshot;
+        } else if (target.analysisId) {
           analysis = (
             await read<{ analysis: ChartAnalysis }>(
               `/api/analyses/${encodeURIComponent(target.analysisId)}`,
@@ -523,6 +548,8 @@ function ChartLab() {
         setSymbolDraft(nextSymbol);
         state.current.analysisId = analysis?.id ?? null;
         setAnalysisId(analysis?.id ?? null);
+        state.current.viewing = snapshotDay;
+        setViewing(snapshotDay);
         setTitle(analysis?.title ?? "");
         setNotes(analysis?.notes ?? "");
         setLayers(analysis?.layers ?? defaultLayers());
@@ -543,10 +570,13 @@ function ChartLab() {
         setDrawings([]);
         setSelectedId(null);
         setJournalStatus(null);
-        if (analysis?.dayDate) setJournalDay(analysis.dayDate);
+        if (snapshotDay) setJournalDay(snapshotDay);
+        else if (analysis?.dayDate) setJournalDay(analysis.dayDate);
         if (analysis) setResolution(analysis.resolution);
         setSaveState(
-          analysis ? { state: "saved", at: Date.parse(analysis.updatedAt) } : { state: "idle" },
+          analysis && !snapshotDay
+            ? { state: "saved", at: Date.parse(analysis.updatedAt) }
+            : { state: "idle" },
         );
         const next: Board = {
           key: boardKey.current,
@@ -580,7 +610,8 @@ function ChartLab() {
     const fromUrl = params.get("provider");
     const connected = (id: string) => available.some((a) => a.id === id);
     const last = recentSymbols.read().find((r) => connected(r.provider));
-    if (id) void openBoard({ analysisId: id });
+    const day = params.get("snapshot");
+    if (id) void openBoard({ analysisId: id, snapshotDay: isDayKey(day) ? day : undefined });
     else if (symbol && fromUrl && connected(fromUrl))
       void openBoard({ provider: fromUrl, dataset: params.get("dataset"), symbol });
     else if (last) void openBoard(last);
@@ -589,10 +620,13 @@ function ChartLab() {
 
   // Links to another analysis (journal embeds, shared URLs) open it in place.
   const linkedId = params.get("id");
+  const linkedSnapshot = params.get("snapshot");
+  const linkedDay = isDayKey(linkedSnapshot) ? linkedSnapshot : null;
   useEffect(() => {
-    if (!started.current || !linkedId || opening || linkedId === state.current.analysisId) return;
-    void openBoard({ analysisId: linkedId });
-  }, [linkedId, openBoard, opening]);
+    if (!started.current || !linkedId || opening) return;
+    if (linkedId === state.current.analysisId && linkedDay === state.current.viewing) return;
+    void openBoard({ analysisId: linkedId, snapshotDay: linkedDay ?? undefined });
+  }, [linkedId, linkedDay, openBoard, opening]);
 
   const info = providerInfo(provider);
   const { data: csv } = useApi<{ datasets: MarketCsvDataset[] }>(
@@ -950,8 +984,34 @@ function ChartLab() {
     }
   };
 
+  const restoreVersion = async () => {
+    const id = state.current.analysisId;
+    const day = state.current.viewing;
+    if (!id || !day) return;
+    if (
+      !confirm(
+        `Replace the live analysis with its ${day} version? Today's version records the change; other days are kept.`,
+      )
+    )
+      return;
+    try {
+      await postJson(`/api/analyses/${encodeURIComponent(id)}/snapshots/${day}`, {
+        action: "restore",
+      });
+      refreshAll();
+      router.replace(analysisEditPath(id));
+    } catch (cause) {
+      setOpenError(cause instanceof Error ? cause.message : "Could not restore that version.");
+    }
+  };
+
   const deleteAnalysis = async (target: ChartAnalysisSummary) => {
-    if (!confirm(`Delete "${analysisLabel(target)}"? Journal notes keep a placeholder.`)) return;
+    if (
+      !confirm(
+        `Delete "${analysisLabel(target)}" and its saved day versions? Journal notes keep a placeholder.`,
+      )
+    )
+      return;
     try {
       if (target.id === analysisId) {
         // Stop the pending save from recreating it.
@@ -1226,6 +1286,29 @@ function ChartLab() {
               </Card>
             )
           )}
+          {viewing && board && (
+            <div
+              role="status"
+              className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm"
+            >
+              <History aria-hidden="true" className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1">
+                Your analysis as of <strong>{viewing}</strong>, over today&apos;s candles.
+                Read-only: changes here are not saved.
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => analysisId && router.replace(analysisEditPath(analysisId))}
+              >
+                Back to the live analysis
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => void restoreVersion()}>
+                Make this the live version
+              </Button>
+            </div>
+          )}
           {placing && (
             <p
               role="status"
@@ -1351,7 +1434,7 @@ function ChartLab() {
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={!board}
+                    disabled={!board || Boolean(viewing)}
                     onClick={() => void addToJournal()}
                   >
                     <BookOpenText /> Add
@@ -1371,9 +1454,38 @@ function ChartLab() {
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  The journal shows a snapshot that refreshes as you keep working here.
+                  Each day you work on this analysis keeps its own version in that day&apos;s
+                  journal, frozen when the day ends. <strong>Add</strong> saves the analysis as it
+                  is now as that day&apos;s version and puts it in the day note.
                 </p>
               </div>
+              {analysisId && (snapshotDays?.snapshots.length ?? 0) > 0 && (
+                <div className="space-y-1">
+                  <Label>Versions by day</Label>
+                  <ul className="max-h-40 space-y-0.5 overflow-y-auto text-xs">
+                    {snapshotDays!.snapshots.map((snap) => (
+                      <li key={snap.day} className="flex items-center justify-between gap-2">
+                        <Link
+                          href={snapshotViewPath(snap.analysisId, snap.day)}
+                          className={cn(
+                            "underline-offset-2 hover:underline",
+                            viewing === snap.day && "font-semibold",
+                          )}
+                          aria-current={viewing === snap.day ? "page" : undefined}
+                        >
+                          {snap.day === today ? `${snap.day} (today, updating)` : snap.day}
+                        </Link>
+                        <span className="flex items-center gap-2 text-muted-foreground">
+                          {snap.drawingCount} drawing{snap.drawingCount === 1 ? "" : "s"}
+                          <Link href={`/journal/${snap.day}`} className="underline">
+                            Journal
+                          </Link>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {analysisId && symbolAnalyses && (
                 <Button
                   type="button"

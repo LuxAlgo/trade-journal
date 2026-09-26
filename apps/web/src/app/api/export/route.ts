@@ -21,6 +21,7 @@ import {
   importSourceAliases,
   importBatches,
   chartAnalyses,
+  chartAnalysisSnapshots,
   chartScripts,
 } from "@/db";
 import { readFilters } from "@luxalgo/journal-core";
@@ -115,6 +116,19 @@ export const GET = handler(async (request: Request) => {
       .all()
       .map(({ image, drawingsJson, layersJson, indicatorsJson, zonesJson, ...analysis }) => ({
         ...analysis,
+        drawings: parseDrawings(drawingsJson),
+        layers: parseLayers(layersJson),
+        indicators: parseIndicators(indicatorsJson),
+        zones: parseZones(zonesJson),
+        hasSnapshot: image !== null,
+      })),
+    // Each day's version of an analysis, without its picture.
+    chartAnalysisSnapshots: db
+      .select()
+      .from(chartAnalysisSnapshots)
+      .all()
+      .map(({ image, drawingsJson, layersJson, indicatorsJson, zonesJson, ...snapshot }) => ({
+        ...snapshot,
         drawings: parseDrawings(drawingsJson),
         layers: parseLayers(layersJson),
         indicators: parseIndicators(indicatorsJson),

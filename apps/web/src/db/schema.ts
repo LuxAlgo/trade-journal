@@ -2,6 +2,7 @@ import {
   blob,
   index,
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -241,6 +242,43 @@ export const chartAnalyses = sqliteTable(
   (table) => [
     index("chart_analyses_day").on(table.dayDate),
     index("chart_analyses_symbol").on(table.provider, table.symbol),
+  ],
+);
+
+/**
+ * A chart analysis as it stood on one journal day: the analysis keeps evolving, and each
+ * day it was edited keeps its own frozen copy. Today's copy follows every save until the
+ * day ends in the journal timezone.
+ */
+export const chartAnalysisSnapshots = sqliteTable(
+  "chart_analysis_snapshots",
+  {
+    analysisId: text("analysis_id")
+      .notNull()
+      .references(() => chartAnalyses.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    title: text("title").notNull().default(""),
+    symbol: text("symbol").notNull(),
+    provider: text("provider").notNull(),
+    dataset: text("dataset"),
+    resolution: text("resolution").notNull(),
+    rangeFrom: integer("range_from").notNull(),
+    rangeTo: integer("range_to").notNull(),
+    visibleFrom: integer("visible_from"),
+    visibleTo: integer("visible_to"),
+    drawingsJson: text("drawings_json").notNull(),
+    drawingCount: integer("drawing_count").notNull().default(0),
+    layersJson: text("layers_json"),
+    indicatorsJson: text("indicators_json"),
+    zonesJson: text("zones_json"),
+    notes: text("notes").notNull().default(""),
+    image: blob("image", { mode: "buffer" }),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.analysisId, table.day] }),
+    index("chart_analysis_snapshots_day").on(table.day),
   ],
 );
 /**
