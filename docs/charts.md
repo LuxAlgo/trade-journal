@@ -92,23 +92,38 @@ and picture, as they stood when you last saved that day.
 ## Multiview
 
 Off by default: the page shows one chart. The layout button next to **Pause** (**Single
-chart**) turns on up to three extra charts, beside the main chart on wide screens or below it,
-remembered per browser.
+chart**) shows two, three or four charts, remembered per browser.
 
-- Each extra chart has its own **symbol** (empty follows the main chart's), **candle size**
-  (**Same** follows the main chart's) and **indicators** (the built-in library, up to five).
-  They stream live like the main chart and use the same look; switching symbol on the main chart
-  moves the ones that follow it.
-- **Keep in step**: **Crosshair** (on by default) shows the moment under your cursor on every
-  chart; **Time window** makes scrolling or zooming any chart show the same span on the others,
-  loading older candles as needed; **Main chart's drawings on the others** shows your drawings
-  (locked) on extra charts of the same symbol, since they are anchored to time and price.
-- Extra charts are views only: drawing, saving, alerts, trades and zones stay on the main
-  chart, and nothing about them is saved with the analysis. The **×** on a chart hides it.
+- **Every chart is a full chart.** Each has its own source, symbol, candle size and analysis:
+  drawings (toolbar, stylus, layers), indicators and Pine scripts, support and resistance zones,
+  missed trades, trades and sessions on the chart, appearance, autosave, day versions, **Add to
+  journal**, in-page alerts and **Keep watching when this page is closed**.
+- **The chart you work on** has a highlighted header ("Editing"). The top card (symbol, candle
+  sizes, watchlist), the page title and live badge, and the sidebar (analysis, on the chart,
+  zones, indicators, alerts, all analyses) belong to it. Clicking or tabbing into another chart
+  makes that one the chart you work on.
+- **One analysis, one chart.** An analysis open in one chart is never open in another, so two
+  autosaves never overwrite each other. Choosing an analysis that another chart has open
+  switches to that chart. A symbol opens its newest analysis that no other chart has, otherwise
+  a new one (created on the first drawing, as usual).
+- **What each chart shows is remembered.** A new extra chart starts on the first chart's symbol
+  at its own candle size (4h, 15m and 1d by default); after that it keeps its own symbol, candle
+  size and analysis, and reopens them next time. The first chart follows the URL as before.
+- **Alerts run on every chart**, not only the one you work on. The Alerts switch is shared; a
+  chart you are not working on shows a bell with the count of alerts it raised meanwhile.
+- **Layout**: a grid with two per row, the first chart large with the others in a row below
+  it, or one below the other. **Keep in step**: **Crosshair** (on by default) shows the moment
+  under your cursor on every chart; **Time window** makes scrolling or zooming any chart show
+  the same span on the others, loading older candles as needed.
+- The **×** on an extra chart closes it (after saving); its settings wait for the next time you
+  add a chart. In multiview the charts are shorter and the Layers panel starts hidden
+  (remembered separately from the single chart's).
 
-Code: `lib/multiview.ts` (settings), `lib/chart-sync.ts` (crosshair and time sync),
-`components/companion-chart.tsx`, `components/multiview.tsx` (menu and layout); the main chart
-takes an optional `sync` prop.
+Code: `app/charts/page.tsx` (`ChartLab` holds what the charts share and the slots the chart you
+work on renders into through portals; each chart is a `ChartBoard`), `lib/multiview.ts`
+(settings and what each chart opens), `lib/chart-sync.ts` (crosshair and time sync),
+`components/multiview.tsx` (menu, layout, chart header); the chart takes optional `sync` and
+`size` props.
 
 ## Layers and folders
 

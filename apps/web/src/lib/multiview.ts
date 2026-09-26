@@ -1,21 +1,25 @@
 import { isResolution, type Resolution } from "./market-data";
-import { INDICATOR_LIBRARY } from "./indicator-library";
 
 /**
- * Multiview: optional extra charts next to the main one, each with its own symbol,
- * candle size and indicators, kept in step with the main chart. Off unless you turn it on;
- * remembered per browser, since a layout that suits a wide screen rarely suits a phone.
+ * Multiview: optional extra charts next to the first one. Every chart is a full chart with
+ * its own symbol, candle size and analysis (drawings, layers, indicators, zones, alerts);
+ * crosshair and time window can be kept in step. Off unless you turn it on; remembered per
+ * browser, since a layout that suits a wide screen rarely suits a phone.
  */
-export type Arrangement = "column" | "row";
+export type Arrangement = "grid" | "focus" | "stack";
 
-export interface CompanionPane {
+/** What an extra chart opens with; it updates as you change that chart. */
+export interface PaneTarget {
   id: string;
-  /** null follows the main chart's symbol. */
+  /** null follows the first chart's source (and feed). */
+  provider: string | null;
+  dataset: string | null;
+  /** null follows the first chart's symbol. */
   symbol: string | null;
-  /** null uses the main chart's candle size. */
+  /** null uses the default candle size. */
   resolution: Resolution | null;
-  /** Built-in indicator keys (see indicator-library). */
-  indicators: string[];
+  /** The analysis it had open, reopened unless another chart has it. */
+  analysisId: string | null;
 }
 
 export interface MultiviewState {
@@ -23,63 +27,79 @@ export interface MultiviewState {
   arrangement: Arrangement;
   /** How many extra charts show (1 to 3); panes beyond it keep their settings. */
   count: number;
-  panes: CompanionPane[];
+  panes: PaneTarget[];
   sync: {
     /** A crosshair on one chart shows the same moment on the others. */
     crosshair: boolean;
     /** Scrolling or zooming one chart shows the same time window on the others. */
     time: boolean;
   };
-  /** Extra charts on the main chart's symbol show its drawings, read-only. */
-  mirrorDrawings: boolean;
 }
 
 export const MAX_COMPANIONS = 3;
+/** The first chart's id; the others use their pane ids. */
+export const MAIN_CHART = "main";
+
+const pane = (id: string, resolution: Resolution): PaneTarget => ({
+  id,
+  provider: null,
+  dataset: null,
+  symbol: null,
+  resolution,
+  analysisId: null,
+});
 
 export const DEFAULT_MULTIVIEW: MultiviewState = {
   enabled: false,
-  arrangement: "column",
-  count: 2,
-  panes: [
-    { id: "pane-1", symbol: null, resolution: "4h", indicators: ["rsi"] },
-    { id: "pane-2", symbol: null, resolution: "15m", indicators: ["macd"] },
-    { id: "pane-3", symbol: null, resolution: "1d", indicators: [] },
-  ],
+  arrangement: "grid",
+  count: 1,
+  panes: [pane("pane-1", "4h"), pane("pane-2", "15m"), pane("pane-3", "1d")],
   sync: { crosshair: true, time: false },
-  mirrorDrawings: true,
 };
 
 const KEY = "journal-chart-multiview-v1";
-const SYMBOL = /^[^\x00-\x1f]{1,100}$/;
-const known = new Set(INDICATOR_LIBRARY.map((i) => i.key));
+const TEXT = /^[^\x00-\x1f]{1,100}$/;
+const text = (value: unknown) =>
+  typeof value === "string" && TEXT.test(value.trim()) ? value.trim() : null;
 
 /** Stored state, with anything unknown replaced by the default. */
 export function parseMultiview(raw: string | null): MultiviewState {
   if (!raw) return DEFAULT_MULTIVIEW;
   try {
-    const v = JSON.parse(raw) as Partial<MultiviewState>;
+    const v = JSON.parse(raw) as Omit<Partial<MultiviewState>, "arrangement"> & {
+      arrangement?: unknown;
+    };
+    const stored = (Array.isArray(v.panes) ? v.panes : []) as (Partial<PaneTarget> | null)[];
     const panes = DEFAULT_MULTIVIEW.panes.map((fallback, i) => {
-      const p = (Array.isArray(v.panes) ? v.panes[i] : undefined) as
-        Partial<CompanionPane> | undefined;
+      // Panes keep their id when reordered (closing one moves it to the end).
+      const p =
+        stored.find((s) => s?.id === fallback.id) ?? (stored[i]?.id ? undefined : stored[i]);
       return {
         id: fallback.id,
-        symbol: typeof p?.symbol === "string" && SYMBOL.test(p.symbol) ? p.symbol : null,
+        provider: text(p?.provider),
+        dataset: text(p?.dataset),
+        symbol: text(p?.symbol),
         resolution:
           p?.resolution === null
             ? null
             : isResolution(p?.resolution)
               ? p.resolution
               : fallback.resolution,
-        indicators: Array.isArray(p?.indicators)
-          ? p.indicators
-              .filter((k): k is string => typeof k === "string" && known.has(k))
-              .slice(0, 5)
-          : fallback.indicators,
+        analysisId: text(p?.analysisId),
       };
     });
+    // Order as stored, so a closed pane stays last.
+    const order = stored.map((s) => s?.id);
+    panes.sort((a, b) => rank(order, a.id) - rank(order, b.id));
     return {
       enabled: v.enabled === true,
-      arrangement: v.arrangement === "row" ? "row" : "column",
+      // Earlier layouts: extra charts beside the first (now a grid) or below it.
+      arrangement:
+        v.arrangement === "stack"
+          ? "stack"
+          : v.arrangement === "focus" || v.arrangement === "row"
+            ? "focus"
+            : "grid",
       count:
         typeof v.count === "number" && Number.isInteger(v.count)
           ? Math.min(MAX_COMPANIONS, Math.max(1, v.count))
@@ -89,12 +109,16 @@ export function parseMultiview(raw: string | null): MultiviewState {
         crosshair: v.sync?.crosshair !== false,
         time: v.sync?.time === true,
       },
-      mirrorDrawings: v.mirrorDrawings !== false,
     };
   } catch {
     return DEFAULT_MULTIVIEW;
   }
 }
+
+const rank = (order: unknown[], id: string) => {
+  const at = order.indexOf(id);
+  return at < 0 ? order.length : at;
+};
 
 export const multiviewPreference = {
   read(): MultiviewState {
@@ -113,11 +137,34 @@ export const multiviewPreference = {
   },
 };
 
-/** The symbol and candle size an extra chart shows, given the main chart's. */
-export const paneMarket = (
-  pane: CompanionPane,
-  main: { symbol: string; resolution: Resolution },
-) => ({
-  symbol: pane.symbol?.trim() || main.symbol,
-  resolution: pane.resolution ?? main.resolution,
-});
+/** What the first chart shows, which extra charts follow until you change them. */
+export interface MainMarket {
+  provider: string;
+  dataset: string | null;
+  symbol: string;
+}
+
+/**
+ * What an extra chart opens: its own market if it has one, otherwise the first chart's, at
+ * its own candle size. Null while there is nothing to follow yet.
+ */
+export function paneStart(
+  target: PaneTarget,
+  main: MainMarket | null,
+  defaultResolution: Resolution,
+) {
+  const own = target.symbol && (target.provider ?? main?.provider);
+  const market: MainMarket | null = own
+    ? {
+        provider: target.provider ?? main!.provider,
+        dataset: target.provider ? target.dataset : (main?.dataset ?? null),
+        symbol: target.symbol!,
+      }
+    : main;
+  if (!market) return null;
+  return {
+    ...market,
+    resolution: target.resolution ?? defaultResolution,
+    analysisId: target.analysisId,
+  };
+}

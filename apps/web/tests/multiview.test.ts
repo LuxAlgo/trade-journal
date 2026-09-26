@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { createChartSync } from "../src/lib/chart-sync";
-import { DEFAULT_MULTIVIEW, paneMarket, parseMultiview } from "../src/lib/multiview";
+import { multiviewLayout } from "../src/components/multiview";
+import {
+  DEFAULT_MULTIVIEW,
+  paneStart,
+  parseMultiview,
+  type MultiviewState,
+} from "../src/lib/multiview";
 
 describe("multiview is an option you turn on", () => {
   it("starts as a single chart", () => {
@@ -9,48 +15,115 @@ describe("multiview is an option you turn on", () => {
     expect(parseMultiview("not json")).toEqual(DEFAULT_MULTIVIEW);
   });
 
-  it("restores a saved layout and drops anything unknown", () => {
+  it("restores what each extra chart showed and drops anything unknown", () => {
     const saved = parseMultiview(
       JSON.stringify({
         enabled: true,
-        arrangement: "row",
+        arrangement: "stack",
         count: 9,
         panes: [
-          { symbol: "ETHUSDT", resolution: "4h", indicators: ["rsi", "made-up", 3] },
-          { symbol: "", resolution: null, indicators: "rsi" },
+          {
+            id: "pane-1",
+            provider: "binance",
+            dataset: null,
+            symbol: "ETHUSDT",
+            resolution: "4h",
+            analysisId: "a1",
+          },
+          { id: "pane-2", symbol: "", resolution: "made-up", analysisId: 3 },
         ],
         sync: { crosshair: false, time: true },
-        mirrorDrawings: false,
       }),
     );
     expect(saved).toMatchObject({
       enabled: true,
-      arrangement: "row",
+      arrangement: "stack",
       count: 3,
       sync: { crosshair: false, time: true },
-      mirrorDrawings: false,
     });
-    expect(saved.panes[0]).toMatchObject({
+    expect(saved.panes[0]).toEqual({
+      id: "pane-1",
+      provider: "binance",
+      dataset: null,
       symbol: "ETHUSDT",
       resolution: "4h",
-      indicators: ["rsi"],
+      analysisId: "a1",
     });
-    // An empty symbol follows the main chart; a missing list keeps the default indicators.
-    expect(saved.panes[1]).toMatchObject({ symbol: null, resolution: null, indicators: ["macd"] });
+    // An empty symbol follows the first chart; a bad candle size keeps the default.
+    expect(saved.panes[1]).toMatchObject({ symbol: null, resolution: "15m", analysisId: null });
     expect(saved.panes).toHaveLength(3);
   });
 
-  it("extra charts follow the main chart's symbol and candle size unless set", () => {
-    const main = { symbol: "BTCUSDT", resolution: "1h" as const };
-    expect(paneMarket({ id: "p", symbol: null, resolution: null, indicators: [] }, main)).toEqual(
-      main,
+  it("a closed chart keeps its place at the end", () => {
+    const saved = parseMultiview(
+      JSON.stringify({
+        enabled: true,
+        panes: [{ id: "pane-2" }, { id: "pane-3" }, { id: "pane-1" }],
+      }),
     );
-    expect(
-      paneMarket({ id: "p", symbol: " ETHUSDT ", resolution: "4h", indicators: [] }, main),
-    ).toEqual({
-      symbol: "ETHUSDT",
+    expect(saved.panes.map((p) => p.id)).toEqual(["pane-2", "pane-3", "pane-1"]);
+  });
+
+  it("earlier layouts still open", () => {
+    const old = (arrangement: string) =>
+      parseMultiview(JSON.stringify({ enabled: true, arrangement, mirrorDrawings: true }));
+    expect(old("column").arrangement).toBe("grid");
+    expect(old("row").arrangement).toBe("focus");
+    // Earlier panes without ids keep their order.
+    const panes = parseMultiview(
+      JSON.stringify({ panes: [{ symbol: "SOLUSDT", resolution: null, indicators: ["rsi"] }] }),
+    ).panes;
+    expect(panes[0]).toMatchObject({ id: "pane-1", symbol: "SOLUSDT", resolution: null });
+  });
+
+  it("an extra chart follows the first chart's symbol until it has its own", () => {
+    const main = { provider: "binance", dataset: null, symbol: "BTCUSDT" };
+    const pane = DEFAULT_MULTIVIEW.panes[0]!;
+    expect(paneStart(pane, main, "5m")).toEqual({ ...main, resolution: "4h", analysisId: null });
+    expect(paneStart({ ...pane, resolution: null }, main, "5m")?.resolution).toBe("5m");
+    // Nothing to follow yet.
+    expect(paneStart(pane, null, "5m")).toBeNull();
+    const own = { ...pane, provider: "csv", dataset: "file-1", symbol: "ES", analysisId: "a2" };
+    expect(paneStart(own, main, "5m")).toEqual({
+      provider: "csv",
+      dataset: "file-1",
+      symbol: "ES",
       resolution: "4h",
+      analysisId: "a2",
     });
+    // A symbol without a source uses the first chart's source.
+    expect(paneStart({ ...pane, symbol: "ETHUSDT" }, main, "5m")).toMatchObject({
+      provider: "binance",
+      symbol: "ETHUSDT",
+    });
+  });
+});
+
+describe("multiview layouts", () => {
+  const state = (count: number, arrangement: MultiviewState["arrangement"]) => ({
+    ...DEFAULT_MULTIVIEW,
+    enabled: true,
+    count,
+    arrangement,
+  });
+
+  it("a single chart keeps its full size", () => {
+    const layout = multiviewLayout(DEFAULT_MULTIVIEW);
+    expect(layout.total).toBe(1);
+    expect(layout.cell(0).size).toBe("full");
+  });
+
+  it("the first chart stays large when the others sit below it", () => {
+    const layout = multiviewLayout(state(3, "focus"));
+    expect(layout.total).toBe(4);
+    expect(layout.cell(0).size).toBe("full");
+    expect(layout.cell(1).size).toBe("pane");
+  });
+
+  it("in a grid, an odd chart out takes the whole last row", () => {
+    const layout = multiviewLayout(state(2, "grid"));
+    expect(layout.cell(2).cell).toContain("col-span-2");
+    expect(layout.cell(1).cell).not.toContain("col-span-2");
   });
 });
 

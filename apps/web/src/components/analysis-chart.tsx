@@ -212,6 +212,7 @@ export function AnalysisChart({
   toolbarExtras,
   sidePanel,
   sync,
+  size = "full",
   layers,
   onDrawingCreated,
   onDrawingsChange,
@@ -247,6 +248,8 @@ export function AnalysisChart({
   sidePanel?: { title: string; count?: number; content: React.ReactNode };
   /** Multiview: keeps this chart's crosshair and time window in step with the others. */
   sync?: { bus: ChartSync; id: string };
+  /** Multiview: a shorter chart, so several fit on screen. */
+  size?: "full" | "pane";
   layers: LayersDocument;
   onDrawingCreated: (id: string) => void;
   /** Every drawing on the chart, after any change (for the layers panel and alerts). */
@@ -322,18 +325,21 @@ export function AnalysisChart({
   const [fullscreen, setFullscreen] = useState(false);
   /** Full screen via the browser API shows only the frame, so popups portal into it. */
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
-  const [sideOpen, setSideOpen] = useState(true);
+  // Remembered apart for multiview charts, where the panel starts closed to leave room.
+  const sideKey = size === "pane" ? `${SIDE_PANEL_KEY}-pane` : SIDE_PANEL_KEY;
+  const [sideOpen, setSideOpen] = useState(size === "full");
   useEffect(() => {
     try {
-      setSideOpen(localStorage.getItem(SIDE_PANEL_KEY) !== "closed");
+      const stored = localStorage.getItem(sideKey);
+      setSideOpen(size === "pane" ? stored === "open" : stored !== "closed");
     } catch {
-      // Open by default.
+      // The default for this size.
     }
-  }, []);
+  }, [sideKey, size]);
   const toggleSide = () =>
     setSideOpen((open) => {
       try {
-        localStorage.setItem(SIDE_PANEL_KEY, open ? "closed" : "open");
+        localStorage.setItem(sideKey, open ? "closed" : "open");
       } catch {
         // This page only.
       }
@@ -1092,7 +1098,11 @@ export function AnalysisChart({
         <div
           className={cn(
             "flex flex-col gap-2 md:flex-row",
-            fullscreen ? "min-h-0 flex-1" : "md:h-[min(72vh,680px)] md:min-h-[420px]",
+            fullscreen
+              ? "min-h-0 flex-1"
+              : size === "pane"
+                ? "md:h-[min(56vh,540px)] md:min-h-[340px]"
+                : "md:h-[min(72vh,680px)] md:min-h-[420px]",
           )}
         >
           <div
@@ -1101,7 +1111,11 @@ export function AnalysisChart({
             className={cn(
               "journal-analysis-chart min-w-0 overflow-hidden rounded-lg border md:min-h-0 md:flex-1",
               capturing && "cursor-crosshair ring-2 ring-primary",
-              fullscreen ? "min-h-0 flex-1" : "h-[min(72vh,680px)] min-h-[420px] md:h-auto",
+              fullscreen
+                ? "min-h-0 flex-1"
+                : size === "pane"
+                  ? "h-[min(56vh,540px)] min-h-[340px] md:h-auto"
+                  : "h-[min(72vh,680px)] min-h-[420px] md:h-auto",
             )}
           />
           {sidePanel && sideOpen && (
@@ -1128,7 +1142,7 @@ export function AnalysisChart({
             </aside>
           )}
         </div>
-        {!fullscreen && (
+        {!fullscreen && size === "full" && (
           <p className="text-xs text-muted-foreground">
             {penSeen
               ? "Stylus detected. The pen tip draws, a pen tap selects a drawing, the eraser end erases, and fingers pan and zoom. Turn off “Stylus draws” to drag drawings with the pen."
