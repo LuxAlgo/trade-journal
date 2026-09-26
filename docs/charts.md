@@ -98,11 +98,52 @@ Folders hold layers, and layers hold drawings.
 - The eye hides, and the lock freezes, a layer or a whole folder. A folder's switch overrides
   its layers. Hidden drawings stay hidden through undo and redo, are left out of the snapshot,
   and never raise alerts.
-- Expand a layer to list its drawings: select one on the chart, move it to another layer, or
-  delete it. The layer menu renames, reorders, moves the layer into or out of a folder, shows
-  its drawings on the chart (loading older history if needed) or deletes it; its drawings can
-  move to another layer or go with it. Deleting a folder keeps its layers.
-- Double-click a layer or folder name to rename it.
+- **Drag and drop** with the grip on each row: a layer onto another layer puts it before that
+  one (joining its folder), onto a folder puts it at the end of that folder, and onto the
+  "out of its folder" strip takes it to the top level. Folders reorder by dropping one on
+  another. A drawing dropped on a layer moves there; a checked drawing brings every checked
+  one with it. Every drag has a menu equivalent.
+- **Drawings** listed under a layer have a colour dot, a name (double-click to rename; the name
+  also appears in alerts), their own eye and lock (greyed while the layer hides or locks them),
+  and a menu: edit its style on the chart, bring to front, send to back, duplicate, move to a
+  layer, delete.
+- **Check** drawings (shift-click checks a range, "All" checks a layer) to act on them together:
+  select them on the chart, scroll to them, show, hide, lock, unlock, front, back, duplicate,
+  delete, move to a layer, and set their colour, width or line style.
+- **Find drawings** by name or type, or filter by type; layers without a match fold away.
+- The layer menu also has **Show only this layer**, check its drawings, a **layer colour** (and
+  "colour its drawings with it"), and **duplicate the layer with its drawings**. Folders have
+  **Show only this folder**. The toolbar shows every layer, unlocks every layer, or opens and
+  closes them all.
+- Double-click a layer or folder name to rename it. Deleting a folder keeps its layers.
+
+## Appearance and defaults
+
+**Appearance** on the chart toolbar opens the chart's settings, saved on the journal server
+(`/api/chart-preferences`) so every browser shows the same.
+
+- **Look**: chart type (candles, Heikin Ashi, OHLC bars, line, area, baseline), rising and
+  falling colours, bodies, borders and wicks, line colour and width, background, text colour and
+  size, grid, crosshair, price scale (regular, percent, indexed to 100, logarithmic, inverted),
+  last price line and label, candle countdown and animations. Ready-made looks and your own
+  saved looks apply with one click. **Every chart setting** opens Vela's full settings dialog;
+  what you change there is saved to the same look.
+- A look is stored as the difference from Vela's theme defaults: what you never changed keeps
+  following light or dark mode, what you changed stays in both.
+- **Own look for a symbol**: tick it and the look you edit applies to that symbol only, over the
+  default look.
+- **Symbol**: a display name (shown in the header, recent symbols and the watchlist), a colour
+  tag, the watchlist star (also next to the symbol name), the candle size it opens with, and
+  price decimals on the axis (automatic or 0 to 8).
+- **Drawings**: each tool's starting colour, width, line style, fill and text. With **Remember
+  the last style I use with each tool** on, changing a drawing's style in its own popup makes
+  that the tool's new start (bulk changes from the layers panel do not). The pen and
+  highlighter always use the toolbar ink; the **+** after the ink colours adds your own
+  (right-click one to remove it).
+- **Defaults**: the candle size and live or paused state charts open with, volume, the time
+  axis zone (the journal timezone by default, instead of UTC), the magnet and whether a tool
+  stays armed after drawing. Changing the magnet, stay mode or favourite tools on Vela's own
+  toolbar saves them too.
 
 ### Candle sizes a source does not offer
 
@@ -267,8 +308,12 @@ Stroke width does not vary with pen pressure; Vela's freehand strokes have a fix
 
 ## How it is stored
 
+Chart preferences are one validated JSON document in the settings table
+(`chartPreferences`), included in the JSON export.
+
 `chart_analyses` keeps the source (provider, symbol, dataset), the candle size, the loaded
-and visible ranges, the Vela drawings document, the layers document (`layers_json`), the
+and visible ranges, the Vela drawings document, the layers document (`layers_json`, with
+optional layer colours and drawing names), the
 indicators (`indicators_json`), support/resistance zones (`zones_json`), notes, the optional
 journal day and a PNG snapshot. Trades and missed trades are read live from the journal, not
 copied into the analysis. `economic_events` holds the stored calendar.
@@ -325,4 +370,7 @@ copied into the analysis. `economic_events` holds the stored calendar.
 - `server/ai-analyses.ts`: linked analyses for AI reviews.
 - `server/analysis-snapshots.ts`, `app/api/analyses/[id]/snapshots/**`,
   `app/api/analysis-snapshots`: day versions; `components/day-analyses.tsx`: the journal card.
+- `lib/chart-preferences.ts`, `server/chart-preferences.ts`, `app/api/chart-preferences`:
+  looks, saved looks, symbol settings, tool styles and defaults;
+  `components/chart-appearance.tsx`: the Appearance dialog.
 - `app/charts/page.tsx`: symbol selection, autosave, alerts, journal and analysis lists.

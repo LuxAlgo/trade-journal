@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Chart appearance: chart type, colours, grid, crosshair, text, price scale mode, decimals per symbol and time axis zone; ready-made and saved looks; a look per symbol; symbol display names, colour tags and a watchlist; starting styles per drawing tool (remembered from the last used), custom ink colours; defaults for candle size, live, volume, magnet and stay-in-drawing mode; all saved on the server
+- Layers panel: drag and drop for layers, folders and drawings, find and filter drawings, check several for bulk show, hide, lock, move, restyle, reorder, duplicate or delete, drawing names, per-drawing visibility and lock, layer colours, show only one layer or folder, duplicate a layer with its drawings
+- Day versions of chart analyses: the analysis stays one live board, and each journal day you edit it keeps a frozen copy (drawings, zones, indicators, notes and picture) shown on that day's journal page, openable read-only over current candles and restorable as the live version; day notes and AI reviews use that day's version
 - Real-time charts for Binance and Coinbase: the server relays each exchange's public trade feed over Server-Sent Events, so the forming candle moves with every trade; other sources keep polling
 - Charts show your journal trades (fills, entry to exit with WIN/LOSS and P&L, open positions with stop and target; click to open the trade), with switches to hide all trades or only closed ones, and missed trades as violet diamonds logged straight from the chart
 - Support and resistance zones on Charts: price ranges with a role that follows price, counted touches and breaks, role flip on a break, zone alerts, saved with the analysis

@@ -37,6 +37,7 @@ import {
   getImportTimeZone,
 } from "@/server/settings";
 import { handler, ok } from "@/server/api";
+import { getChartPreferences } from "@/server/chart-preferences";
 import { attachmentExportRecord, EXPORT_ATTACHMENTS_NOTE } from "@/lib/export-format";
 
 /**
@@ -141,6 +142,7 @@ export const GET = handler(async (request: Request) => {
       timeZone: getTimeZone(),
       importTimeZone: getImportTimeZone(),
       multipliers: getMultipliers(),
+      chartPreferences: getChartPreferences(),
     },
     // Metadata only: attachment binaries stay in the data directory.
     attachments: db

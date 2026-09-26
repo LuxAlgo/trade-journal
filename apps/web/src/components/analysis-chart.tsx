@@ -12,6 +12,7 @@ import {
   Minus,
   MoveUpRight,
   Pen,
+  Plus,
   Redo2,
   Square,
   Trash2,
@@ -32,6 +33,18 @@ import {
 import { STYLUS_COLORS, STYLUS_WIDTHS, isBrush, stylusPreference } from "@/lib/stylus";
 import { cn } from "@/lib/utils";
 import { markLegacyPatterns } from "@/lib/pattern-fixes";
+import {
+  isColor,
+  mergeStyle,
+  sameToolStyle,
+  styleDiff,
+  tickForDecimals,
+  toolStyleOf,
+  MAX_PALETTE,
+  type SnapMode,
+  type StyleDiff,
+  type ToolStyle,
+} from "@/lib/chart-preferences";
 import { attachStylus } from "./chart-stylus";
 import { applyPatternFixes } from "./vela-pattern-fixes";
 import {
@@ -57,7 +70,43 @@ export interface ChartDrawing {
   visible: boolean;
   locked: boolean;
   text?: string;
+  color?: string;
+  lineWidth?: number;
+  lineStyle?: string;
+  zIndex: number;
 }
+
+/** How the chart looks and behaves, resolved by the page from the saved preferences. */
+export interface ChartAppearance {
+  /** The look to show, as a difference from the theme defaults. */
+  style: StyleDiff;
+  /** IANA zone for the time axis. */
+  timeZone: string;
+  /** Price decimals on the axis; undefined = automatic. */
+  decimals?: number;
+  volume: boolean;
+  magnet: SnapMode;
+  stayInDrawingMode: boolean;
+  tools: Record<string, ToolStyle>;
+  rememberToolStyles: boolean;
+  palette: string[];
+  favoriteTools: string[];
+}
+
+/** A drawing-behaviour change made on the chart itself, to save as a preference. */
+export type DrawingPrefsPatch = Partial<
+  Pick<ChartAppearance, "magnet" | "stayInDrawingMode" | "palette" | "favoriteTools">
+>;
+
+/** One drawing's new fields, for bulk edits from the layers panel. */
+export type DrawingPatch = {
+  id: string;
+  patch: {
+    visible?: boolean;
+    locked?: boolean;
+    style?: Record<string, unknown>;
+  };
+};
 
 export interface AnalysisChartHandle {
   drawings(): DrawingsDocument;
@@ -74,6 +123,18 @@ export interface AnalysisChartHandle {
   indicators(): IndicatorBridge | null;
   /** Scroll to a moment (loading older history if needed). */
   showTime(time: number): void;
+  /** Vela's own settings dialog (every option), optionally on one tab. */
+  openSettings(section?: string): void;
+  /** The current theme's untouched default config (what a look is a difference from). */
+  themeBase(): unknown;
+  /** Change several drawings as one undo step. */
+  updateDrawings(patches: DrawingPatch[]): void;
+  duplicate(ids: string[]): string[];
+  bringToFront(ids: string[]): void;
+  sendToBack(ids: string[]): void;
+  /** Open a drawing's own settings popup on the chart. */
+  editDrawing(id: string): void;
+  selectMany(ids: string[]): void;
 }
 
 const TOOLS: {
@@ -94,7 +155,8 @@ const QUICK_TOOLS = new Set<DrawingTypeKey>(TOOLS.map((entry) => entry.type));
 type DrawingsInternals = {
   ctrl?: {
     lastStyle?: unknown;
-    store?: { setVisible?: unknown; setLocked?: unknown };
+    store?: { setVisible?: unknown; setLocked?: unknown; get?: (id: string) => unknown };
+    sync?: () => void;
   };
 };
 
@@ -105,7 +167,13 @@ const toChartDrawing = (d: SerializedDrawing): ChartDrawing => ({
   visible: d.visible,
   locked: d.locked,
   text: d.text?.value,
+  color: d.style.lineColor,
+  lineWidth: d.style.lineWidth,
+  lineStyle: d.style.lineStyle,
+  zIndex: d.zIndex,
 });
+
+const dark = () => document.documentElement.classList.contains("dark");
 
 const freshHistory = (requested: number) => ({
   requested,
@@ -143,6 +211,10 @@ export function AnalysisChart({
   onStatus,
   onLatest,
   onSelect,
+  appearance,
+  onLookEdited,
+  onDrawingPrefs,
+  onToolStyle,
   chartRef,
 }: {
   source: { provider: string; dataset: string | null };
@@ -171,7 +243,13 @@ export function AnalysisChart({
   onEdit: () => void;
   onStatus: (status: LiveStatus) => void;
   onLatest: (latest: LatestBar) => void;
-  onSelect: (id: string | null) => void;
+  onSelect: (id: string | null, ids: string[]) => void;
+  appearance: ChartAppearance;
+  /** The look was changed in Vela's own settings dialog: the full config and the theme base. */
+  onLookEdited: (edit: { style: StyleDiff; base: unknown; timeZone: string | null }) => void;
+  onDrawingPrefs: (patch: DrawingPrefsPatch) => void;
+  /** A tool's style to start its next drawing with (the last one used). */
+  onToolStyle: (type: string, style: ToolStyle) => void;
   chartRef?: Ref<AnalysisChartHandle>;
 }) {
   const frame = useRef<HTMLDivElement>(null);
@@ -195,6 +273,9 @@ export function AnalysisChart({
     onSelect,
     onIndicatorsChange,
     onIndicatorAlert,
+    onLookEdited,
+    onDrawingPrefs,
+    onToolStyle,
   });
   callbacks.current = {
     onDrawingCreated,
@@ -205,8 +286,16 @@ export function AnalysisChart({
     onSelect,
     onIndicatorsChange,
     onIndicatorAlert,
+    onLookEdited,
+    onDrawingPrefs,
+    onToolStyle,
   };
   const layersRef = useRef(layers);
+  const appearanceRef = useRef(appearance);
+  /** Theme default configs, captured clean at creation; looks are applied over them. */
+  const themeBases = useRef<{ dark?: unknown; light?: unknown }>({});
+  /** Set while this component writes the config or drawings, so its own writes aren't read back as edits. */
+  const writing = useRef(false);
   const resolutionRef = useRef(resolution);
   const liveRef = useRef(live);
   const history = useRef(freshHistory(INITIAL_BARS));
@@ -242,6 +331,63 @@ export function AnalysisChart({
     showTime: (time) => {
       if (chart.current) showTimeNow(chart.current, time);
     },
+    openSettings: (section) => chart.current?.renderer.openSettings(section),
+    themeBase: () => themeBases.current[dark() ? "dark" : "light"] ?? null,
+    updateDrawings: (patches) => {
+      const instance = chart.current;
+      if (!instance || !patches.length) return;
+      writing.current = true;
+      try {
+        instance.drawings.updateMany(
+          patches.map(({ id, patch }) => {
+            const current = instance.drawings.all().find((d) => d.id === id);
+            return {
+              id,
+              patch: {
+                ...patch,
+                ...(patch.style && current
+                  ? { style: { ...current.style, ...patch.style } as SerializedDrawing["style"] }
+                  : {}),
+              } as Partial<SerializedDrawing>,
+            };
+          }),
+        );
+      } finally {
+        writing.current = false;
+      }
+      applyLayers(instance, layersRef.current);
+      publish(instance);
+      callbacks.current.onEdit();
+    },
+    duplicate: (ids) => {
+      const instance = chart.current;
+      if (!instance || !ids.length) return [];
+      const before = new Set(instance.drawings.all().map((d) => d.id));
+      instance.drawings.duplicate(ids);
+      const copies = instance.drawings
+        .all()
+        .map((d) => d.id)
+        .filter((id) => !before.has(id));
+      publish(instance);
+      callbacks.current.onEdit();
+      return copies;
+    },
+    bringToFront: (ids) => {
+      const instance = chart.current;
+      if (!instance) return;
+      for (const id of ids) instance.drawings.bringToFront(id);
+      publish(instance);
+      callbacks.current.onEdit();
+    },
+    sendToBack: (ids) => {
+      const instance = chart.current;
+      if (!instance) return;
+      for (const id of [...ids].reverse()) instance.drawings.sendToBack(id);
+      publish(instance);
+      callbacks.current.onEdit();
+    },
+    editDrawing: (id) => chart.current?.drawings.openSettings(id),
+    selectMany: (ids) => chart.current?.drawings.select(ids),
   }));
 
   const arm = (type: DrawingTypeKey | null) => {
@@ -266,7 +412,6 @@ export function AnalysisChart({
       const { Vela } = vela;
       if (disposed || !host.current) return;
       applyPatternFixes(vela);
-      const dark = () => document.documentElement.classList.contains("dark");
       const { drawings, visible } = seed.current;
       const step = RESOLUTIONS[resolutionRef.current];
       // Enough history to show a saved view, within the chart's depth cap.
@@ -294,7 +439,7 @@ export function AnalysisChart({
         live: true,
         theme: dark() ? "dark" : "light",
         priceStyle: "candles",
-        volume: true,
+        volume: appearanceRef.current.volume,
         drawings: true,
         ...(visible ? { visibleRange: visible } : {}),
       });
@@ -303,6 +448,15 @@ export function AnalysisChart({
       const engine = new PineWorkerEngine({ props: "strategy" });
       instance.registerEngine("pine", engine);
       chart.current = instance;
+      // Capture both themes' untouched defaults before any look is applied over them.
+      const theme = dark() ? "dark" : "light";
+      const other = theme === "dark" ? "light" : "dark";
+      themeBases.current[theme] = instance.renderer.getConfig();
+      instance.setTheme(other);
+      themeBases.current[other] = instance.renderer.getConfig();
+      instance.setTheme(theme);
+      applyLook(instance);
+      applyDrawingPrefs(instance, appearanceRef.current);
       instance.drawings.fromJSON(markLegacyPatterns(drawings));
       applyLayers(instance, layersRef.current);
       publish(instance);
@@ -341,22 +495,63 @@ export function AnalysisChart({
       const offs = [
         instance.on("drawing:created", ({ id }) => {
           const drawing = instance.drawings.all().find((d) => d.id === id);
+          const tools = appearanceRef.current.tools;
           // Without the style seed, give each new quick-tool drawing the chosen ink once.
           if (drawing && !seeded && QUICK_TOOLS.has(drawing.type))
             instance.drawings.update(id, {
-              style: { ...drawing.style, ...styleFor(drawing.type, prefs.current) },
+              style: { ...drawing.style, ...styleFor(drawing.type, prefs.current, tools) },
             });
+          if (drawing) applyTextDefaults(instance, drawing, tools[drawing.type]);
           callbacks.current.onDrawingCreated(id);
           edited();
         }),
-        instance.on("drawing:edited", edited),
+        instance.on("drawing:edited", ({ id }) => {
+          // A style changed in the drawing's own popup becomes its tool's starting style.
+          const current = appearanceRef.current;
+          const drawing = instance.drawings.all().find((d) => d.id === id);
+          if (drawing && current.rememberToolStyles && !writing.current && !isBrush(drawing.type)) {
+            const style = toolStyleOf(drawing as unknown as Parameters<typeof toolStyleOf>[0]);
+            const saved = current.tools[drawing.type];
+            const merged = { ...saved, ...style };
+            if (!sameToolStyle(saved, merged)) callbacks.current.onToolStyle(drawing.type, merged);
+          }
+          edited();
+        }),
+        instance.on("drawing:snap", ({ mode }) => {
+          if (!writing.current && mode !== appearanceRef.current.magnet)
+            callbacks.current.onDrawingPrefs({ magnet: mode as SnapMode });
+        }),
+        instance.on("drawing:stay", ({ on }) => {
+          if (!writing.current && on !== appearanceRef.current.stayInDrawingMode)
+            callbacks.current.onDrawingPrefs({ stayInDrawingMode: on });
+        }),
+        instance.on("drawing:favorites", ({ favorites }) => {
+          if (!writing.current && favorites.join() !== appearanceRef.current.favoriteTools.join())
+            callbacks.current.onDrawingPrefs({ favoriteTools: favorites });
+        }),
+        instance.renderer.onConfigChanged(() => {
+          if (writing.current) return;
+          const base = themeBases.current[dark() ? "dark" : "light"];
+          const config = instance.renderer.getConfig();
+          const zone = (config as { timeScale?: { timezone?: unknown } } | null)?.timeScale
+            ?.timezone;
+          callbacks.current.onLookEdited({
+            style: styleDiff(base, config),
+            base,
+            timeZone:
+              typeof zone === "string" && zone !== appearanceRef.current.timeZone ? zone : null,
+          });
+        }),
         instance.on("drawing:removed", edited),
-        instance.on("drawing:selected", ({ id }) => callbacks.current.onSelect(id)),
+        instance.on("drawing:selected", ({ id, ids }) => callbacks.current.onSelect(id, ids)),
         instance.on("drawing:tool", ({ type }) => {
           setTool(type);
           if (!type) armedByPen.current = false;
           // Re-arming the same tool pushes the seeded style to the renderer; no event loops.
-          else if (QUICK_TOOLS.has(type) && seedStyle(instance, type, prefs.current))
+          else if (
+            QUICK_TOOLS.has(type) &&
+            seedStyle(instance, type, prefs.current, appearanceRef.current.tools)
+          )
             instance.drawings.setTool(type);
         }),
         instance.on("drawing:mode", ({ mode }) => setErasing(mode === "eraser")),
@@ -370,6 +565,8 @@ export function AnalysisChart({
         }),
         instance.on("load:end", ({ bars: loaded }) => {
           if (!loaded) history.current.loading = false;
+          // A market switch resets the axis precision; put the chosen one back.
+          setTimeout(() => applyPrecision(instance, appearanceRef.current.decimals), 0);
         }),
         instance.on("viewport:changed", ({ from, to }) => {
           // Scrolling near the oldest candle loads more, like any trading chart.
@@ -392,7 +589,15 @@ export function AnalysisChart({
       };
       element.addEventListener("keydown", onKey);
       const observer = new MutationObserver(() => {
-        instance.setTheme(dark() ? "dark" : "light");
+        const next = dark() ? "dark" : "light";
+        writing.current = true;
+        try {
+          instance.setTheme(next);
+        } finally {
+          writing.current = false;
+        }
+        // The theme resets its colours; the saved look goes back on top.
+        applyLook(instance);
         drawn.repaint();
       });
       observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
@@ -453,6 +658,64 @@ export function AnalysisChart({
       publish(chart.current);
     }
   }, [layers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Looks, precision, volume and drawing behaviour follow the preferences in place.
+  useEffect(() => {
+    const previous = appearanceRef.current;
+    appearanceRef.current = appearance;
+    const instance = chart.current;
+    if (!instance || previous === appearance) return;
+    if (previous.style !== appearance.style || previous.timeZone !== appearance.timeZone)
+      applyLook(instance);
+    if (previous.decimals !== appearance.decimals) applyPrecision(instance, appearance.decimals);
+    if (previous.volume !== appearance.volume) {
+      const volume = instance.indicators().find((h) => h.nativeType === "volume");
+      if (!appearance.volume) volume?.remove();
+      else if (!volume) instance.addNativeIndicator("volume");
+    }
+    applyDrawingPrefs(instance, appearance);
+  }, [appearance]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** The theme defaults with the look and time zone over them; removed settings revert. */
+  function applyLook(instance: Vela) {
+    const base = themeBases.current[dark() ? "dark" : "light"];
+    if (!base) return;
+    const current = appearanceRef.current;
+    writing.current = true;
+    try {
+      instance.renderer.applyConfig(
+        mergeStyle(base as StyleDiff, {
+          ...current.style,
+          timeScale: { timezone: current.timeZone },
+        }),
+      );
+      // The chart type has its own switch: some types (Heikin Ashi) recompute the series.
+      const type = (current.style.series as { style?: unknown } | undefined)?.style;
+      const wanted = typeof type === "string" ? type : "candles";
+      if (instance.renderer.get("priceStyle") !== wanted || type === "heikinashi")
+        instance.renderer.set("priceStyle", wanted);
+    } finally {
+      writing.current = false;
+    }
+  }
+
+  function applyDrawingPrefs(instance: Vela, current: ChartAppearance) {
+    writing.current = true;
+    try {
+      const api = instance.drawings;
+      if (api.getSnapMode() !== current.magnet) api.setSnapMode(current.magnet);
+      if (api.getStayMode() !== current.stayInDrawingMode)
+        api.setStayMode(current.stayInDrawingMode);
+      const favorites = (api as unknown as { favorites?: () => string[] }).favorites?.();
+      if (favorites && favorites.join() !== current.favoriteTools.join())
+        (api as unknown as { setFavorites?: (t: string[]) => void }).setFavorites?.(
+          current.favoriteTools,
+        );
+      seedToolDefaults(instance, current.tools);
+    } finally {
+      writing.current = false;
+    }
+  }
 
   useEffect(() => {
     const onFullscreen = () => setFullscreen(document.fullscreenElement === frame.current);
@@ -543,7 +806,7 @@ export function AnalysisChart({
     const current = instance?.drawings.getTool();
     // Re-arm so the renderer picks up the new color/width for the next stroke.
     if (instance && current && QUICK_TOOLS.has(current)) {
-      seedStyle(instance, current, next);
+      seedStyle(instance, current, next, appearanceRef.current.tools);
       instance.drawings.setTool(current);
     }
   };
@@ -629,6 +892,46 @@ export function AnalysisChart({
               style={{ backgroundColor: color.value }}
             />
           ))}
+          {appearance.palette.map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={preference.color === value}
+              aria-label={`Ink ${value}`}
+              title={`${value} (right-click to remove)`}
+              onClick={() => updatePreference({ color: value })}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                onDrawingPrefs({ palette: appearance.palette.filter((c) => c !== value) });
+              }}
+              className={cn(
+                "size-7 rounded-full border-2 transition-transform",
+                preference.color === value ? "scale-110 border-foreground" : "border-transparent",
+              )}
+              style={{ backgroundColor: value }}
+            />
+          ))}
+          <HoverHint content="Add an ink colour">
+            <label className="relative flex size-7 cursor-pointer items-center justify-center rounded-full border border-dashed text-muted-foreground hover:text-foreground">
+              <Plus className="size-3.5" aria-hidden="true" />
+              <input
+                type="color"
+                aria-label="Add an ink colour"
+                className="absolute inset-0 cursor-pointer opacity-0"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (!isColor(value)) return;
+                  updatePreference({ color: value });
+                  if (
+                    !appearance.palette.includes(value) &&
+                    !STYLUS_COLORS.some((c) => c.value === value)
+                  )
+                    onDrawingPrefs({ palette: [...appearance.palette, value].slice(-MAX_PALETTE) });
+                }}
+              />
+            </label>
+          </HoverHint>
         </div>
         <div role="radiogroup" aria-label="Stroke width" className="flex items-center gap-0.5">
           {STYLUS_WIDTHS.map((width) => (
@@ -730,11 +1033,70 @@ export function AnalysisChart({
 
 type Prefs = ReturnType<typeof stylusPreference.read>;
 
-function styleFor(type: DrawingTypeKey, prefs: Prefs) {
-  return {
+/**
+ * The pen and highlighter always use the toolbar ink. Other quick tools use their saved
+ * tool style when there is one, otherwise the toolbar ink.
+ */
+function styleFor(type: DrawingTypeKey, prefs: Prefs, tools: Record<string, ToolStyle> = {}) {
+  const ink = {
     lineColor: prefs.color,
     lineWidth: type === "highlighter" ? Math.max(10, prefs.width * 4) : prefs.width,
   };
+  const saved = isBrush(type) ? undefined : tools[type];
+  // Saved fields win; anything the tool style leaves open keeps the ink.
+  return saved ? { ...ink, ...velaStyle(saved) } : ink;
+}
+
+/** A saved tool style as Vela drawing style fields. */
+function velaStyle(tool: ToolStyle): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (tool.lineColor) out.lineColor = tool.lineColor;
+  if (tool.lineWidth) out.lineWidth = tool.lineWidth;
+  if (tool.lineStyle) out.lineStyle = tool.lineStyle;
+  if (tool.fillColor) out.fillColor = tool.fillColor;
+  if (tool.fillOpacity !== undefined) out.fillOpacity = tool.fillOpacity;
+  return out;
+}
+
+/** Seed Vela's per-tool "last used" style with the saved tool styles. */
+function seedToolDefaults(instance: Vela, tools: Record<string, ToolStyle>) {
+  const last = lastStyles(instance);
+  if (!last) return;
+  for (const [type, tool] of Object.entries(tools)) {
+    if (isBrush(type)) continue;
+    last.set(type, { ...last.get(type), ...velaStyle(tool) });
+  }
+}
+
+/** Text colour and size have no "last used" seed in Vela, so they are set on creation. */
+function applyTextDefaults(
+  instance: Vela,
+  drawing: SerializedDrawing,
+  tool: ToolStyle | undefined,
+) {
+  if (!drawing.text || !tool || (!tool.textColor && !tool.textSize)) return;
+  const text = {
+    ...drawing.text,
+    ...(tool.textColor ? { color: tool.textColor } : {}),
+    ...(tool.textSize ? { size: tool.textSize } : {}),
+  };
+  const internals = (instance.drawings as unknown as DrawingsInternals).ctrl;
+  const stored = internals?.store?.get?.(drawing.id) as { text?: unknown } | undefined;
+  if (stored && typeof internals?.sync === "function") {
+    // In place, so creating a text drawing stays one undo step.
+    stored.text = text;
+    internals.sync();
+  } else instance.drawings.update(drawing.id, { text });
+}
+
+/** Tick size for the price axis: Vela's renderer takes it directly. */
+function applyPrecision(instance: Vela, decimals: number | undefined) {
+  const port = (
+    instance.renderer as unknown as {
+      renderer?: { setPricePrecision?: (tick: number | undefined) => void };
+    }
+  ).renderer;
+  port?.setPricePrecision?.(tickForDecimals(decimals));
 }
 
 /** Vela keeps a per-tool "last used" style that seeds new drawings; it has no public
@@ -744,13 +1106,17 @@ const lastStyles = (instance: Vela) => {
   return last instanceof Map ? (last as Map<string, Record<string, unknown>>) : null;
 };
 const canSeedStyle = (instance: Vela) => lastStyles(instance) !== null;
-function seedStyle(instance: Vela, type: DrawingTypeKey, prefs: Prefs): boolean {
+function seedStyle(
+  instance: Vela,
+  type: DrawingTypeKey,
+  prefs: Prefs,
+  tools: Record<string, ToolStyle>,
+): boolean {
   const last = lastStyles(instance);
   if (!last) return false;
-  const style = styleFor(type, prefs);
+  const style = styleFor(type, prefs, tools);
   const current = last.get(type);
-  if (current?.lineColor === style.lineColor && current?.lineWidth === style.lineWidth)
-    return false;
+  if (Object.entries(style).every(([key, value]) => current?.[key] === value)) return false;
   last.set(type, { ...current, ...style });
   return true;
 }

@@ -6,6 +6,8 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import {
   Bell,
   BellOff,
+  Palette,
+  Star,
   History,
   Diamond,
   Rows3,
@@ -25,6 +27,21 @@ import {
 } from "@/components/analysis-chart";
 import { FilterBar } from "@/components/filter-bar";
 import { LayersPanel } from "@/components/layers-panel";
+import { ChartAppearance } from "@/components/chart-appearance";
+import {
+  DEFAULT_PREFERENCES,
+  JOURNAL_TIME_ZONE,
+  effectiveStyle,
+  mergeStyle,
+  styleDiff,
+  symbolPrefsKey,
+  type ChartPreferences,
+  type StyleDiff,
+} from "@/lib/chart-preferences";
+import type {
+  ChartAppearance as ChartAppearanceProps,
+  DrawingPrefsPatch,
+} from "@/components/analysis-chart";
 import { IndicatorsPanel } from "@/components/indicators-panel";
 import { PineEditor, type EditorDraft } from "@/components/pine-editor";
 import type { ChartIndicator, IndicatorAlert } from "@/components/chart-indicators-bridge";
@@ -66,6 +83,7 @@ import {
 import {
   assignDrawing,
   defaultLayers,
+  drawingName,
   effectiveLayer,
   layerOf,
   setActiveLayer,
@@ -202,6 +220,38 @@ function ChartLab() {
   const tfParam = params.get("tf");
   const [resolution, setResolution] = useState<Resolution>(isResolution(tfParam) ? tfParam : "5m");
   const [live, setLive] = useState(true);
+
+  // ── Chart preferences (looks, symbols, drawing defaults), saved on the server ──
+  const { data: prefsData } = useApi<{ preferences: ChartPreferences }>("/api/chart-preferences");
+  const [prefs, setPrefs] = useState<ChartPreferences>(DEFAULT_PREFERENCES);
+  const [prefsError, setPrefsError] = useState("");
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
+  const prefsLoaded = useRef(false);
+  useEffect(() => {
+    if (!prefsData || prefsLoaded.current) return;
+    prefsLoaded.current = true;
+    setPrefs(prefsData.preferences);
+    prefsRef.current = prefsData.preferences;
+    // Defaults for this visit, unless a link chose them.
+    if (!isResolution(params.get("tf")) && !state.current.board)
+      setResolution(prefsData.preferences.defaults.resolution);
+    setLive(prefsData.preferences.defaults.live);
+  }, [prefsData]); // eslint-disable-line react-hooks/exhaustive-deps
+  const prefsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savePrefs = useCallback((next: ChartPreferences) => {
+    prefsRef.current = next;
+    setPrefs(next);
+    if (prefsTimer.current) clearTimeout(prefsTimer.current);
+    prefsTimer.current = setTimeout(() => {
+      postJson("/api/chart-preferences", prefsRef.current, "PUT")
+        .then(() => setPrefsError(""))
+        .catch((cause) =>
+          setPrefsError(cause instanceof Error ? cause.message : "Could not save chart settings."),
+        );
+    }, 400);
+  }, []);
   const [board, setBoard] = useState<Board | null>(null);
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState("");
@@ -232,7 +282,7 @@ function ChartLab() {
   const [journalDay, setJournalDay] = useState(isDayKey(dayParam) ? dayParam : "");
   const [layers, setLayers] = useState<LayersDocument>(defaultLayers);
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [saveState, setSaveState] = useState<SaveState>({ state: "idle" });
   const [journalStatus, setJournalStatus] = useState<{ day: string } | { error: string } | null>(
     null,
@@ -477,6 +527,87 @@ function ChartLab() {
       router.replace(url, { scroll: false });
   }, [board, analysisId, resolution, router, viewing]);
 
+  // ── Appearance of the open chart ──
+  const journalZone = settings?.timeZone ?? "UTC";
+  const boardPrefsKey = board ? symbolPrefsKey(board.provider, board.symbol) : null;
+  const appearance = useMemo<ChartAppearanceProps>(() => {
+    const d = prefs.defaults;
+    return {
+      style: effectiveStyle(prefs, boardPrefsKey),
+      timeZone: d.timeZone === JOURNAL_TIME_ZONE ? journalZone : d.timeZone,
+      decimals: boardPrefsKey ? prefs.symbols[boardPrefsKey]?.decimals : undefined,
+      volume: d.volume,
+      magnet: d.magnet,
+      stayInDrawingMode: d.stayInDrawingMode,
+      tools: prefs.tools,
+      rememberToolStyles: d.rememberToolStyles,
+      palette: prefs.palette,
+      favoriteTools: prefs.favoriteTools,
+    };
+  }, [prefs, boardPrefsKey, journalZone]);
+  /** A change in Vela's own settings dialog, saved to the look being used. */
+  const onLookEdited = useCallback(
+    (edit: { style: StyleDiff; base: unknown; timeZone: string | null }) => {
+      const current = prefsRef.current;
+      const key = state.current.board
+        ? symbolPrefsKey(state.current.board.provider, state.current.board.symbol)
+        : null;
+      let next = current;
+      const own = key ? current.symbols[key] : undefined;
+      if (key && own?.style) {
+        const base = mergeStyle((edit.base ?? {}) as StyleDiff, current.style);
+        const style = styleDiff(base, mergeStyle((edit.base ?? {}) as StyleDiff, edit.style));
+        if (JSON.stringify(style) !== JSON.stringify(own.style))
+          next = { ...next, symbols: { ...next.symbols, [key]: { ...own, style } } };
+      } else if (JSON.stringify(edit.style) !== JSON.stringify(current.style)) {
+        next = { ...next, style: edit.style };
+      }
+      if (edit.timeZone)
+        next = {
+          ...next,
+          defaults: {
+            ...next.defaults,
+            timeZone: edit.timeZone === journalZone ? JOURNAL_TIME_ZONE : edit.timeZone,
+          },
+        };
+      if (next !== current) savePrefs(next);
+    },
+    [savePrefs, journalZone],
+  );
+  const onDrawingPrefs = useCallback(
+    (patch: DrawingPrefsPatch) => {
+      const current = prefsRef.current;
+      savePrefs({
+        ...current,
+        ...(patch.palette ? { palette: patch.palette } : {}),
+        ...(patch.favoriteTools ? { favoriteTools: patch.favoriteTools } : {}),
+        defaults: {
+          ...current.defaults,
+          ...(patch.magnet ? { magnet: patch.magnet } : {}),
+          ...(patch.stayInDrawingMode !== undefined
+            ? { stayInDrawingMode: patch.stayInDrawingMode }
+            : {}),
+        },
+      });
+    },
+    [savePrefs],
+  );
+  const onToolStyle = useCallback(
+    (type: string, style: ChartPreferences["tools"][string]) => {
+      const current = prefsRef.current;
+      savePrefs({ ...current, tools: { ...current.tools, [type]: style } });
+    },
+    [savePrefs],
+  );
+  const watchlist = Object.entries(prefs.symbols)
+    .filter(([, s]) => s.favorite)
+    .map(([key, s]) => {
+      const [provider = "", symbol = ""] = key.split("|");
+      return { key, provider, symbol, label: s.label, color: s.color };
+    });
+  const symbolLabel = (provider: string, symbol: string) =>
+    prefs.symbols[symbolPrefsKey(provider, symbol)]?.label || symbol;
+
   // ── Opening a chart ──
   const boardKey = useRef(0);
   const openBoard = useCallback(
@@ -568,11 +699,15 @@ function ChartLab() {
         setZoneEdge(null);
         setEditor(null);
         setDrawings([]);
-        setSelectedId(null);
+        setSelectedIds([]);
         setJournalStatus(null);
         if (snapshotDay) setJournalDay(snapshotDay);
         else if (analysis?.dayDate) setJournalDay(analysis.dayDate);
         if (analysis) setResolution(analysis.resolution);
+        else {
+          const own = prefsRef.current.symbols[symbolPrefsKey(nextProvider, nextSymbol)];
+          if (own?.resolution) setResolution(own.resolution);
+        }
         setSaveState(
           analysis && !snapshotDay
             ? { state: "saved", at: Date.parse(analysis.updatedAt) }
@@ -726,7 +861,8 @@ function ChartLab() {
     for (const hit of hits) {
       alertedAt.current.set(hit.drawingId, now);
       const drawing = state.current.drawings.find((d) => d.id === hit.drawingId);
-      const label = drawingLabel(hit.type, drawing?.text);
+      const label =
+        drawingName(state.current.layers, hit.drawingId) ?? drawingLabel(hit.type, drawing?.text);
       const message = `${symbol} crossed ${hit.direction === "up" ? "above" : "below"} ${label} at ${fmtNumber(hit.price)}`;
       try {
         if (typeof Notification !== "undefined" && Notification.permission === "granted")
@@ -1149,6 +1285,39 @@ function ChartLab() {
                   </Button>
                 </form>
               )}
+              {watchlist.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1" aria-label="Watchlist">
+                  <Star aria-hidden="true" className="size-3.5 text-muted-foreground" />
+                  {watchlist.map((item) => {
+                    const current =
+                      board?.provider === item.provider && board.symbol === item.symbol;
+                    return (
+                      <Button
+                        key={item.key}
+                        type="button"
+                        size="sm"
+                        variant={current ? "secondary" : "outline"}
+                        className="h-7 gap-1.5 px-2"
+                        disabled={!available.some((a) => a.id === item.provider) || opening}
+                        title={`${item.symbol} on ${providerInfo(item.provider)?.name ?? item.provider}`}
+                        onClick={() => {
+                          if (!current)
+                            void openBoard({ provider: item.provider, symbol: item.symbol });
+                        }}
+                      >
+                        {item.color && (
+                          <span
+                            aria-hidden="true"
+                            className="size-2.5 rounded-full"
+                            style={{ backgroundColor: item.color }}
+                          />
+                        )}
+                        <span className="font-medium">{item.label || item.symbol}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
               {recent.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1" aria-label="Recent symbols">
                   {recent.map((item) => {
@@ -1170,7 +1339,9 @@ function ChartLab() {
                           if (!current) void openBoard(item);
                         }}
                       >
-                        <span className="font-medium">{item.symbol}</span>
+                        <span className="font-medium">
+                          {symbolLabel(item.provider, item.symbol)}
+                        </span>
                         <span className="text-[11px] text-muted-foreground">{name}</span>
                       </Button>
                     );
@@ -1184,7 +1355,54 @@ function ChartLab() {
               )}
               {board && (
                 <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                  <span className="text-lg font-semibold tracking-tight">{board.symbol}</span>
+                  <span className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+                    {prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]?.color && (
+                      <span
+                        aria-hidden="true"
+                        className="size-3 rounded-full"
+                        style={{
+                          backgroundColor:
+                            prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]!.color,
+                        }}
+                      />
+                    )}
+                    {symbolLabel(board.provider, board.symbol)}
+                    {symbolLabel(board.provider, board.symbol) !== board.symbol && (
+                      <span className="text-sm font-normal text-muted-foreground">
+                        {board.symbol}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={
+                        prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]?.favorite
+                          ? `Remove ${board.symbol} from the watchlist`
+                          : `Add ${board.symbol} to the watchlist`
+                      }
+                      aria-pressed={Boolean(
+                        prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]?.favorite,
+                      )}
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        const key = symbolPrefsKey(board.provider, board.symbol);
+                        const own = { ...prefs.symbols[key] };
+                        if (own.favorite) delete own.favorite;
+                        else own.favorite = true;
+                        const symbols = { ...prefs.symbols };
+                        if (Object.keys(own).length) symbols[key] = own;
+                        else delete symbols[key];
+                        savePrefs({ ...prefs, symbols });
+                      }}
+                    >
+                      <Star
+                        className={cn(
+                          "size-4",
+                          prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]?.favorite &&
+                            "fill-current text-amber-500",
+                        )}
+                      />
+                    </button>
+                  </span>
                   {latest ? (
                     <>
                       <span className="tnum text-lg font-semibold">
@@ -1242,6 +1460,15 @@ function ChartLab() {
                   <Button
                     type="button"
                     size="sm"
+                    variant="ghost"
+                    title="Colours, chart type, formats, symbol and drawing defaults"
+                    onClick={() => setAppearanceOpen(true)}
+                  >
+                    <Palette /> Appearance
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
                     variant={placing === "missed" ? "secondary" : "ghost"}
                     aria-pressed={placing === "missed"}
                     title="Log a setup you did not take: click the chart where you saw it"
@@ -1273,7 +1500,11 @@ function ChartLab() {
               onEdit={schedule}
               onStatus={setStatus}
               onLatest={onLatest}
-              onSelect={setSelectedId}
+              onSelect={(_id, ids) => setSelectedIds(ids)}
+              appearance={appearance}
+              onLookEdited={onLookEdited}
+              onDrawingPrefs={onDrawingPrefs}
+              onToolStyle={onToolStyle}
               chartRef={chart}
             />
           ) : (
@@ -1319,6 +1550,25 @@ function ChartLab() {
                 : zoneEdge
                   ? "Now click the zone's other edge. Esc cancels."
                   : "Click one edge of the support or resistance zone. Esc cancels."}
+            </p>
+          )}
+          <ChartAppearance
+            open={appearanceOpen}
+            onOpenChange={setAppearanceOpen}
+            prefs={prefs}
+            onChange={savePrefs}
+            symbolKey={boardPrefsKey}
+            symbol={board?.symbol ?? null}
+            base={appearanceOpen ? (chart.current?.themeBase() ?? null) : null}
+            journalTimeZone={journalZone}
+            onOpenVelaSettings={() => {
+              setAppearanceOpen(false);
+              chart.current?.openSettings();
+            }}
+          />
+          {prefsError && (
+            <p role="alert" className="text-sm text-destructive">
+              {prefsError}
             </p>
           )}
           <MissedTradeDialog
@@ -1604,11 +1854,17 @@ function ChartLab() {
                   key={board.key}
                   layers={layers}
                   drawings={drawings}
-                  selectedId={selectedId}
+                  selectedIds={selectedIds}
                   onChange={changeLayers}
                   onRevealDrawings={(ids) => chart.current?.reveal(ids)}
                   onSelectDrawing={(id) => chart.current?.select(id)}
+                  onSelectMany={(ids) => chart.current?.selectMany(ids)}
                   onDeleteDrawings={(ids) => chart.current?.remove(ids)}
+                  onUpdateDrawings={(patches) => chart.current?.updateDrawings(patches)}
+                  onDuplicate={(ids) => chart.current?.duplicate(ids) ?? []}
+                  onFront={(ids) => chart.current?.bringToFront(ids)}
+                  onBack={(ids) => chart.current?.sendToBack(ids)}
+                  onEditDrawing={(id) => chart.current?.editDrawing(id)}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">Open a chart to organise drawings.</p>

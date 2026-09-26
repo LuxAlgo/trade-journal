@@ -19,6 +19,8 @@ export interface DrawingLayer {
   folderId: string | null;
   visible: boolean;
   locked: boolean;
+  /** Colour tag shown in the panel, and applied to its drawings on request. */
+  color?: string;
 }
 
 export interface LayersDocument {
@@ -29,12 +31,15 @@ export interface LayersDocument {
   activeLayerId: string;
   /** Vela drawing id → layer id. */
   assignments: Record<string, string>;
+  /** Vela drawing id → a name you gave it in the panel. */
+  names?: Record<string, string>;
 }
 
 export const MAX_FOLDERS = 50;
 export const MAX_LAYERS = 200;
 export const MAX_LAYER_NAME = 80;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+const HEX = /^#[0-9a-fA-F]{6}$/;
 
 export const DEFAULT_LAYER_ID = "layer-main";
 
@@ -95,6 +100,8 @@ export function layersProblem(value: unknown): string | null {
       return "A layer belongs to a missing folder.";
     if (typeof layer.visible !== "boolean" || typeof layer.locked !== "boolean")
       return "A layer has invalid settings.";
+    if (layer.color !== undefined && !(typeof layer.color === "string" && HEX.test(layer.color)))
+      return "A layer has an invalid colour.";
     layerIds.add(layer.id);
   }
   if (typeof doc.activeLayerId !== "string" || !layerIds.has(doc.activeLayerId))
@@ -106,6 +113,15 @@ export function layersProblem(value: unknown): string | null {
   for (const [drawing, layer] of entries)
     if (drawing.length > 100 || typeof layer !== "string" || !layerIds.has(layer))
       return "A drawing is assigned to a missing layer.";
+  if (doc.names !== undefined) {
+    if (!doc.names || typeof doc.names !== "object" || Array.isArray(doc.names))
+      return "Drawing names are invalid.";
+    const names = Object.entries(doc.names);
+    if (names.length > 5000) return "Too many drawing names.";
+    for (const [drawing, name] of names)
+      if (drawing.length > 100 || typeof name !== "string" || name.length > MAX_LAYER_NAME)
+        return "A drawing name is invalid.";
+  }
   return null;
 }
 
@@ -136,7 +152,12 @@ export function syncAssignments(doc: LayersDocument, drawingIds: string[]): Laye
       assignments[id] = doc.activeLayerId;
       changed = true;
     }
-  return changed ? { ...doc, assignments } : doc;
+  let names = doc.names;
+  if (names && Object.keys(names).some((id) => !present.has(id))) {
+    names = Object.fromEntries(Object.entries(names).filter(([id]) => present.has(id)));
+    changed = true;
+  }
+  return changed ? { ...doc, assignments, ...(names ? { names } : {}) } : doc;
 }
 
 export const layerOf = (doc: LayersDocument, drawingId: string) =>
@@ -327,3 +348,111 @@ export function moveLayer(doc: LayersDocument, id: string, direction: -1 | 1): L
   layers[target] = layer;
   return { ...doc, layers };
 }
+
+// ── Organising: drag and drop, bulk moves, names, colours ──
+
+/**
+ * Move a layer next to another (before it, in its folder) or to the end of a folder
+ * (`folderId`, null for the top level). Used by drag and drop.
+ */
+export function placeLayer(
+  doc: LayersDocument,
+  id: string,
+  target: { beforeId: string } | { folderId: string | null },
+): LayersDocument {
+  const layer = doc.layers.find((l) => l.id === id);
+  if (!layer) return doc;
+  const rest = doc.layers.filter((l) => l.id !== id);
+  if ("beforeId" in target) {
+    const anchor = rest.find((l) => l.id === target.beforeId);
+    if (!anchor) return doc;
+    const index = rest.indexOf(anchor);
+    return {
+      ...doc,
+      layers: [
+        ...rest.slice(0, index),
+        { ...layer, folderId: anchor.folderId },
+        ...rest.slice(index),
+      ],
+    };
+  }
+  const folderId =
+    target.folderId && doc.folders.some((f) => f.id === target.folderId) ? target.folderId : null;
+  return {
+    ...doc,
+    layers: [...rest, { ...layer, folderId }],
+    folders: doc.folders.map((f) => (f.id === folderId ? { ...f, collapsed: false } : f)),
+  };
+}
+
+/** Move a folder before another one (drag and drop). */
+export function placeFolder(doc: LayersDocument, id: string, beforeId: string): LayersDocument {
+  const folder = doc.folders.find((f) => f.id === id);
+  const rest = doc.folders.filter((f) => f.id !== id);
+  const index = rest.findIndex((f) => f.id === beforeId);
+  if (!folder || index < 0) return doc;
+  return { ...doc, folders: [...rest.slice(0, index), folder, ...rest.slice(index)] };
+}
+
+export function assignDrawings(doc: LayersDocument, drawingIds: string[], layer: string) {
+  if (!doc.layers.some((l) => l.id === layer)) return doc;
+  const assignments = { ...doc.assignments };
+  for (const id of drawingIds) assignments[id] = layer;
+  return { ...doc, assignments };
+}
+
+/** Name a drawing in the panel; an empty name goes back to its type. */
+export function renameDrawing(doc: LayersDocument, drawingId: string, name: string) {
+  const clean = name
+    .replace(/[\r\n\t]+/g, " ")
+    .trim()
+    .slice(0, MAX_LAYER_NAME);
+  const names = { ...doc.names };
+  if (clean) names[drawingId] = clean;
+  else delete names[drawingId];
+  return { ...doc, names };
+}
+
+export const drawingName = (doc: LayersDocument, drawingId: string) =>
+  doc.names?.[drawingId] ?? null;
+
+export const setLayerColor = (
+  doc: LayersDocument,
+  id: string,
+  color: string | null,
+): LayersDocument => ({
+  ...doc,
+  layers: doc.layers.map((l) => {
+    if (l.id !== id) return l;
+    const { color: _old, ...rest } = l;
+    return color && HEX.test(color) ? { ...rest, color } : rest;
+  }),
+});
+
+/** Show only this layer (and its folder); every other layer is hidden. */
+export function soloLayer(doc: LayersDocument, id: string): LayersDocument {
+  const layer = doc.layers.find((l) => l.id === id);
+  if (!layer) return doc;
+  return {
+    ...doc,
+    layers: doc.layers.map((l) => ({ ...l, visible: l.id === id })),
+    folders: doc.folders.map((f) => (f.id === layer.folderId ? { ...f, visible: true } : f)),
+  };
+}
+
+export const showEverything = (doc: LayersDocument): LayersDocument => ({
+  ...doc,
+  layers: doc.layers.map((l) => ({ ...l, visible: true })),
+  folders: doc.folders.map((f) => ({ ...f, visible: true })),
+});
+
+export const unlockEverything = (doc: LayersDocument): LayersDocument => ({
+  ...doc,
+  layers: doc.layers.map((l) => ({ ...l, locked: false })),
+  folders: doc.folders.map((f) => ({ ...f, locked: false })),
+});
+
+export const setAllFoldersCollapsed = (doc: LayersDocument, collapsed: boolean) => ({
+  ...doc,
+  folders: doc.folders.map((f) => ({ ...f, collapsed })),
+});
