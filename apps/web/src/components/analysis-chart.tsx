@@ -50,6 +50,15 @@ import {
 } from "@/lib/chart-preferences";
 import { attachStylus } from "./chart-stylus";
 import { applyPatternFixes } from "./vela-pattern-fixes";
+import { DrawingTemplatesMenu } from "./drawing-templates-menu";
+import {
+  findTemplate,
+  saveTemplate,
+  templateFrom,
+  templatePatch,
+  type DrawingTemplate,
+  type TemplateTarget,
+} from "@/lib/drawing-templates";
 import {
   createIndicatorBridge,
   type ChartIndicator,
@@ -98,7 +107,16 @@ export interface ChartAppearance {
   rememberToolStyles: boolean;
   palette: string[];
   favoriteTools: string[];
+  /** Your drawing templates, and the one each tool's new drawings start with. */
+  drawingTemplates: DrawingTemplate[];
+  defaultDrawingTemplates: Record<string, string>;
 }
+
+/** Saved drawing templates after a change made from the chart's Template menu. */
+export type DrawingTemplatesChange = {
+  templates: DrawingTemplate[];
+  defaults: Record<string, string>;
+};
 
 /** A drawing-behaviour change made on the chart itself, to save as a preference. */
 export type DrawingPrefsPatch = Partial<
@@ -225,6 +243,7 @@ export function AnalysisChart({
   onLookEdited,
   onDrawingPrefs,
   onToolStyle,
+  onDrawingTemplates,
   chartRef,
 }: {
   source: { provider: string; dataset: string | null };
@@ -266,6 +285,8 @@ export function AnalysisChart({
   onDrawingPrefs: (patch: DrawingPrefsPatch) => void;
   /** A tool's style to start its next drawing with (the last one used). */
   onToolStyle: (type: string, style: ToolStyle) => void;
+  /** Templates saved, deleted or made default from the Template menu. */
+  onDrawingTemplates?: (next: DrawingTemplatesChange) => void;
   chartRef?: Ref<AnalysisChartHandle>;
 }) {
   const frame = useRef<HTMLDivElement>(null);
@@ -292,6 +313,7 @@ export function AnalysisChart({
     onLookEdited,
     onDrawingPrefs,
     onToolStyle,
+    onDrawingTemplates,
   });
   callbacks.current = {
     onDrawingCreated,
@@ -305,7 +327,10 @@ export function AnalysisChart({
     onLookEdited,
     onDrawingPrefs,
     onToolStyle,
+    onDrawingTemplates,
   };
+  /** Drawings selected on the chart, for the Template menu. */
+  const selection = useRef<string[]>([]);
   const layersRef = useRef(layers);
   const appearanceRef = useRef(appearance);
   /** Theme default configs, captured clean at creation; looks are applied over them. */
@@ -544,6 +569,26 @@ export function AnalysisChart({
               style: { ...drawing.style, ...styleFor(drawing.type, prefs.current, tools) },
             });
           if (drawing) applyTextDefaults(instance, drawing, tools[drawing.type]);
+          // The tool's default template wins over the last style used.
+          const look = appearanceRef.current;
+          const template =
+            drawing &&
+            findTemplate(look.drawingTemplates, look.defaultDrawingTemplates[drawing.type]);
+          const fresh = template && instance.drawings.all().find((d) => d.id === id);
+          if (template && fresh) {
+            writing.current = true;
+            try {
+              instance.drawings.update(
+                id,
+                templatePatch(
+                  template,
+                  fresh as unknown as TemplateTarget,
+                ) as Partial<SerializedDrawing>,
+              );
+            } finally {
+              writing.current = false;
+            }
+          }
           callbacks.current.onDrawingCreated(id);
           edited();
         }),
@@ -585,7 +630,10 @@ export function AnalysisChart({
           });
         }),
         instance.on("drawing:removed", edited),
-        instance.on("drawing:selected", ({ id, ids }) => callbacks.current.onSelect(id, ids)),
+        instance.on("drawing:selected", ({ id, ids }) => {
+          selection.current = ids;
+          callbacks.current.onSelect(id, ids);
+        }),
         instance.on("drawing:tool", ({ type }) => {
           setTool(type);
           if (!type) armedByPen.current = false;
@@ -890,6 +938,54 @@ export function AnalysisChart({
   }, [fullscreen]);
 
   const drawingsApi = () => chart.current?.drawings;
+
+  // ── Drawing templates ──
+  const selectedDrawings = () => {
+    const instance = chart.current;
+    if (!instance) return [];
+    return instance.drawings.all().filter((d) => selection.current.includes(d.id));
+  };
+  const templateTarget = () => {
+    const picked = selectedDrawings();
+    const type = picked[0]?.type ?? chart.current?.drawings.getTool() ?? null;
+    return type ? { type, ids: picked.filter((d) => d.type === type).map((d) => d.id) } : null;
+  };
+  const drawingsById = (ids: string[]) =>
+    chart.current?.drawings.all().filter((d) => ids.includes(d.id)) ?? [];
+  const applyTemplate = (template: DrawingTemplate, ids: string[]) => {
+    const instance = chart.current;
+    const targets = drawingsById(ids).filter((d) => d.type === template.type);
+    if (!instance || !targets.length) return;
+    writing.current = true;
+    try {
+      instance.drawings.updateMany(
+        targets.map((d) => ({
+          id: d.id,
+          patch: templatePatch(
+            template,
+            d as unknown as TemplateTarget,
+          ) as Partial<SerializedDrawing>,
+        })),
+      );
+    } finally {
+      writing.current = false;
+    }
+    applyLayers(instance, layersRef.current);
+    publish(instance);
+    callbacks.current.onEdit();
+  };
+  const changeTemplates = (templates: DrawingTemplate[], defaults: Record<string, string>) =>
+    callbacks.current.onDrawingTemplates?.({ templates, defaults });
+  const saveTemplateFrom = (type: string, name: string, ids: string[]) => {
+    const source = drawingsById(ids).find((d) => d.type === type);
+    if (!source) return;
+    const id = `tpl-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const next = saveTemplate(
+      appearance.drawingTemplates,
+      templateFrom(source as unknown as TemplateTarget, name, id),
+    );
+    changeTemplates(next, appearance.defaultDrawingTemplates);
+  };
   const afterHistoryStep = () => {
     const instance = chart.current;
     if (!instance) return;
@@ -1050,6 +1146,33 @@ export function AnalysisChart({
               api.removeMany(ids);
             }}
             icon={Trash2}
+          />
+          <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+          <DrawingTemplatesMenu
+            resolveTarget={templateTarget}
+            templates={appearance.drawingTemplates}
+            defaults={appearance.defaultDrawingTemplates}
+            onApply={applyTemplate}
+            onSave={saveTemplateFrom}
+            onClose={(ids) => {
+              const present = drawingsById(ids).map((d) => d.id);
+              if (present.length) chart.current?.drawings.select(present);
+            }}
+            onDelete={(id) => {
+              const defaults = Object.fromEntries(
+                Object.entries(appearance.defaultDrawingTemplates).filter(([, t]) => t !== id),
+              );
+              changeTemplates(
+                appearance.drawingTemplates.filter((t) => t.id !== id),
+                defaults,
+              );
+            }}
+            onDefault={(type, id) => {
+              const defaults = { ...appearance.defaultDrawingTemplates };
+              if (id) defaults[type] = id;
+              else delete defaults[type];
+              changeTemplates(appearance.drawingTemplates, defaults);
+            }}
           />
           {toolbarExtras && (
             <>

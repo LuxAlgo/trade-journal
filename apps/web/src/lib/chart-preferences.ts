@@ -1,4 +1,5 @@
 import { isResolution, type Resolution } from "./market-data";
+import { drawingTemplatesProblem, type DrawingTemplate } from "./drawing-templates";
 
 /**
  * How charts look and start, kept on the journal server so every browser agrees.
@@ -93,6 +94,10 @@ export interface ChartPreferences {
   palette: string[];
   /** Starred drawing tools, in order. */
   favoriteTools: string[];
+  /** Your drawing templates (the built-in ones are not stored). */
+  drawingTemplates: DrawingTemplate[];
+  /** Drawing type → the template its new drawings start with. */
+  defaultDrawingTemplates: Record<string, string>;
 }
 
 export const JOURNAL_TIME_ZONE = "journal";
@@ -116,6 +121,8 @@ export const DEFAULT_PREFERENCES: ChartPreferences = {
   tools: {},
   palette: [],
   favoriteTools: [],
+  drawingTemplates: [],
+  defaultDrawingTemplates: {},
 };
 
 export const symbolPrefsKey = (provider: string, symbol: string) => `${provider}|${symbol}`;
@@ -378,7 +385,7 @@ export function preferencesProblem(value: unknown): string | null {
     !p.favoriteTools.every((t) => typeof t === "string" && KEY.test(t))
   )
     return "Favourite tools are invalid.";
-  return null;
+  return drawingTemplatesProblem(p.drawingTemplates, p.defaultDrawingTemplates);
 }
 
 /** Stored preferences, or the defaults for anything missing or broken. */

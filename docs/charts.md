@@ -221,6 +221,37 @@ Sizes a source does not serve are built on the server from a finer size it does:
 Monday 00:00 UTC) and the first bucket is requested from its open so it is complete. Binance
 serves 3m, 30m, 2h and 4h natively. The chart notes when candles were built this way.
 
+## Drawing templates
+
+Like TradingView's, a template is a named look for one drawing tool: line colour, width and
+style, fill, the text look (not its words) and the tool's own settings, such as a Fibonacci
+tool's levels (each ratio, its colour, whether it shows, its label, and the label sizes) or an
+Elliott wave's degree. Applying one never moves a drawing. Templates are saved with the chart
+settings on the journal server, so every browser has them.
+
+- **Template** on the chart toolbar works on the selected drawings (select one on the chart
+  or click it in the Layers panel), or on the tool you just chose when nothing is selected.
+  Click a template to apply it to every selected drawing of that tool.
+- **Save its look as…** saves the selected drawing's look under a name; saving under a name
+  you already used for that tool updates it. Style the drawing first with Vela's own controls
+  (the Levels dialog edits Fibonacci ratios and colours). The bin deletes one of yours.
+- The **star** makes a template the one new drawings of that tool start with (it wins over
+  "remember the last style used"); starring it again goes back to the last style used. With no
+  drawing selected, clicking a template stars it.
+- Built-in templates: Fibonacci retracement (classic levels, golden pocket 0.618 to 0.65,
+  optimal trade entry 0.62 / 0.705 / 0.79, retracement with targets to 2.618, minimal grey),
+  Fibonacci extension and trend-based extension (classic targets, wave 3 and 5 targets), and
+  Elliott impulse and correction waves for each degree from Primary to Minuette, each in its
+  own colour.
+- **Wave degree** (Elliott drawings, in the same menu) relabels the selected waves without
+  changing their colour: Grand supercycle ((I)), Supercycle (I), Cycle I, Primary ①,
+  Intermediate (1), Minor 1, Minute (i), Minuette i, Subminuette [i]; corrections follow the
+  same pattern (Ⓐ, (A), (a), a…). The degree is saved with the drawing and in templates.
+
+Code: `lib/drawing-templates.ts` (model, validation, built-ins), `lib/wave-degrees.ts`,
+`components/drawing-templates-menu.tsx`; the degree lives in the Elliott tools' overrides in
+`components/vela-pattern-fixes.ts`.
+
 ## Line alerts
 
 With **Line alerts** on, the page watches live closes and alerts when price crosses a visible

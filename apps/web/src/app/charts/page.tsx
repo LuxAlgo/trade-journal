@@ -42,6 +42,7 @@ import {
 import type {
   ChartAppearance as ChartAppearanceProps,
   DrawingPrefsPatch,
+  DrawingTemplatesChange,
 } from "@/components/analysis-chart";
 import { IndicatorsPanel } from "@/components/indicators-panel";
 import { PineEditor, type EditorDraft } from "@/components/pine-editor";
@@ -971,6 +972,8 @@ const ChartBoard = memo(function ChartBoard({
       rememberToolStyles: d.rememberToolStyles,
       palette: prefs.palette,
       favoriteTools: prefs.favoriteTools,
+      drawingTemplates: prefs.drawingTemplates,
+      defaultDrawingTemplates: prefs.defaultDrawingTemplates,
     };
   }, [prefs, boardPrefsKey, journalZone]);
   /** A change in Vela's own settings dialog, saved to the look being used. */
@@ -1025,6 +1028,15 @@ const ChartBoard = memo(function ChartBoard({
       const current = shell.prefs();
       savePrefs({ ...current, tools: { ...current.tools, [type]: style } });
     },
+    [savePrefs, shell],
+  );
+  const onDrawingTemplates = useCallback(
+    (next: DrawingTemplatesChange) =>
+      savePrefs({
+        ...shell.prefs(),
+        drawingTemplates: next.templates,
+        defaultDrawingTemplates: next.defaults,
+      }),
     [savePrefs, shell],
   );
   const watchlist = Object.entries(prefs.symbols)
@@ -1967,6 +1979,7 @@ const ChartBoard = memo(function ChartBoard({
             onLookEdited={onLookEdited}
             onDrawingPrefs={onDrawingPrefs}
             onToolStyle={onToolStyle}
+            onDrawingTemplates={onDrawingTemplates}
             sidePanel={{
               title: "Layers",
               count: drawings.length,
