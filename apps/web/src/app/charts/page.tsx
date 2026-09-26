@@ -1505,6 +1505,28 @@ function ChartLab() {
               onLookEdited={onLookEdited}
               onDrawingPrefs={onDrawingPrefs}
               onToolStyle={onToolStyle}
+              sidePanel={{
+                title: "Layers",
+                count: drawings.length,
+                content: (
+                  <LayersPanel
+                    key={board.key}
+                    layers={layers}
+                    drawings={drawings}
+                    selectedIds={selectedIds}
+                    onChange={changeLayers}
+                    onRevealDrawings={(ids) => chart.current?.reveal(ids)}
+                    onSelectDrawing={(id) => chart.current?.select(id)}
+                    onSelectMany={(ids) => chart.current?.selectMany(ids)}
+                    onDeleteDrawings={(ids) => chart.current?.remove(ids)}
+                    onUpdateDrawings={(patches) => chart.current?.updateDrawings(patches)}
+                    onDuplicate={(ids) => chart.current?.duplicate(ids) ?? []}
+                    onFront={(ids) => chart.current?.bringToFront(ids)}
+                    onBack={(ids) => chart.current?.sendToBack(ids)}
+                    onEditDrawing={(id) => chart.current?.editDrawing(id)}
+                  />
+                ),
+              }}
               chartRef={chart}
             />
           ) : (
@@ -1840,34 +1862,6 @@ function ChartLab() {
                 <p role="alert" className="whitespace-pre-wrap text-xs text-destructive">
                   {indicatorError}
                 </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Layers</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {board ? (
-                <LayersPanel
-                  key={board.key}
-                  layers={layers}
-                  drawings={drawings}
-                  selectedIds={selectedIds}
-                  onChange={changeLayers}
-                  onRevealDrawings={(ids) => chart.current?.reveal(ids)}
-                  onSelectDrawing={(id) => chart.current?.select(id)}
-                  onSelectMany={(ids) => chart.current?.selectMany(ids)}
-                  onDeleteDrawings={(ids) => chart.current?.remove(ids)}
-                  onUpdateDrawings={(patches) => chart.current?.updateDrawings(patches)}
-                  onDuplicate={(ids) => chart.current?.duplicate(ids) ?? []}
-                  onFront={(ids) => chart.current?.bringToFront(ids)}
-                  onBack={(ids) => chart.current?.sendToBack(ids)}
-                  onEditDrawing={(id) => chart.current?.editDrawing(id)}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">Open a chart to organise drawings.</p>
               )}
             </CardContent>
           </Card>

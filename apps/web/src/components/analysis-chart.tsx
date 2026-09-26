@@ -7,6 +7,8 @@ import {
   Eraser,
   Hand,
   Highlighter,
+  Layers,
+  PanelRightClose,
   Maximize2,
   Minimize2,
   Minus,
@@ -62,6 +64,9 @@ import {
 } from "./chart-overlays";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
+import { PortalContainer } from "./ui/portal-container";
+
+const SIDE_PANEL_KEY = "journal-chart-side-panel-v1";
 
 export interface ChartDrawing {
   id: string;
@@ -204,6 +209,7 @@ export function AnalysisChart({
   overlayHooks,
   capturing,
   toolbarExtras,
+  sidePanel,
   layers,
   onDrawingCreated,
   onDrawingsChange,
@@ -235,6 +241,8 @@ export function AnalysisChart({
   capturing: boolean;
   /** Extra buttons appended to the drawing toolbar. */
   toolbarExtras?: React.ReactNode;
+  /** Docked beside the chart (below it on narrow screens), toggled from the toolbar. */
+  sidePanel?: { title: string; count?: number; content: React.ReactNode };
   layers: LayersDocument;
   onDrawingCreated: (id: string) => void;
   /** Every drawing on the chart, after any change (for the layers panel and alerts). */
@@ -308,6 +316,25 @@ export function AnalysisChart({
   const [erasing, setErasing] = useState(false);
   const [undoState, setUndoState] = useState({ undo: false, redo: false });
   const [fullscreen, setFullscreen] = useState(false);
+  /** Full screen via the browser API shows only the frame, so popups portal into it. */
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  const [sideOpen, setSideOpen] = useState(true);
+  useEffect(() => {
+    try {
+      setSideOpen(localStorage.getItem(SIDE_PANEL_KEY) !== "closed");
+    } catch {
+      // Open by default.
+    }
+  }, []);
+  const toggleSide = () =>
+    setSideOpen((open) => {
+      try {
+        localStorage.setItem(SIDE_PANEL_KEY, open ? "closed" : "open");
+      } catch {
+        // This page only.
+      }
+      return !open;
+    });
   const [error, setError] = useState("");
   const [penSeen, setPenSeen] = useState(false);
   const armedByPen = useRef(false);
@@ -718,7 +745,11 @@ export function AnalysisChart({
   }
 
   useEffect(() => {
-    const onFullscreen = () => setFullscreen(document.fullscreenElement === frame.current);
+    const onFullscreen = () => {
+      const on = document.fullscreenElement === frame.current;
+      setFullscreen(on);
+      setPortalTarget(on ? frame.current : null);
+    };
     document.addEventListener("fullscreenchange", onFullscreen);
     return () => document.removeEventListener("fullscreenchange", onFullscreen);
   }, []);
@@ -836,198 +867,256 @@ export function AnalysisChart({
     setUndoState({ undo: instance.drawings.canUndo(), redo: instance.drawings.canRedo() });
   };
   return (
-    <div
-      ref={frame}
-      className={cn(
-        "flex flex-col gap-2 bg-background",
-        fullscreen && "fixed inset-0 z-50 p-2 sm:p-3",
-      )}
-    >
+    <PortalContainer.Provider value={portalTarget}>
       <div
-        role="toolbar"
-        aria-label="Drawing tools"
-        className="flex flex-wrap items-center gap-1 rounded-lg border bg-card p-1"
-      >
-        <ToolButton
-          label="Pan and select"
-          active={!tool && !erasing}
-          onClick={() => arm(null)}
-          icon={Hand}
-        />
-        {TOOLS.map((entry) => (
-          <ToolButton
-            key={entry.type}
-            label={entry.label}
-            active={tool === entry.type && !erasing}
-            onClick={() => {
-              if (isBrush(entry.type)) updatePreference({ penTool: entry.type });
-              arm(entry.type);
-            }}
-            icon={entry.icon}
-          />
-        ))}
-        <ToolButton
-          label="Eraser (drag across drawings)"
-          active={erasing}
-          onClick={() => drawingsApi()?.setMode(erasing ? null : "eraser")}
-          icon={Eraser}
-        />
-        <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
-        <div role="radiogroup" aria-label="Ink color" className="flex items-center gap-1">
-          {STYLUS_COLORS.map((color) => (
-            <button
-              key={color.value}
-              type="button"
-              role="radio"
-              aria-checked={preference.color === color.value}
-              aria-label={color.label}
-              title={color.label}
-              onClick={() => updatePreference({ color: color.value })}
-              className={cn(
-                "size-7 rounded-full border-2 transition-transform",
-                preference.color === color.value
-                  ? "scale-110 border-foreground"
-                  : "border-transparent",
-              )}
-              style={{ backgroundColor: color.value }}
-            />
-          ))}
-          {appearance.palette.map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={preference.color === value}
-              aria-label={`Ink ${value}`}
-              title={`${value} (right-click to remove)`}
-              onClick={() => updatePreference({ color: value })}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                onDrawingPrefs({ palette: appearance.palette.filter((c) => c !== value) });
-              }}
-              className={cn(
-                "size-7 rounded-full border-2 transition-transform",
-                preference.color === value ? "scale-110 border-foreground" : "border-transparent",
-              )}
-              style={{ backgroundColor: value }}
-            />
-          ))}
-          <HoverHint content="Add an ink colour">
-            <label className="relative flex size-7 cursor-pointer items-center justify-center rounded-full border border-dashed text-muted-foreground hover:text-foreground">
-              <Plus className="size-3.5" aria-hidden="true" />
-              <input
-                type="color"
-                aria-label="Add an ink colour"
-                className="absolute inset-0 cursor-pointer opacity-0"
-                onChange={(event) => {
-                  const value = event.target.value;
-                  if (!isColor(value)) return;
-                  updatePreference({ color: value });
-                  if (
-                    !appearance.palette.includes(value) &&
-                    !STYLUS_COLORS.some((c) => c.value === value)
-                  )
-                    onDrawingPrefs({ palette: [...appearance.palette, value].slice(-MAX_PALETTE) });
-                }}
-              />
-            </label>
-          </HoverHint>
-        </div>
-        <div role="radiogroup" aria-label="Stroke width" className="flex items-center gap-0.5">
-          {STYLUS_WIDTHS.map((width) => (
-            <button
-              key={width.value}
-              type="button"
-              role="radio"
-              aria-checked={preference.width === width.value}
-              aria-label={`${width.label} stroke`}
-              title={`${width.label} stroke`}
-              onClick={() => updatePreference({ width: width.value })}
-              className={cn(
-                "flex size-8 items-center justify-center rounded-md",
-                preference.width === width.value ? "bg-accent" : "hover:bg-accent/60",
-              )}
-            >
-              <span
-                className="block w-4 rounded-full bg-foreground"
-                style={{ height: Math.max(2, width.value) }}
-              />
-            </button>
-          ))}
-        </div>
-        <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
-        <ToolButton
-          label="Undo"
-          disabled={!undoState.undo}
-          onClick={() => {
-            drawingsApi()?.undo();
-            afterHistoryStep();
-          }}
-          icon={Undo2}
-        />
-        <ToolButton
-          label="Redo"
-          disabled={!undoState.redo}
-          onClick={() => {
-            drawingsApi()?.redo();
-            afterHistoryStep();
-          }}
-          icon={Redo2}
-        />
-        <ToolButton
-          label="Clear all drawings"
-          onClick={() => {
-            const api = drawingsApi();
-            const ids = api?.all().map((d) => d.id) ?? [];
-            if (!api || !ids.length) return;
-            if (!confirm("Remove every drawing from this chart, in all layers?")) return;
-            api.removeMany(ids);
-          }}
-          icon={Trash2}
-        />
-        {toolbarExtras && (
-          <>
-            <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
-            {toolbarExtras}
-          </>
-        )}
-        <label className="ml-auto flex min-h-8 cursor-pointer items-center gap-2 px-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={preference.penDraws}
-            onChange={(event) => updatePreference({ penDraws: event.target.checked })}
-          />
-          Stylus draws, fingers pan
-        </label>
-        <ToolButton
-          label={fullscreen ? "Exit full screen" : "Full screen"}
-          onClick={toggleFullscreen}
-          icon={fullscreen ? Minimize2 : Maximize2}
-        />
-      </div>
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-      <div
-        ref={host}
-        tabIndex={-1}
+        ref={frame}
         className={cn(
-          "journal-analysis-chart overflow-hidden rounded-lg border",
-          capturing && "cursor-crosshair ring-2 ring-primary",
-          fullscreen ? "min-h-0 flex-1" : "h-[min(72vh,680px)] min-h-[420px]",
+          "flex flex-col gap-2 bg-background",
+          fullscreen && "fixed inset-0 z-50 p-2 sm:p-3",
         )}
-      />
-      {!fullscreen && (
-        <p className="text-xs text-muted-foreground">
-          {penSeen
-            ? "Stylus detected. The pen tip draws, a pen tap selects a drawing, the eraser end erases, and fingers pan and zoom. Turn off “Stylus draws” to drag drawings with the pen."
-            : "Draw with a stylus, mouse or finger after choosing a tool. With a stylus, the pen tip draws without choosing a tool first."}{" "}
-          Scroll back for older candles. New drawings go to the active layer.
-        </p>
-      )}
-    </div>
+      >
+        <div
+          role="toolbar"
+          aria-label="Drawing tools"
+          className="flex flex-wrap items-center gap-1 rounded-lg border bg-card p-1"
+        >
+          <ToolButton
+            label="Pan and select"
+            active={!tool && !erasing}
+            onClick={() => arm(null)}
+            icon={Hand}
+          />
+          {TOOLS.map((entry) => (
+            <ToolButton
+              key={entry.type}
+              label={entry.label}
+              active={tool === entry.type && !erasing}
+              onClick={() => {
+                if (isBrush(entry.type)) updatePreference({ penTool: entry.type });
+                arm(entry.type);
+              }}
+              icon={entry.icon}
+            />
+          ))}
+          <ToolButton
+            label="Eraser (drag across drawings)"
+            active={erasing}
+            onClick={() => drawingsApi()?.setMode(erasing ? null : "eraser")}
+            icon={Eraser}
+          />
+          <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+          <div role="radiogroup" aria-label="Ink color" className="flex items-center gap-1">
+            {STYLUS_COLORS.map((color) => (
+              <button
+                key={color.value}
+                type="button"
+                role="radio"
+                aria-checked={preference.color === color.value}
+                aria-label={color.label}
+                title={color.label}
+                onClick={() => updatePreference({ color: color.value })}
+                className={cn(
+                  "size-7 rounded-full border-2 transition-transform",
+                  preference.color === color.value
+                    ? "scale-110 border-foreground"
+                    : "border-transparent",
+                )}
+                style={{ backgroundColor: color.value }}
+              />
+            ))}
+            {appearance.palette.map((value) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={preference.color === value}
+                aria-label={`Ink ${value}`}
+                title={`${value} (right-click to remove)`}
+                onClick={() => updatePreference({ color: value })}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  onDrawingPrefs({ palette: appearance.palette.filter((c) => c !== value) });
+                }}
+                className={cn(
+                  "size-7 rounded-full border-2 transition-transform",
+                  preference.color === value ? "scale-110 border-foreground" : "border-transparent",
+                )}
+                style={{ backgroundColor: value }}
+              />
+            ))}
+            <HoverHint content="Add an ink colour">
+              <label className="relative flex size-7 cursor-pointer items-center justify-center rounded-full border border-dashed text-muted-foreground hover:text-foreground">
+                <Plus className="size-3.5" aria-hidden="true" />
+                <input
+                  type="color"
+                  aria-label="Add an ink colour"
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (!isColor(value)) return;
+                    updatePreference({ color: value });
+                    if (
+                      !appearance.palette.includes(value) &&
+                      !STYLUS_COLORS.some((c) => c.value === value)
+                    )
+                      onDrawingPrefs({
+                        palette: [...appearance.palette, value].slice(-MAX_PALETTE),
+                      });
+                  }}
+                />
+              </label>
+            </HoverHint>
+          </div>
+          <div role="radiogroup" aria-label="Stroke width" className="flex items-center gap-0.5">
+            {STYLUS_WIDTHS.map((width) => (
+              <button
+                key={width.value}
+                type="button"
+                role="radio"
+                aria-checked={preference.width === width.value}
+                aria-label={`${width.label} stroke`}
+                title={`${width.label} stroke`}
+                onClick={() => updatePreference({ width: width.value })}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-md",
+                  preference.width === width.value ? "bg-accent" : "hover:bg-accent/60",
+                )}
+              >
+                <span
+                  className="block w-4 rounded-full bg-foreground"
+                  style={{ height: Math.max(2, width.value) }}
+                />
+              </button>
+            ))}
+          </div>
+          <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+          <ToolButton
+            label="Undo"
+            disabled={!undoState.undo}
+            onClick={() => {
+              drawingsApi()?.undo();
+              afterHistoryStep();
+            }}
+            icon={Undo2}
+          />
+          <ToolButton
+            label="Redo"
+            disabled={!undoState.redo}
+            onClick={() => {
+              drawingsApi()?.redo();
+              afterHistoryStep();
+            }}
+            icon={Redo2}
+          />
+          <ToolButton
+            label="Clear all drawings"
+            onClick={() => {
+              const api = drawingsApi();
+              const ids = api?.all().map((d) => d.id) ?? [];
+              if (!api || !ids.length) return;
+              if (!confirm("Remove every drawing from this chart, in all layers?")) return;
+              api.removeMany(ids);
+            }}
+            icon={Trash2}
+          />
+          {toolbarExtras && (
+            <>
+              <span className="mx-1 h-6 w-px bg-border" aria-hidden="true" />
+              {toolbarExtras}
+            </>
+          )}
+          <label className="ml-auto flex min-h-8 cursor-pointer items-center gap-2 px-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={preference.penDraws}
+              onChange={(event) => updatePreference({ penDraws: event.target.checked })}
+            />
+            Stylus draws, fingers pan
+          </label>
+          {sidePanel && (
+            <HoverHint
+              content={
+                sideOpen
+                  ? `Hide the ${sidePanel.title.toLowerCase()} panel`
+                  : `Show the ${sidePanel.title.toLowerCase()} panel`
+              }
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={sideOpen ? "secondary" : "ghost"}
+                aria-pressed={sideOpen}
+                onClick={toggleSide}
+                className="h-9 gap-1.5"
+              >
+                <Layers className="size-4" />
+                {sidePanel.title}
+                {sidePanel.count !== undefined && (
+                  <span className="tnum text-xs text-muted-foreground">{sidePanel.count}</span>
+                )}
+              </Button>
+            </HoverHint>
+          )}
+          <ToolButton
+            label={fullscreen ? "Exit full screen" : "Full screen"}
+            onClick={toggleFullscreen}
+            icon={fullscreen ? Minimize2 : Maximize2}
+          />
+        </div>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        <div
+          className={cn(
+            "flex flex-col gap-2 md:flex-row",
+            fullscreen ? "min-h-0 flex-1" : "md:h-[min(72vh,680px)] md:min-h-[420px]",
+          )}
+        >
+          <div
+            ref={host}
+            tabIndex={-1}
+            className={cn(
+              "journal-analysis-chart min-w-0 overflow-hidden rounded-lg border md:min-h-0 md:flex-1",
+              capturing && "cursor-crosshair ring-2 ring-primary",
+              fullscreen ? "min-h-0 flex-1" : "h-[min(72vh,680px)] min-h-[420px] md:h-auto",
+            )}
+          />
+          {sidePanel && sideOpen && (
+            <aside
+              aria-label={sidePanel.title}
+              className="flex max-h-[28rem] flex-col rounded-lg border bg-card md:max-h-none md:w-80 md:shrink-0"
+            >
+              <div className="flex items-center justify-between border-b px-3 py-1.5">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {sidePanel.title}
+                </span>
+                <HoverHint content="Hide this panel">
+                  <button
+                    type="button"
+                    aria-label={`Hide the ${sidePanel.title.toLowerCase()} panel`}
+                    onClick={toggleSide}
+                    className="flex size-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <PanelRightClose className="size-4" />
+                  </button>
+                </HoverHint>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-2">{sidePanel.content}</div>
+            </aside>
+          )}
+        </div>
+        {!fullscreen && (
+          <p className="text-xs text-muted-foreground">
+            {penSeen
+              ? "Stylus detected. The pen tip draws, a pen tap selects a drawing, the eraser end erases, and fingers pan and zoom. Turn off “Stylus draws” to drag drawings with the pen."
+              : "Draw with a stylus, mouse or finger after choosing a tool. With a stylus, the pen tip draws without choosing a tool first."}{" "}
+            Scroll back for older candles. New drawings go to the active layer.
+          </p>
+        )}
+      </div>
+    </PortalContainer.Provider>
   );
 }
 

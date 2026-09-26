@@ -91,7 +91,9 @@ and picture, as they stood when you last saved that day.
 
 ## Layers and folders
 
-Folders hold layers, and layers hold drawings.
+Folders hold layers, and layers hold drawings. The **Layers** panel is docked beside the chart
+(below it on narrow screens) and stays there in full screen; the **Layers** button on the chart
+toolbar shows or hides it, remembered per browser.
 
 - The filled dot marks the **active layer**: new drawings go there. Choosing a hidden or
   locked layer shows and unlocks it (and its folder) so a new drawing is never invisible.
