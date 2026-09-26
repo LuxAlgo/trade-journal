@@ -29,7 +29,22 @@ note editor has a **Chart** menu that inserts a saved analysis at the cursor.
 
 ## Live updates
 
-While the chart is open and the tab is visible, it polls the source for the forming candle:
+**Binance and Coinbase update in real time.** The journal server opens the exchange's public
+WebSocket feed and relays it to the chart over Server-Sent Events
+(`/api/market-data/stream`), so the browser still only talks to your journal. Every trade
+moves the forming candle as it happens; Binance also sends its own candle every couple of
+seconds, which keeps open, high, low, close and volume exact. The badge shows **Real time**.
+
+- One upstream connection per instrument serves every open chart on it, and closes a few
+  seconds after the last one leaves. A dropped connection reconnects with backoff (1 s up
+  to 30 s) and the chart polls meanwhile, so nothing is missed.
+- The chart redraws on every update; the price header and line and zone alerts follow at
+  most twice a second.
+- While streaming, polling runs once a minute and only settles finished candles.
+- Pausing or hiding the tab closes the stream; resuming reopens it and fetches the gap.
+
+**Other sources poll.** While the chart is open and the tab is visible, it polls the source
+for the forming candle:
 every 15 s on 1m, 20 s on 3m, 30 s on 5m, 1 min on 15m and 30m, 2 min on 1h and 2h, 3 min
 on 4h, 5 min on 1d and 10 min on 1w. Each poll is a
 request to your provider plan, so the pace follows the candle size (Vela's own default,
@@ -251,7 +266,9 @@ copied into the analysis. `economic_events` holds the stored calendar.
 
 ## Code map
 
-- `lib/live-market.ts`: the Vela data provider (history windows, polling, retries).
+- `lib/live-market.ts`: the Vela data provider (history windows, polling, retries, merging
+  streamed trades into the forming candle); `server/market-data/live.ts` and
+  `app/api/market-data/stream`: the shared exchange feeds and their SSE relay.
 - `lib/chart-layers.ts`: the folders/layers model and the visibility/lock rules.
 - `lib/price-alerts.ts`: line pricing and crossing detection.
 - `lib/chart-analysis.ts`: document validation, embed Markdown, drawing labels.

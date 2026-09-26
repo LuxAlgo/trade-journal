@@ -1645,13 +1645,23 @@ function LiveBadge({ status, live }: { status: LiveStatus; live: boolean }) {
           ? "Loading"
           : !live || status.state === "paused"
             ? "Paused"
-            : "Live";
+            : status.realtime
+              ? "Real time"
+              : "Live";
+  const on = label === "Live" || label === "Real time";
   return (
     <span
       role="status"
+      title={
+        label === "Real time"
+          ? "Prices stream from the exchange as trades happen"
+          : label === "Live"
+            ? "New candles are fetched periodically"
+            : undefined
+      }
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium",
-        label === "Live" && "border-primary/50",
+        on && "border-primary/50",
         label === "Data error" && "border-destructive/60 text-destructive",
       )}
     >
@@ -1659,7 +1669,7 @@ function LiveBadge({ status, live }: { status: LiveStatus; live: boolean }) {
         aria-hidden="true"
         className={cn(
           "size-2 rounded-full",
-          label === "Live" ? "animate-pulse bg-primary" : "bg-muted-foreground",
+          on ? "animate-pulse bg-primary" : "bg-muted-foreground",
         )}
       />
       {label}
