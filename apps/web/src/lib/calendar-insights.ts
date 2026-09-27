@@ -1,8 +1,10 @@
 import {
   readFilters,
+  dayKeyOf,
   type AnalysisFilters,
   type CalendarMonth,
   type DayStats,
+  type RoundTrip,
 } from "@luxalgo/journal-core";
 
 export function calendarScope(filters: AnalysisFilters, year: number, month: number) {
@@ -89,11 +91,38 @@ export function calendarInsights(calendar: CalendarMonth) {
 }
 
 export type CalendarInsights = ReturnType<typeof calendarInsights>;
+
+export interface CalendarPnlPoint {
+  t: string;
+  cumNetPnl: number;
+}
+
+/** Match calendar accounting: attribute each closed trade's net P&L to its closing day. */
+export function calendarRunningPnl(
+  trades: readonly Pick<RoundTrip, "status" | "closedAt" | "netPnl">[],
+  timeZone: string,
+): Record<string, CalendarPnlPoint[]> {
+  const days: Record<string, CalendarPnlPoint[]> = {};
+  const closed = trades
+    .filter((trade) => trade.status !== "open" && trade.closedAt)
+    .toSorted((a, b) => Date.parse(a.closedAt!) - Date.parse(b.closedAt!));
+  for (const trade of closed) {
+    const date = dayKeyOf(trade.closedAt!, timeZone);
+    const points = (days[date] ??= []);
+    points.push({
+      t: trade.closedAt!,
+      cumNetPnl: (points.at(-1)?.cumNetPnl ?? 0) + trade.netPnl,
+    });
+  }
+  return days;
+}
+
 export interface CalendarResponse {
   calendar: CalendarMonth;
   insights: CalendarInsights;
   timeZone: string;
   currencies: string[];
+  runningPnl: Record<string, CalendarPnlPoint[]>;
   scope: AnalysisFilters & { from: string; to: string };
 }
 

@@ -26,6 +26,14 @@ import { dayKeyOf } from "@luxalgo/journal-core";
 import { ImportReconciliation } from "@/components/import-reconciliation";
 import type { ImportReview, ImportReviewOptions } from "@/lib/import-review";
 import { TimeZonePicker } from "@/components/timezone-picker";
+import { AiImportOptions } from "@/components/ai-import-options";
+import { AI_DEFAULT_MODELS, type AiSettingsPayload } from "@/lib/ai-settings";
+import {
+  AI_IMPORT_MAX_BYTES,
+  AI_IMPORT_MAX_TEXT,
+  type AiImportOptions as AiOptions,
+} from "@/lib/ai-import";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface BrokerInfo {
   id: string;
@@ -43,6 +51,8 @@ interface PreviewTotals {
 }
 
 interface PreviewResponse {
+  aiPreviewToken?: string;
+  sources?: string[];
   reconciliation?: ImportReview;
   detected: string | null;
   timeZone: string;
@@ -57,6 +67,7 @@ interface PreviewResponse {
     side: string;
     quantity: number;
     price: number;
+    fee?: number;
     executedAt: string;
   }[];
 }
@@ -137,20 +148,40 @@ function FileImport() {
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiOptions, setAiOptions] = useState<AiOptions>({
+    provider: "openai",
+    model: AI_DEFAULT_MODELS.openai,
+    apiKey: "",
+  });
+  const [encoding, setEncoding] = useState<"text" | "pdf">("text");
+  const [aiReviewed, setAiReviewed] = useState(false);
   const { data: formatData } = useApi<{ formats: { id: string; label: string }[] }>("/api/import");
-  const { data: settingsData, error: settingsError } = useApi<{
-    timeZone: string;
-    importTimeZone: string;
-  }>("/api/settings");
+  const { data: settingsData, error: settingsError } = useApi<
+    AiSettingsPayload & {
+      timeZone: string;
+      importTimeZone: string;
+    }
+  >("/api/settings");
   const [statementTimeZone, setStatementTimeZone] = useState<string | null>(null);
   const timeZone = statementTimeZone ?? settingsData?.importTimeZone ?? "";
   const validTimeZone = isTimeZone(timeZone);
   const displayTimeZone = settingsData?.timeZone ?? "UTC";
+  const aiReady = Boolean(
+    aiOptions.model.trim() &&
+    (aiOptions.apiKey?.trim() || settingsData?.aiConnections[aiOptions.provider].configured),
+  );
+  const invalidateAiPreview = () => {
+    setPreview(null);
+    setAiReviewed(false);
+    setError(null);
+  };
 
   const onFile = async (file: File) => {
     if (!validTimeZone) return;
     setStatementTimeZone(timeZone);
     setPreview(null);
+    setAiReviewed(false);
     setContent(null);
     setFileName(file.name);
     setReviewOptions({});
@@ -160,8 +191,33 @@ function FileImport() {
     setError(null);
     setBusy(true);
     try {
-      const text = decodeImportFile(await file.arrayBuffer());
+      const pdf = /\.pdf$/i.test(file.name);
+      if (pdf && !aiEnabled) throw new Error("Enable AI parsing to upload a PDF statement.");
+      if (aiEnabled && file.size > AI_IMPORT_MAX_BYTES)
+        throw new Error("AI uploads must be 8 MB or smaller.");
+      if (aiEnabled && !/\.(csv|tsv|txt|html?|xml|pdf)$/i.test(file.name))
+        throw new Error(
+          "Choose a CSV, TSV, HTML, XML, TXT or PDF file. Export spreadsheets as CSV first.",
+        );
+      const buffer = await file.arrayBuffer();
+      let text: string;
+      if (pdf) {
+        const bytes = new Uint8Array(buffer);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += 8192)
+          binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        text = btoa(binary);
+      } else {
+        text = decodeImportFile(buffer);
+        if (aiEnabled && text.length > AI_IMPORT_MAX_TEXT)
+          throw new Error(
+            "Use a smaller export: AI text parsing supports up to 150,000 characters.",
+          );
+      }
+      setEncoding(pdf ? "pdf" : "text");
       setContent(text);
+      // Choosing a file alone never sends it to an AI provider.
+      if (aiEnabled) return;
       setPreview(
         await postJson<PreviewResponse>("/api/import", {
           mode: "preview",
@@ -180,7 +236,9 @@ function FileImport() {
   };
 
   const previewFile = async () => {
-    if (!content || !validTimeZone) return;
+    if (!content || !validTimeZone || (aiEnabled && !aiReady)) return;
+    setPreview(null);
+    setAiReviewed(false);
     setBusy(true);
     setError(null);
     try {
@@ -193,6 +251,8 @@ function FileImport() {
           fileName,
           symbol,
           timeZone,
+          encoding,
+          ...(aiEnabled ? { ai: aiOptions } : {}),
         }),
       );
     } catch (cause) {
@@ -243,6 +303,14 @@ function FileImport() {
         symbol,
         // Commit with the exact parsing zone used by the reviewed preview.
         timeZone: preview.timeZone,
+        ...(preview.aiPreviewToken
+          ? {
+              ai: { provider: aiOptions.provider, model: aiOptions.model },
+              encoding,
+              aiPreviewToken: preview.aiPreviewToken,
+              aiReviewed,
+            }
+          : {}),
       });
       const skippedNote =
         result.skipped && result.skipped > 0
@@ -264,8 +332,25 @@ function FileImport() {
   return (
     <div className="space-y-3">
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
           <CardTitle>Upload a statement or export</CardTitle>
+          <AiImportOptions
+            enabled={aiEnabled}
+            onEnabledChange={(enabled) => {
+              setAiEnabled(enabled);
+              invalidateAiPreview();
+              setContent(null);
+              setFileName("");
+              setMappingApplied(false);
+            }}
+            value={aiOptions}
+            onChange={(options) => {
+              setAiOptions(options);
+              invalidateAiPreview();
+            }}
+            settings={settingsData ?? undefined}
+            disabled={busy}
+          />
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
@@ -284,6 +369,7 @@ function FileImport() {
               onValueChange={(zone) => {
                 setStatementTimeZone(zone);
                 setPreview(null);
+                setAiReviewed(false);
                 setMappingApplied(false);
               }}
             />
@@ -304,26 +390,50 @@ function FileImport() {
           </div>
           <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center hover:border-ring">
             <FileUp className="h-6 w-6 text-muted-foreground" />
-            <span className="text-sm">{fileName || "Drop or choose a CSV / HTML statement"}</span>
+            <span className="text-sm">
+              {fileName ||
+                (aiEnabled
+                  ? "Choose a statement for AI parsing"
+                  : "Choose a CSV / HTML / XML statement")}
+            </span>
             <span className="text-xs text-muted-foreground">
-              Auto-detected:{" "}
-              {formatData?.formats.map((format) => format.label.split(" (")[0]).join(", ")} —
-              anything else via column mapping.
+              {aiEnabled ? (
+                "CSV, TSV, HTML, XML, TXT or PDF. Your file stays local until you preview with AI."
+              ) : (
+                <>
+                  Auto-detected:{" "}
+                  {formatData?.formats.map((format) => format.label.split(" (")[0]).join(", ")} —
+                  anything else via column mapping.
+                </>
+              )}
             </span>
             <input
               type="file"
-              accept=".csv,.txt,.htm,.html,.tsv"
+              accept={
+                aiEnabled ? ".csv,.txt,.htm,.html,.tsv,.xml,.pdf" : ".csv,.txt,.htm,.html,.tsv,.xml"
+              }
               disabled={busy || !settingsData || !validTimeZone}
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) void onFile(file);
+                event.target.value = "";
               }}
             />
           </label>
           {content && !preview && (
-            <Button onClick={previewFile} disabled={busy || !validTimeZone} variant="outline">
-              {busy ? "Reading…" : "Preview file"}
+            <Button
+              onClick={previewFile}
+              disabled={busy || !validTimeZone || (aiEnabled && !aiReady)}
+              variant={aiEnabled ? "default" : "outline"}
+            >
+              {busy
+                ? aiEnabled
+                  ? "AI is reading your statement…"
+                  : "Reading…"
+                : aiEnabled
+                  ? "Preview with AI"
+                  : "Preview file"}
             </Button>
           )}
 
@@ -426,17 +536,38 @@ function FileImport() {
               </p>
               {!!preview.executions?.length && (
                 <div className="space-y-1 border-t pt-2 text-xs">
-                  {preview.executions.slice(0, 5).map((execution, index) => (
-                    <div key={index} className="flex flex-wrap gap-x-3">
-                      <span>
-                        {execution.symbol} · {execution.side.toUpperCase()}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {formatTimestamp(execution.executedAt, displayTimeZone)}
-                      </span>
-                    </div>
-                  ))}
-                  {preview.totals.executions > 5 && (
+                  <div
+                    className={
+                      preview.aiPreviewToken ? "max-h-80 space-y-2 overflow-auto" : "space-y-1"
+                    }
+                  >
+                    {(preview.aiPreviewToken
+                      ? preview.executions
+                      : preview.executions.slice(0, 5)
+                    ).map((execution, index) => (
+                      <div key={index}>
+                        <div className="flex flex-wrap gap-x-3">
+                          <span>
+                            {execution.symbol} · {execution.side.toUpperCase()}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {formatTimestamp(execution.executedAt, displayTimeZone)}
+                          </span>
+                          {preview.aiPreviewToken && (
+                            <span>
+                              {execution.quantity} @ {execution.price} · Fees {execution.fee}
+                            </span>
+                          )}
+                        </div>
+                        {preview.aiPreviewToken && preview.sources?.[index] && (
+                          <p className="mt-0.5 text-muted-foreground">
+                            Source: {preview.sources[index]}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {!preview.aiPreviewToken && preview.totals.executions > 5 && (
                     <p className="text-muted-foreground">Showing the first 5 executions.</p>
                   )}
                 </div>
@@ -486,11 +617,23 @@ function FileImport() {
                   busy ||
                   !!preview.errors?.length ||
                   !preview.totals.executions ||
+                  (Boolean(preview.aiPreviewToken) && !aiReviewed) ||
                   (preview.detected === "ninjatrader" && !preview.reconciliation?.token)
                 }
               >
                 {busy ? "Importing…" : "Import"}
               </Button>
+              {preview.aiPreviewToken && (
+                <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <Checkbox
+                    checked={aiReviewed}
+                    disabled={busy}
+                    onCheckedChange={(checked) => setAiReviewed(checked === true)}
+                  />
+                  I compared all extracted executions with my statement, including the account,
+                  quantities, prices, fees and timestamps. Import this preview.
+                </label>
+              )}
             </div>
           )}
         </CardContent>

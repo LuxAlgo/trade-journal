@@ -40,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HelpHint, Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { postJson, useApi } from "@/lib/use-api";
+import type { CalendarPnlPoint } from "@/lib/calendar-insights";
 import { cn, fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
 
 interface Bucket {
@@ -57,6 +58,8 @@ interface StatsPayload {
   days: DayStats[];
   dailyCumulative: EquityPoint[];
   calendar: CalendarMonth;
+  calendarCurrencies: string[];
+  runningPnl: Record<string, CalendarPnlPoint[]>;
   buckets: Record<"symbol" | "weekday" | "hour" | "duration" | "direction", Bucket[]>;
   openPositions: {
     key: string;
@@ -443,7 +446,12 @@ function DashboardContent({
                   </Link>
                 </CardHeader>
                 <CardContent>
-                  <CalendarPnl calendar={data.calendar} />
+                  <CalendarPnl
+                    calendar={data.calendar}
+                    runningPnl={data.runningPnl}
+                    currency={data.calendarCurrencies[0] ?? "USD"}
+                    monetary={data.calendarCurrencies.length <= 1}
+                  />
                 </CardContent>
               </Card>
             ),

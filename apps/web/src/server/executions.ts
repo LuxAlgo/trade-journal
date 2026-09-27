@@ -89,6 +89,7 @@ export const insertExecutions = (
   rows: ImportedExecution[],
   source: ExecutionSource,
   manualNotes?: string,
+  options: { preserveFees?: boolean } = {},
 ): InsertResult => {
   requireValue(
     manualNotes === undefined ||
@@ -147,9 +148,10 @@ export const insertExecutions = (
           side: row.side,
           quantity: row.quantity,
           price: row.price,
-          fee: row.importMetadata?.preserveFee
-            ? row.fee
-            : defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults),
+          fee:
+            row.importMetadata?.preserveFee || options.preserveFees
+              ? row.fee
+              : defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults),
           executedAt: row.executedAt,
           assetClass: row.assetClass ?? null,
           source,

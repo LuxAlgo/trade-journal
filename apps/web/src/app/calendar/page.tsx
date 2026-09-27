@@ -85,6 +85,7 @@ function CalendarView() {
                 calendar={data.calendar}
                 currency={data.currencies[0] ?? "USD"}
                 monetary={data.currencies.length <= 1}
+                runningPnl={data.runningPnl}
               />
             ) : (
               <div role="status" aria-label="Loading calendar">
