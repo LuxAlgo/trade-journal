@@ -16,7 +16,7 @@ import {
 } from "@/lib/chart-overlays";
 import { eventSummary, type EconomicEvent } from "@/lib/economic-calendar";
 import { MARKET_SESSIONS, sessionEvents } from "@/lib/market-sessions";
-import { zoneStats, zoneSummary, type SrZone, type ZoneStats } from "@/lib/sr-zones";
+import { zoneStatsTracker, zoneSummary, type SrZone, type ZoneStats } from "@/lib/sr-zones";
 import { fmtMoney, fmtNumber } from "@/lib/utils";
 
 type VelaModule = typeof import("@luxalgo/vela");
@@ -298,7 +298,7 @@ export function createChartOverlays(
     const stats: Record<string, ZoneStats> = {};
     const lastTime = bars.at(-1)?.time ?? Date.now();
     for (const zone of state.zones) {
-      const s = zoneStats(zone, bars);
+      const s = zoneTracker.stats(zone, bars);
       stats[zone.id] = s;
       if (!zone.visible || !state.options.zones) continue;
       const rgb = s.role === "support" ? COLORS.support : COLORS.resistance;
@@ -344,11 +344,33 @@ export function createChartOverlays(
     return { boxes, lines };
   };
 
+  /** Only the forming candle changes on a live tick; zones rescan just that candle. */
+  const zoneTracker = zoneStatsTracker();
+  /**
+   * Trade and missed-trade shapes change with the data, the theme, the candle size and which
+   * candle is the latest (labels near it flip side), not with each tick: rebuilt only then.
+   */
+  let journalShapes: {
+    key: string;
+    trades: ReturnType<typeof tradeLabels>;
+    missed: ReturnType<typeof missedLabels>;
+  } | null = null;
+  const journal = () => {
+    const key = `${bars.at(-1)?.time ?? ""}|${dark()}|${step()}`;
+    if (journalShapes?.key !== key)
+      journalShapes = {
+        key,
+        trades: tradeLabels(visibleTrades(state.data.trades, state.options)),
+        missed: missedLabels(state.options.missed ? state.data.missed : []),
+      };
+    return journalShapes;
+  };
+
   const emit = () => {
     if (!ctx) return;
     bars = ctx.bars();
-    const trades = tradeLabels(visibleTrades(state.data.trades, state.options));
-    const missed = missedLabels(state.options.missed ? state.data.missed : []);
+    const { trades, missed } = journal();
+    zoneTracker.retain(new Set(state.zones.map((z) => z.id)));
     const zones = zoneShapes();
     ctx.emit({
       labels: [...trades.labels, ...missed.labels],
@@ -357,7 +379,15 @@ export function createChartOverlays(
     });
   };
 
+  /** The candles session marks were built for: rebuilt on a new candle or older history,
+   *  never on a tick. */
+  let markedSpan = "";
+  const sessionSpan = () =>
+    state.options.sessions && bars.length && step() <= 3_600_000
+      ? `${bars[0]!.time}|${bars.at(-1)!.time}`
+      : "";
   const marks = () => {
+    markedSpan = sessionSpan();
     if (!instance.marks.supported) return;
     const out: TimelineMark[] = [];
     for (const t of visibleTrades(state.data.trades, state.options)) {
@@ -447,10 +477,9 @@ export function createChartOverlays(
         context.setStatus("idle");
       },
       onBars() {
-        const before = bars.length;
         emit();
-        // New history or a new day: sessions depend on the loaded span.
-        if (bars.length !== before) marks();
+        // A new candle or older history: session marks follow the loaded span.
+        if (sessionSpan() !== markedSpan) marks();
       },
       onViewport() {},
       setInputs() {},
@@ -537,12 +566,22 @@ export function createChartOverlays(
 
   return {
     set(patch: Partial<OverlayState>) {
+      const previous = state;
       state = { ...state, ...patch };
+      journalShapes = null;
       emit();
-      marks();
+      // Zones and a pending zone edge draw no marks; only rebuild marks when they could change.
+      if (
+        previous.data !== state.data ||
+        previous.options !== state.options ||
+        previous.events !== state.events ||
+        previous.privacy !== state.privacy
+      )
+        marks();
     },
     /** Called on theme changes so label ink follows the theme. */
     repaint() {
+      journalShapes = null;
       emit();
     },
     dispose() {

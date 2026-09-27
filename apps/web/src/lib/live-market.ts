@@ -327,8 +327,8 @@ export class JournalMarketProvider implements DataProvider {
     const poll = async () => {
       if (stopped || running) return;
       if (this.paused || hidden()) {
+        // Idle until resumed or shown again: both wake the poll at once.
         closeStream();
-        schedule(LIVE_POLL_MS[resolution]);
         return;
       }
       openStream();

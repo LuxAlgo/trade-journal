@@ -1,4 +1,13 @@
 import { isResolution, type Resolution } from "./market-data";
+import { drawingLabel } from "./chart-analysis";
+import {
+  TOOL_KEY,
+  isColor,
+  isLineStyle,
+  isTextSize,
+  type LineStyle,
+  type TextSize,
+} from "./style-validation";
 import { drawingTemplatesProblem, type DrawingTemplate } from "./drawing-templates";
 
 /**
@@ -49,8 +58,7 @@ export interface SymbolPrefs {
   style?: StyleDiff;
 }
 
-export type LineStyle = "solid" | "dashed" | "dotted";
-export type TextSize = "tiny" | "small" | "normal" | "large" | "huge";
+export type { LineStyle, TextSize } from "./style-validation";
 
 /** A drawing tool's starting style. */
 export interface ToolStyle {
@@ -235,20 +243,16 @@ export const effectiveStyle = (prefs: ChartPreferences, key: string | null): Sty
     ? mergeStyle(prefs.style, prefs.symbols[key]!.style!)
     : prefs.style;
 
-export const templatesOf = (prefs: ChartPreferences) => [...BUILT_IN_TEMPLATES, ...prefs.templates];
-
 // ── Validation ──
 
-const KEY = /^[A-Za-z0-9_-]{1,40}$/;
+const KEY = TOOL_KEY;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
-const COLOR = /^(#[0-9a-fA-F]{3,8}|rgba?\([\d\s.,%]{5,40}\))$/;
 const MAX_STYLE_BYTES = 16 * 1024;
 export const MAX_TEMPLATES = 50;
 export const MAX_SYMBOLS = 500;
 export const MAX_PALETTE = 24;
 
-export const isColor = (value: unknown): value is string =>
-  typeof value === "string" && COLOR.test(value);
+export { isColor };
 
 export function styleProblem(value: unknown): string | null {
   if (!isObject(value)) return "A chart look must be an object.";
@@ -271,7 +275,6 @@ export function styleProblem(value: unknown): string | null {
   return null;
 }
 
-const LINE_STYLES = new Set(["solid", "dashed", "dotted"]);
 const TOOL_FIELDS = [
   "lineColor",
   "lineWidth",
@@ -281,7 +284,6 @@ const TOOL_FIELDS = [
   "textColor",
   "textSize",
 ] as const;
-const TEXT_SIZES = new Set(["tiny", "small", "normal", "large", "huge"]);
 
 export function toolStyleProblem(value: unknown): string | null {
   if (!isObject(value)) return "A tool style must be an object.";
@@ -300,10 +302,9 @@ export function toolStyleProblem(value: unknown): string | null {
     !(typeof v.fillOpacity === "number" && v.fillOpacity >= 0 && v.fillOpacity <= 1)
   )
     return "A tool fill opacity is invalid.";
-  if (v.lineStyle !== undefined && !LINE_STYLES.has(v.lineStyle))
+  if (v.lineStyle !== undefined && !isLineStyle(v.lineStyle))
     return "A tool line style is invalid.";
-  if (v.textSize !== undefined && !TEXT_SIZES.has(v.textSize))
-    return "A tool text size is invalid.";
+  if (v.textSize !== undefined && !isTextSize(v.textSize)) return "A tool text size is invalid.";
   return null;
 }
 
@@ -411,27 +412,29 @@ export const tickForDecimals = (decimals: number | undefined) =>
 // ── Drawing tools ──
 
 /** Tools offered in the defaults editor, with the style fields that matter for each. */
-export const TOOL_DEFAULTS: { type: string; label: string; fill?: boolean; text?: boolean }[] = [
-  { type: "trendline", label: "Trend line" },
-  { type: "ray", label: "Ray" },
-  { type: "extendedline", label: "Extended line" },
-  { type: "hline", label: "Horizontal line" },
-  { type: "hray", label: "Horizontal ray" },
-  { type: "vline", label: "Vertical line" },
-  { type: "arrow", label: "Arrow" },
-  { type: "box", label: "Rectangle", fill: true, text: true },
-  { type: "ellipse", label: "Ellipse", fill: true },
-  { type: "triangle", label: "Triangle", fill: true },
-  { type: "parallelchannel", label: "Parallel channel", fill: true },
-  { type: "fibretracement", label: "Fib retracement" },
-  { type: "fibextension", label: "Fib extension" },
-  { type: "text", label: "Text", text: true },
-  { type: "callout", label: "Callout", fill: true, text: true },
-  { type: "note", label: "Note", text: true },
-  { type: "pricelabel", label: "Price label", text: true },
-  { type: "datepricerange", label: "Date and price range" },
-  { type: "position", label: "Position" },
-];
+export const TOOL_DEFAULTS: { type: string; label: string; fill?: boolean; text?: boolean }[] = (
+  [
+    { type: "trendline" },
+    { type: "ray" },
+    { type: "extendedline" },
+    { type: "hline" },
+    { type: "hray" },
+    { type: "vline" },
+    { type: "arrow" },
+    { type: "box", fill: true, text: true },
+    { type: "ellipse", fill: true },
+    { type: "triangle", fill: true },
+    { type: "parallelchannel", fill: true },
+    { type: "fibretracement" },
+    { type: "fibextension" },
+    { type: "text", text: true },
+    { type: "callout", fill: true, text: true },
+    { type: "note", text: true },
+    { type: "pricelabel", text: true },
+    { type: "datepricerange" },
+    { type: "position" },
+  ] as { type: string; fill?: boolean; text?: boolean }[]
+).map((tool) => ({ ...tool, label: drawingLabel(tool.type) }));
 
 /** A drawing's style fields as a `ToolStyle` (for remembering the last one used). */
 export function toolStyleOf(drawing: {
@@ -448,14 +451,12 @@ export function toolStyleOf(drawing: {
     s.lineWidth <= 20
   )
     out.lineWidth = s.lineWidth;
-  if (typeof s.lineStyle === "string" && LINE_STYLES.has(s.lineStyle))
-    out.lineStyle = s.lineStyle as LineStyle;
+  if (isLineStyle(s.lineStyle)) out.lineStyle = s.lineStyle;
   if (isColor(s.fillColor)) out.fillColor = s.fillColor;
   if (typeof s.fillOpacity === "number" && s.fillOpacity >= 0 && s.fillOpacity <= 1)
     out.fillOpacity = s.fillOpacity;
   if (isColor(drawing.text?.color)) out.textColor = drawing.text!.color as string;
-  if (typeof drawing.text?.size === "string" && TEXT_SIZES.has(drawing.text.size))
-    out.textSize = drawing.text.size as TextSize;
+  if (isTextSize(drawing.text?.size)) out.textSize = drawing.text.size;
   return out;
 }
 

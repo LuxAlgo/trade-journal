@@ -1,5 +1,10 @@
 import { bad, handler, ok, requireValue } from "@/server/api";
-import { connectionKey, providerFor } from "@/server/market-data/connections";
+import { connectionKey } from "@/server/market-data/connections";
+import {
+  requireDataset,
+  requireProvider,
+  requireSymbol,
+} from "@/server/market-data/request-checks";
 import { csvDatasets } from "@/server/market-data/csv";
 import { MarketDataError, type MarketDataProvider } from "@/server/market-data/provider";
 import { RESOLUTIONS, isResolution, type MarketHistory, type Resolution } from "@/lib/market-data";
@@ -67,26 +72,10 @@ async function latestCandles(r: Source, to: number, limit: number): Promise<Mark
  */
 export const POST = handler(async (request: Request) => {
   const body = await request.json();
-  requireValue(body && typeof body.provider === "string", "Choose a market data provider.");
-  let provider: MarketDataProvider;
-  try {
-    provider = providerFor(body.provider);
-  } catch {
-    return bad("Choose an available market data provider.");
-  }
-  requireValue(
-    typeof body.symbol === "string" &&
-      body.symbol.trim().length > 0 &&
-      body.symbol.length <= 100 &&
-      !/[\x00-\x1f]/.test(body.symbol),
-    "Enter the provider's exact instrument symbol.",
-  );
-  requireValue(
-    body.dataset === undefined ||
-      body.dataset === null ||
-      (typeof body.dataset === "string" && /^[a-zA-Z0-9_-]{0,80}$/.test(body.dataset)),
-    "Invalid dataset.",
-  );
+  requireValue(body, "Choose a market data provider.");
+  const provider = requireProvider(body.provider);
+  const symbol = requireSymbol(body.symbol);
+  const dataset = requireDataset(body.dataset);
   requireValue(isResolution(body.resolution), "Choose a supported candle resolution.");
   const resolution = body.resolution as Resolution;
   const { from, to, limit } = body as { from: unknown; to: unknown; limit: unknown };
@@ -94,8 +83,8 @@ export const POST = handler(async (request: Request) => {
   const end = Math.min(to as number, Date.now());
   const r: Source = {
     provider,
-    symbol: body.symbol.trim(),
-    dataset: body.dataset || undefined,
+    symbol,
+    dataset: dataset || undefined,
     resolution,
     signal: request.signal,
   };

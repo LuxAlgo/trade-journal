@@ -1,5 +1,4 @@
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
-import { chartAnalyses } from "@/db";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { RESOLUTIONS, type Resolution } from "@/lib/market-data";
 import { LIVE_POLL_MS, STREAMING_PROVIDERS, type LiveMessage } from "@/lib/live-market";
 import { ALERT_TYPES, lineCrossings, type AlertLine } from "@/lib/price-alerts";
@@ -7,7 +6,7 @@ import { zoneEvents, type SrZone } from "@/lib/sr-zones";
 import { drawingName, effectiveLayer, layerOf } from "@/lib/chart-layers";
 import { analysisEditPath, drawingLabel } from "@/lib/chart-analysis";
 import { lineAlert, zoneAlert, type AlertMessage } from "@/lib/alert-messages";
-import { getAnalysis } from "../chart-analyses";
+import { analysisAlertSource } from "../chart-analyses";
 import { listenLive } from "../market-data/live";
 import { connectionKey, providerFor } from "../market-data/connections";
 import { newId, nowIso } from "../ids";
@@ -95,7 +94,7 @@ export function setWatched(analysisId: string, watched: boolean) {
 
 /** What to watch for an analysis, or null when it has nothing to watch. */
 export function rulesFor(analysisId: string): Rules | null {
-  const analysis = getAnalysis(analysisId);
+  const analysis = analysisAlertSource(analysisId);
   if (!analysis) return null;
   const layers = analysis.layers;
   // Hidden drawings and hidden layers never alert, as on the chart.
@@ -157,22 +156,17 @@ export class AlertEngine {
    */
   check() {
     const db = alertsDb();
-    const ids = db
-      .select({ id: alertWatches.analysisId })
-      .from(alertWatches)
-      .orderBy(desc(alertWatches.createdAt))
-      .limit(MAX_WATCHES)
-      .all()
-      .map((r) => r.id);
+    // The newest watches' save stamps, answered from the (id, updated_at) index. SQLite would
+    // otherwise pick the primary key and read each analysis row, image included.
     const stamps = new Map(
-      (ids.length
-        ? db
-            .select({ id: chartAnalyses.id, updatedAt: chartAnalyses.updatedAt })
-            .from(chartAnalyses)
-            .where(inArray(chartAnalyses.id, ids))
-            .all()
-        : []
-      ).map((r) => [r.id, r.updatedAt]),
+      db
+        .all<{ id: string; updatedAt: string }>(
+          sql`SELECT a.id AS id, a.updated_at AS updatedAt
+          FROM (SELECT analysis_id FROM background_alert_watches
+            ORDER BY created_at DESC LIMIT ${MAX_WATCHES}) w
+          JOIN chart_analyses a INDEXED BY background_alert_stamps ON a.id = w.analysis_id`,
+        )
+        .map((r) => [r.id, r.updatedAt]),
     );
     for (const id of [...this.seen.keys()])
       if (!stamps.has(id)) {

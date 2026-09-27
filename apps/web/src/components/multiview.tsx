@@ -205,7 +205,8 @@ export function PaneHeader({
   label: string;
   detail: string;
   color?: string;
-  price: string | null;
+  /** The latest price; a live component, so ticks re-render only this. */
+  price: React.ReactNode;
   active: boolean;
   /** Alerts this chart raised since you last worked on it. */
   alerts: number;

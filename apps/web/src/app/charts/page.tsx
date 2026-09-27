@@ -27,7 +27,7 @@ import {
   type ChartDrawing,
 } from "@/components/analysis-chart";
 import { FilterBar } from "@/components/filter-bar";
-import { LayersPanel } from "@/components/layers-panel";
+import { LayersPanel, type LayersPanelActions } from "@/components/layers-panel";
 import { ChartAppearance } from "@/components/chart-appearance";
 import {
   DEFAULT_PREFERENCES,
@@ -92,7 +92,8 @@ import {
   syncAssignments,
   type LayersDocument,
 } from "@/lib/chart-layers";
-import { INITIAL_BARS, type LatestBar, type LiveStatus } from "@/lib/live-market";
+import { INITIAL_BARS, type LatestBar } from "@/lib/live-market";
+import { createLiveStore, useLiveView, type LiveStore } from "@/lib/live-store";
 import {
   RESOLUTIONS,
   isResolution,
@@ -180,6 +181,19 @@ function saveExtraSymbols(chartKey: string, value: string) {
     // Remembered for this page only.
   }
 }
+
+/** A browser notification when allowed; the in-page alert log shows it either way. */
+function notify(title: string, body: string, tag: string) {
+  try {
+    if (typeof Notification !== "undefined" && Notification.permission === "granted")
+      new Notification(title, { body, tag });
+  } catch {
+    // Some browsers only notify from a service worker; the log still has it.
+  }
+}
+
+const NO_OVERLAY_DATA: ChartOverlayData = { symbols: [], trades: [], missed: [] };
+const NO_EVENTS: NonNullable<CalendarState["events"]> = [];
 
 const newZoneId = () => `zone-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -690,7 +704,6 @@ const ChartBoard = memo(function ChartBoard({
   const [openError, setOpenError] = useState("");
   const [showAll, setShowAll] = useState(false);
   const privacy = usePrivacy();
-  const [extraSymbols, setExtraSymbols] = useState("");
   const [zones, setZones] = useState<SrZone[]>([]);
   const [zoneStats, setZoneStats] = useState<Record<string, ZoneStats>>({});
   /** A click-to-place mode waiting for a chart click. */
@@ -737,8 +750,8 @@ const ChartBoard = memo(function ChartBoard({
   );
 
   // ── Live market ──
-  const [status, setStatus] = useState<LiveStatus>({ state: "idle" });
-  const [latest, setLatest] = useState<LatestBar | null>(null);
+  /** Price and feed status: outside React state, so live ticks don't re-render the board. */
+  const [live$] = useState(createLiveStore);
   const [alerts, setAlerts] = useState<AlertEntry[]>([]);
   const [indicators, setIndicators] = useState<ChartIndicator[]>([]);
   const [indicatorError, setIndicatorError] = useState("");
@@ -786,6 +799,8 @@ const ChartBoard = memo(function ChartBoard({
     again: false,
     imageAt: 0,
     capture: null as ChartCapture | null,
+    /** What the "All analyses" list shows of this analysis, as last saved. */
+    listed: "",
   });
   const capture = (): ChartCapture | null => {
     const handle = chart.current;
@@ -886,7 +901,11 @@ const ChartBoard = memo(function ChartBoard({
             setAnalysisId(result.analysis.id);
             refreshSymbolAnalyses();
           }
-          refreshAll();
+          // The list shows the title, drawing count and snapshot: refetch it (and so its
+          // thumbnail) only when one of those changed, not on every autosave.
+          const listed = `${current.title}|${captured.drawings.drawings.length}`;
+          if (!current.analysisId || body.image !== undefined || listed !== s.listed) refreshAll();
+          s.listed = listed;
           refreshSnapshotDays();
           if (state.current.board === board) setSaveState({ state: "saved", at: Date.now() });
         } catch (cause) {
@@ -952,8 +971,10 @@ const ChartBoard = memo(function ChartBoard({
     if (analysisId) next.set("id", analysisId);
     if (analysisId && viewing) next.set("snapshot", viewing);
     const url = `/charts?${next}`;
+    // replaceState, not router.replace: the address updates without a Next navigation
+    // (Next keeps useSearchParams in step with it).
     if (`${window.location.pathname}${window.location.search}` !== url)
-      router.replace(url, { scroll: false });
+      window.history.replaceState(window.history.state, "", url);
   }, [main, board, analysisId, resolution, router, viewing]);
 
   // ── Appearance of the open chart ──
@@ -1120,11 +1141,12 @@ const ChartBoard = memo(function ChartBoard({
           again: false,
           imageAt: analysis ? Date.now() : 0,
           capture: null,
+          listed: analysis ? `${analysis.title}|${analysis.drawings.drawings.length}` : "",
         };
         lastClose.current = null;
         alertedAt.current.clear();
-        setLatest(null);
-        setStatus({ state: "loading" });
+        live$.setLatest(null);
+        live$.setStatus({ state: "loading" });
         setProvider(nextProvider);
         setDataset(nextDataset ?? "");
         setSymbolDraft(nextSymbol);
@@ -1256,9 +1278,6 @@ const ChartBoard = memo(function ChartBoard({
   const { data: csv } = useApi<{ datasets: MarketCsvDataset[] }>(
     info?.mode === "csv" ? "/api/market-data/csv" : null,
   );
-  const resolutions = (info?.resolutions ?? (Object.keys(RESOLUTIONS) as Resolution[])).filter(
-    (value): value is Resolution => value in RESOLUTIONS,
-  );
   const needsDataset = Boolean(info?.datasets);
   const canOpen =
     available.some((a) => a.id === provider) &&
@@ -1292,15 +1311,34 @@ const ChartBoard = memo(function ChartBoard({
       ),
     );
   }, []);
-  const changeLayers = (next: LayersDocument) => {
-    setLayers(next);
-    state.current.layers = next;
-    schedule();
-  };
+  const changeLayers = useCallback(
+    (next: LayersDocument) => {
+      setLayers(next);
+      state.current.layers = next;
+      schedule();
+    },
+    [schedule],
+  );
+  /** Stable, so the layers panel re-renders only when layers, drawings or selection change. */
+  const layerActions = useMemo<LayersPanelActions>(
+    () => ({
+      onChange: changeLayers,
+      onRevealDrawings: (ids) => chart.current?.reveal(ids),
+      onSelectDrawing: (id) => chart.current?.select(id),
+      onSelectMany: (ids) => chart.current?.selectMany(ids),
+      onDeleteDrawings: (ids) => chart.current?.remove(ids),
+      onUpdateDrawings: (patches) => chart.current?.updateDrawings(patches),
+      onDuplicate: (ids) => chart.current?.duplicate(ids) ?? [],
+      onFront: (ids) => chart.current?.bringToFront(ids),
+      onBack: (ids) => chart.current?.sendToBack(ids),
+      onEditDrawing: (id) => chart.current?.editDrawing(id),
+    }),
+    [changeLayers],
+  );
 
   const onLatest = useCallback(
     (update: LatestBar) => {
-      setLatest(update);
+      live$.setLatest(update);
       const bar = { time: update.bar.time, close: update.bar.close };
       const previous = lastClose.current;
       lastClose.current = bar;
@@ -1323,12 +1361,7 @@ const ChartBoard = memo(function ChartBoard({
           event.kind === "enter"
             ? `${zoneSymbol} entered the zone ${range}`
             : `${zoneSymbol} broke ${event.direction === "up" ? "above" : "below"} the zone ${range}`;
-        try {
-          if (typeof Notification !== "undefined" && Notification.permission === "granted")
-            new Notification("Zone alert", { body: label, tag: `${zoneSymbol}-${key}` });
-        } catch {
-          // The in-page log still shows it.
-        }
+        notify("Zone alert", label, `${zoneSymbol}-${key}`);
         pushAlert({ key: `${key}-${now}`, label, at: now, direction: event.direction });
       }
       const hits = lineCrossings(
@@ -1344,12 +1377,7 @@ const ChartBoard = memo(function ChartBoard({
         const label =
           drawingName(state.current.layers, hit.drawingId) ?? drawingLabel(hit.type, drawing?.text);
         const message = `${symbol} crossed ${hit.direction === "up" ? "above" : "below"} ${label} at ${fmtNumber(hit.price)}`;
-        try {
-          if (typeof Notification !== "undefined" && Notification.permission === "granted")
-            new Notification("Chart alert", { body: message, tag: `${symbol}-${hit.drawingId}` });
-        } catch {
-          // The in-page log still shows it.
-        }
+        notify("Chart alert", message, `${symbol}-${hit.drawingId}`);
         pushAlert({
           key: `${hit.drawingId}-${now}`,
           label: message,
@@ -1364,19 +1392,35 @@ const ChartBoard = memo(function ChartBoard({
 
   // ── Journal overlays: trades, missed trades, zones, sessions, economic events ──
   const extraKey = board ? `${board.provider}|${board.symbol}` : "";
-  useEffect(() => {
-    if (!extraKey) return;
-    setExtraSymbols(extraSymbolsFor(extraKey));
-  }, [extraKey]);
+  // What you typed for this chart, else what it remembers.
+  const [typedExtras, setTypedExtras] = useState<{ key: string; value: string } | null>(null);
+  const extraSymbols =
+    typedExtras?.key === extraKey ? typedExtras.value : extraSymbolsFor(extraKey);
   const changeExtraSymbols = (value: string) => {
-    setExtraSymbols(value);
+    setTypedExtras({ key: extraKey, value });
     saveExtraSymbols(extraKey, value);
   };
-  const { data: overlayData, refresh: refreshOverlays } = useApi<ChartOverlayData>(
-    board
-      ? `/api/chart-overlays?symbol=${encodeURIComponent(board.symbol)}&extra=${encodeURIComponent(extraSymbols)}`
+  // The request follows typing after a pause, and a newly opened chart at once (one fetch).
+  const [extraQuery, setExtraQuery] = useState({ key: "", value: "" });
+  useEffect(() => {
+    if (extraQuery.key !== extraKey) return setExtraQuery({ key: extraKey, value: extraSymbols });
+    if (extraQuery.value === extraSymbols) return;
+    const timer = setTimeout(() => setExtraQuery({ key: extraKey, value: extraSymbols }), 400);
+    return () => clearTimeout(timer);
+  }, [extraKey, extraSymbols, extraQuery]);
+  const { data: fetchedOverlay, refresh: refreshOverlays } = useApi<ChartOverlayData>(
+    board && extraQuery.key === extraKey
+      ? `/api/chart-overlays?symbol=${encodeURIComponent(board.symbol)}&extra=${encodeURIComponent(extraQuery.value)}`
       : null,
   );
+  // While a new list loads, the chart keeps showing this symbol's trades instead of blinking.
+  const lastOverlay = useRef<{ symbol: string; data: ChartOverlayData } | null>(null);
+  if (fetchedOverlay && board) lastOverlay.current = { symbol: board.symbol, data: fetchedOverlay };
+  const overlayData =
+    fetchedOverlay ??
+    (lastOverlay.current && lastOverlay.current.symbol === board?.symbol
+      ? lastOverlay.current.data
+      : null);
   const changeZones = useCallback(
     (next: SrZone[]) => {
       setZones(next);
@@ -1385,19 +1429,22 @@ const ChartBoard = memo(function ChartBoard({
     },
     [schedule],
   );
+  // Kept apart so adding a zone doesn't look like new options to the chart (marks rebuild).
+  const calendarOn = Boolean(calendar?.enabled);
+  const chartOverlayOptions = useMemo(
+    () => ({ ...overlayOptions, economic: overlayOptions.economic && calendarOn }),
+    [overlayOptions, calendarOn],
+  );
   const overlay = useMemo<OverlayState>(
     () => ({
-      data: overlayData ?? { symbols: [], trades: [], missed: [] },
-      options: {
-        ...overlayOptions,
-        economic: overlayOptions.economic && Boolean(calendar?.enabled),
-      },
+      data: overlayData ?? NO_OVERLAY_DATA,
+      options: chartOverlayOptions,
       zones,
-      events: calendar?.events ?? [],
+      events: calendar?.events ?? NO_EVENTS,
       privacy,
       pendingZone: zoneEdge?.price ?? null,
     }),
-    [overlayData, overlayOptions, zones, calendar, privacy, zoneEdge],
+    [overlayData, chartOverlayOptions, zones, calendar?.events, privacy, zoneEdge],
   );
   const captureState = useRef({ placing, zoneEdge });
   captureState.current = { placing, zoneEdge };
@@ -1464,12 +1511,7 @@ const ChartBoard = memo(function ChartBoard({
       indicatorAlertAt.current.set(key, now);
       const symbol = state.current.board?.symbol ?? "";
       const label = `${symbol} · ${alert.indicator}: ${alert.message}`;
-      try {
-        if (typeof Notification !== "undefined" && Notification.permission === "granted")
-          new Notification("Indicator alert", { body: label, tag: key });
-      } catch {
-        // The in-page log still shows it.
-      }
+      notify("Indicator alert", label, key);
       pushAlert({ key: `${key}-${now}`, label, at: now });
     },
     [pushAlert],
@@ -1619,8 +1661,6 @@ const ChartBoard = memo(function ChartBoard({
     }
   };
 
-  const change = latest && latest.previousClose ? latest.bar.close - latest.previousClose : null;
-  const changePct = change !== null && latest?.previousClose ? change / latest.previousClose : null;
   const symbolPrefs = board
     ? prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]
     : undefined;
@@ -1802,13 +1842,12 @@ const ChartBoard = memo(function ChartBoard({
         {board && (
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
             <span className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-              {prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]?.color && (
+              {symbolPrefs?.color && (
                 <span
                   aria-hidden="true"
                   className="size-3 rounded-full"
                   style={{
-                    backgroundColor:
-                      prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]!.color,
+                    backgroundColor: symbolPrefs.color,
                   }}
                 />
               )}
@@ -1819,13 +1858,11 @@ const ChartBoard = memo(function ChartBoard({
               <button
                 type="button"
                 aria-label={
-                  prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]?.favorite
+                  symbolPrefs?.favorite
                     ? `Remove ${board.symbol} from the watchlist`
                     : `Add ${board.symbol} to the watchlist`
                 }
-                aria-pressed={Boolean(
-                  prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]?.favorite,
-                )}
+                aria-pressed={Boolean(symbolPrefs?.favorite)}
                 className="text-muted-foreground hover:text-foreground"
                 onClick={() => {
                   const key = symbolPrefsKey(board.provider, board.symbol);
@@ -1839,42 +1876,14 @@ const ChartBoard = memo(function ChartBoard({
                 }}
               >
                 <Star
-                  className={cn(
-                    "size-4",
-                    prefs.symbols[symbolPrefsKey(board.provider, board.symbol)]?.favorite &&
-                      "fill-current text-amber-500",
-                  )}
+                  className={cn("size-4", symbolPrefs?.favorite && "fill-current text-amber-500")}
                 />
               </button>
             </span>
-            {latest ? (
-              <>
-                <span className="tnum text-lg font-semibold">{fmtNumber(latest.bar.close)}</span>
-                {change !== null && changePct !== null && (
-                  <span className="tnum text-sm text-muted-foreground">
-                    {change >= 0 ? "+" : "−"}
-                    {fmtNumber(Math.abs(change))} ({change >= 0 ? "+" : "−"}
-                    {(Math.abs(changePct) * 100).toFixed(2)}%) vs previous candle
-                  </span>
-                )}
-              </>
-            ) : (
-              status.state !== "error" && (
-                <span className="text-sm text-muted-foreground">Loading candles…</span>
-              )
-            )}
-            {status.state !== "error" && status.updatedAt && (
-              <span className="text-xs text-muted-foreground">
-                Updated {new Date(status.updatedAt).toLocaleTimeString()}
-              </span>
-            )}
+            <LivePrice store={live$} />
           </div>
         )}
-        {status.state === "error" && status.message && (
-          <p role="alert" className="text-sm text-destructive">
-            {status.message}
-          </p>
-        )}
+        <LiveError store={live$} />
       </CardContent>
     </Card>
   );
@@ -1904,7 +1913,7 @@ const ChartBoard = memo(function ChartBoard({
             label={board ? symbolLabel(board.provider, board.symbol) : "Empty chart"}
             detail={board ? resolution : ""}
             color={symbolPrefs?.color}
-            price={latest ? fmtNumber(latest.bar.close) : null}
+            price={<LiveClose store={live$} />}
             active={active}
             alerts={unseenAlerts}
             onClose={main ? undefined : () => shell.closePane(paneId)}
@@ -1972,7 +1981,7 @@ const ChartBoard = memo(function ChartBoard({
             onDrawingCreated={onDrawingCreated}
             onDrawingsChange={onDrawingsChange}
             onEdit={schedule}
-            onStatus={setStatus}
+            onStatus={live$.setStatus}
             onLatest={onLatest}
             onSelect={(_id, ids) => setSelectedIds(ids)}
             appearance={appearance}
@@ -1989,16 +1998,7 @@ const ChartBoard = memo(function ChartBoard({
                   layers={layers}
                   drawings={drawings}
                   selectedIds={selectedIds}
-                  onChange={changeLayers}
-                  onRevealDrawings={(ids) => chart.current?.reveal(ids)}
-                  onSelectDrawing={(id) => chart.current?.select(id)}
-                  onSelectMany={(ids) => chart.current?.selectMany(ids)}
-                  onDeleteDrawings={(ids) => chart.current?.remove(ids)}
-                  onUpdateDrawings={(patches) => chart.current?.updateDrawings(patches)}
-                  onDuplicate={(ids) => chart.current?.duplicate(ids) ?? []}
-                  onFront={(ids) => chart.current?.bringToFront(ids)}
-                  onBack={(ids) => chart.current?.sendToBack(ids)}
-                  onEditDrawing={(id) => chart.current?.editDrawing(id)}
+                  actions={layerActions}
                 />
               ),
             }}
@@ -2015,7 +2015,7 @@ const ChartBoard = memo(function ChartBoard({
         createPortal(
           <FilterBar
             title={board ? `Charts · ${board.symbol}` : "Charts"}
-            actions={<LiveBadge status={status} live={live} />}
+            actions={<LiveBadge store={live$} live={live} />}
           />,
           slots.header,
         )}
@@ -2500,7 +2500,56 @@ const ChartBoard = memo(function ChartBoard({
 const layerVisible = (doc: LayersDocument, drawingId: string) =>
   effectiveLayer(doc, layerOf(doc, drawingId)).visible;
 
-function LiveBadge({ status, live }: { status: LiveStatus; live: boolean }) {
+/** The latest close, the change from the previous candle, and when it updated. */
+function LivePrice({ store }: { store: LiveStore }) {
+  const { latest, status } = useLiveView(store);
+  const change = latest && latest.previousClose ? latest.bar.close - latest.previousClose : null;
+  const changePct = change !== null && latest?.previousClose ? change / latest.previousClose : null;
+  return (
+    <>
+      {latest ? (
+        <>
+          <span className="tnum text-lg font-semibold">{fmtNumber(latest.bar.close)}</span>
+          {change !== null && changePct !== null && (
+            <span className="tnum text-sm text-muted-foreground">
+              {change >= 0 ? "+" : "−"}
+              {fmtNumber(Math.abs(change))} ({change >= 0 ? "+" : "−"}
+              {(Math.abs(changePct) * 100).toFixed(2)}%) vs previous candle
+            </span>
+          )}
+        </>
+      ) : (
+        status.state !== "error" && (
+          <span className="text-sm text-muted-foreground">Loading candles…</span>
+        )
+      )}
+      {status.state !== "error" && status.updatedAt && (
+        <span className="text-xs text-muted-foreground">
+          Updated {new Date(status.updatedAt).toLocaleTimeString()}
+        </span>
+      )}
+    </>
+  );
+}
+
+function LiveError({ store }: { store: LiveStore }) {
+  const { status } = useLiveView(store);
+  if (status.state !== "error" || !status.message) return null;
+  return (
+    <p role="alert" className="text-sm text-destructive">
+      {status.message}
+    </p>
+  );
+}
+
+/** Just the latest close, for a multiview chart's header. */
+function LiveClose({ store }: { store: LiveStore }) {
+  const { latest } = useLiveView(store);
+  return latest ? <>{fmtNumber(latest.bar.close)}</> : null;
+}
+
+function LiveBadge({ store, live }: { store: LiveStore; live: boolean }) {
+  const { status } = useLiveView(store);
   const label =
     status.state === "error"
       ? "Data error"

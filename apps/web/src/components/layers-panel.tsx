@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -73,6 +73,7 @@ import {
   setFocus,
   setLayerColor,
   showEverything,
+  soloFolder,
   soloLayer,
   unlockEverything,
   unnestDrawings,
@@ -84,6 +85,7 @@ import {
   type LayersDocument,
 } from "@/lib/chart-layers";
 import { drawingLabel } from "@/lib/chart-analysis";
+import { isHexColor } from "@/lib/style-validation";
 import { cn } from "@/lib/utils";
 import type { ChartDrawing, DrawingPatch } from "./analysis-chart";
 import { Button } from "./ui/button";
@@ -119,17 +121,19 @@ export interface LayersPanelActions {
  * layers to reorder them or into folders, and drawings (one or a checked group) onto a
  * layer; every drag has a menu equivalent for keyboards and touch.
  */
-export function LayersPanel({
+export const LayersPanel = memo(function LayersPanel({
   layers,
   drawings,
   selectedIds,
-  ...actions
+  actions,
 }: {
   layers: LayersDocument;
   drawings: ChartDrawing[];
   /** Drawings selected on the chart. */
   selectedIds: string[];
-} & LayersPanelActions) {
+  /** Kept stable by the page, so the panel only re-renders when its data changes. */
+  actions: LayersPanelActions;
+}) {
   const { onChange } = actions;
   const [open, setOpen] = useState<Set<string>>(() => new Set([layers.activeLayerId]));
   const [editing, setEditing] = useState<string | null>(null);
@@ -143,7 +147,8 @@ export function LayersPanel({
   const root = useRef<HTMLDivElement>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  const ids = drawings.map((d) => d.id);
+  const ids = useMemo(() => drawings.map((d) => d.id), [drawings]);
+  const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
   const byId = useMemo(() => new Map(drawings.map((d) => [d.id, d])), [drawings]);
   const nameOf = (d: ChartDrawing) => drawingName(layers, d.id) ?? drawingLabel(d.type, d.text);
   const needle = query.trim().toLowerCase();
@@ -155,9 +160,24 @@ export function LayersPanel({
   const liveChecked = [...checked].filter((id) => byId.has(id));
   const trees = useMemo(
     () => new Map(layers.layers.map((l) => [l.id, drawingTree(layers, l.id, ids)])),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [layers, drawings],
+    [layers, ids],
   );
+  /** While filtering: the drawings that match, or hold something that does (one pass). */
+  const shownIds = useMemo(() => {
+    if (!filtering) return null;
+    const shown = new Set<string>();
+    const walk = (node: DrawingNode): boolean => {
+      let any = false;
+      for (const child of node.children) if (walk(child)) any = true;
+      const drawing = byId.get(node.id);
+      if (any || (drawing && matches(drawing))) shown.add(node.id);
+      return shown.has(node.id);
+    };
+    trees.forEach((nodes) => nodes.forEach(walk));
+    return shown;
+    // `matches` reads the query, type filter and names, all covered here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtering, needle, typeFilter, trees, byId]);
   const indexOf = useMemo(() => {
     const map = new Map<string, string>();
     const walk = (nodes: DrawingNode[]) =>
@@ -205,7 +225,7 @@ export function LayersPanel({
     });
 
   /** Checkbox click; shift extends from the last one through the visible order. */
-  const toggleChecked = (id: string, range: boolean, order: string[]) =>
+  const toggleChecked = (id: string, range: boolean, order: string[]) => {
     setChecked((current) => {
       const next = new Set(current);
       if (range && lastChecked && order.includes(lastChecked)) {
@@ -213,9 +233,20 @@ export function LayersPanel({
         for (const item of order.slice(a!, b! + 1)) next.add(item);
       } else if (next.has(id)) next.delete(id);
       else next.add(id);
-      setLastChecked(id);
       return next;
     });
+    setLastChecked(id);
+  };
+  /** Unfold a drawing's contents in the panel. */
+  const expandNode = (id: string) =>
+    setCollapsedNodes((current) =>
+      current.has(id) ? new Set([...current].filter((c) => c !== id)) : current,
+    );
+  /** Scroll the chart to a drawing and everything inside it, and select the drawing. */
+  const revealTree = (id: string, tree: string[]) => {
+    actions.onRevealDrawings(tree);
+    actions.onSelectDrawing(id);
+  };
 
   const deleteLayer = (layer: DrawingLayer) => {
     const inside = drawingsIn(layers, layer.id, ids);
@@ -277,7 +308,7 @@ export function LayersPanel({
       const group = checked.has(id) ? liveChecked : [id];
       if (targetKind === "into") {
         onChange(nestDrawings(layers, group, targetId));
-        setCollapsedNodes((current) => new Set([...current].filter((c) => c !== targetId)));
+        expandNode(targetId);
         return;
       }
       if (targetKind !== "layer") return;
@@ -299,12 +330,11 @@ export function LayersPanel({
       else next.add(id);
       return next;
     });
-  /** While filtering, a drawing shows if it or anything inside it matches. */
-  const keep = (node: DrawingNode): boolean => {
-    const drawing = byId.get(node.id);
-    return (Boolean(drawing) && matches(drawing!)) || node.children.some(keep);
-  };
-  const visibleNodes = (nodes: DrawingNode[]) => (filtering ? nodes.filter(keep) : nodes);
+  const visibleNodes = (nodes: DrawingNode[]) =>
+    shownIds ? nodes.filter((n) => shownIds.has(n.id)) : nodes;
+  /** The drawing above one at its level; while filtering, the shown list skips some. */
+  const aboveOf = (siblings: DrawingNode[], shown: DrawingNode[], i: number) =>
+    shown === siblings ? siblings[i - 1] : siblings[siblings.indexOf(shown[i]!) - 1];
   const nodeOpen = (id: string) => filtering || !collapsedNodes.has(id);
   /** The rows in display order, for shift-click ranges and "All". */
   const flatten = (nodes: DrawingNode[]): string[] =>
@@ -314,7 +344,8 @@ export function LayersPanel({
     node: DrawingNode,
     layer: DrawingLayer,
     order: string[],
-    siblings: DrawingNode[],
+    /** The drawing just above it at the same level, if any. */
+    above: DrawingNode | undefined,
   ): React.ReactNode => {
     const id = node.id;
     const drawing = byId.get(id);
@@ -325,7 +356,6 @@ export function LayersPanel({
     const tree = [id, ...inside];
     const shownChildren = visibleNodes(node.children);
     const expanded = node.children.length > 0 && nodeOpen(id);
-    const above = siblings[siblings.findIndex((s) => s.id === id) - 1];
     const parent = parentOf(layers, id);
     const insideHidden = inside.length > 0 && inside.every((d) => byId.get(d)?.visible === false);
     const focused = layers.focusId === id;
@@ -337,7 +367,7 @@ export function LayersPanel({
         index={node.index}
         name={name}
         color={drawing.color}
-        selected={selectedIds.includes(id)}
+        selected={selected.has(id)}
         checked={checked.has(id)}
         visible={drawing.visible}
         locked={drawing.locked}
@@ -354,10 +384,7 @@ export function LayersPanel({
         onToggle={() => toggleNode(id)}
         onStopDrawInto={() => onChange(setDrawInto(layers, null))}
         onCheck={(range) => toggleChecked(id, range, order)}
-        onOpen={() => {
-          actions.onRevealDrawings(tree);
-          actions.onSelectDrawing(id);
-        }}
+        onOpen={() => revealTree(id, tree)}
         onRename={(value) => {
           setEditing(null);
           if (value !== null) onChange(renameDrawing(layers, id, value));
@@ -366,17 +393,12 @@ export function LayersPanel({
         // Eye and lock on a drawing apply to everything inside it.
         onVisible={() => setDrawings(tree, { visible: !drawing.visible })}
         onLocked={() => setDrawings(tree, { locked: !drawing.locked })}
-        menu={
+        menu={() => (
           <>
             <DropdownMenuItem onSelect={() => setEditing(`drawing:${id}`)}>
               <Pencil className="size-3.5" /> Rename
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => {
-                actions.onRevealDrawings(tree);
-                actions.onSelectDrawing(id);
-              }}
-            >
+            <DropdownMenuItem onSelect={() => revealTree(id, tree)}>
               <Crosshair className="size-3.5" />
               {inside.length ? "Go to it and what is inside" : "Go to it on the chart"}
             </DropdownMenuItem>
@@ -392,7 +414,7 @@ export function LayersPanel({
             <DropdownMenuItem
               onSelect={() => {
                 onChange(setDrawInto(layers, target ? null : id));
-                setCollapsedNodes((current) => new Set([...current].filter((c) => c !== id)));
+                expandNode(id);
               }}
             >
               <CornerDownRight className="size-3.5" />
@@ -408,9 +430,7 @@ export function LayersPanel({
               <DropdownMenuItem
                 onSelect={() => {
                   onChange(nestDrawings(layers, [id], above.id));
-                  setCollapsedNodes(
-                    (current) => new Set([...current].filter((c) => c !== above.id)),
-                  );
+                  expandNode(above.id);
                 }}
               >
                 <IndentIncrease className="size-3.5" /> Put inside the one above
@@ -467,11 +487,13 @@ export function LayersPanel({
               </DropdownMenuItem>
             )}
           </>
-        }
+        )}
       >
         {expanded && shownChildren.length > 0 && (
           <ul className="ml-3 space-y-0.5 border-l pl-1">
-            {shownChildren.map((child) => renderNode(child, layer, order, node.children))}
+            {shownChildren.map((child, i) =>
+              renderNode(child, layer, order, aboveOf(node.children, shownChildren, i)),
+            )}
           </ul>
         )}
       </DrawingRow>
@@ -487,6 +509,7 @@ export function LayersPanel({
     const expanded = open.has(layer.id) || (filtering && shown.length > 0);
     const hiddenCount = inside.filter((id) => byId.get(id)?.visible === false).length;
     const tree = trees.get(layer.id) ?? [];
+    const roots = visibleNodes(tree);
     const order = flatten(tree);
     const allChecked = order.length > 0 && order.every((id) => checked.has(id));
     return (
@@ -583,96 +606,85 @@ export function LayersPanel({
               offIcon={Lock}
               onClick={() => onChange(updateLayer(layers, layer.id, { locked: !layer.locked }))}
             />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 shrink-0"
-                  aria-label={`${layer.name} options`}
-                >
-                  <MoreHorizontal className="size-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-60"
-                onCloseAutoFocus={(e) => e.preventDefault()}
-              >
-                <DropdownMenuItem onSelect={() => setEditing(layer.id)}>
-                  <Pencil className="size-3.5" /> Rename
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onChange(soloLayer(layers, layer.id))}>
-                  <Focus className="size-3.5" /> Show only this layer
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={!inside.length}
-                  onSelect={() => actions.onRevealDrawings(inside)}
-                >
-                  <Crosshair className="size-3.5" /> Show its drawings on the chart
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={!inside.length}
-                  onSelect={() => setChecked(new Set(inside))}
-                >
-                  <Layers className="size-3.5" /> Check its drawings
-                </DropdownMenuItem>
-                <div className="px-2 py-1.5">
-                  <p className="mb-1 text-[11px] text-muted-foreground">Layer colour</p>
-                  <ColorRow
-                    value={layer.color}
-                    onPick={(color) => onChange(setLayerColor(layers, layer.id, color))}
-                    onClear={
-                      layer.color
-                        ? () => onChange(setLayerColor(layers, layer.id, null))
-                        : undefined
-                    }
-                  />
-                </div>
-                <DropdownMenuItem
-                  disabled={!layer.color || !inside.length}
-                  onSelect={() =>
-                    layer.color && setDrawings(inside, { style: { lineColor: layer.color } })
-                  }
-                >
-                  <Paintbrush className="size-3.5" /> Colour its drawings with it
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => duplicateLayer(layer)}>
-                  <Copy className="size-3.5" /> Duplicate layer with drawings
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onChange(moveLayer(layers, layer.id, -1))}>
-                  <ArrowUp className="size-3.5" /> Move up
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onChange(moveLayer(layers, layer.id, 1))}>
-                  <ArrowDown className="size-3.5" /> Move down
-                </DropdownMenuItem>
-                {layer.folderId && (
-                  <DropdownMenuItem
-                    onSelect={() => onChange(updateLayer(layers, layer.id, { folderId: null }))}
-                  >
-                    <Layers className="size-3.5" /> Move out of folder
+            <RowMenu
+              label={`${layer.name} options`}
+              className="w-60"
+              items={() => (
+                <>
+                  <DropdownMenuItem onSelect={() => setEditing(layer.id)}>
+                    <Pencil className="size-3.5" /> Rename
                   </DropdownMenuItem>
-                )}
-                {layers.folders
-                  .filter((f) => f.id !== layer.folderId)
-                  .map((f) => (
+                  <DropdownMenuItem onSelect={() => onChange(soloLayer(layers, layer.id))}>
+                    <Focus className="size-3.5" /> Show only this layer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!inside.length}
+                    onSelect={() => actions.onRevealDrawings(inside)}
+                  >
+                    <Crosshair className="size-3.5" /> Show its drawings on the chart
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!inside.length}
+                    onSelect={() => setChecked(new Set(inside))}
+                  >
+                    <Layers className="size-3.5" /> Check its drawings
+                  </DropdownMenuItem>
+                  <div className="px-2 py-1.5">
+                    <p className="mb-1 text-[11px] text-muted-foreground">Layer colour</p>
+                    <ColorRow
+                      value={layer.color}
+                      onPick={(color) => onChange(setLayerColor(layers, layer.id, color))}
+                      onClear={
+                        layer.color
+                          ? () => onChange(setLayerColor(layers, layer.id, null))
+                          : undefined
+                      }
+                    />
+                  </div>
+                  <DropdownMenuItem
+                    disabled={!layer.color || !inside.length}
+                    onSelect={() =>
+                      layer.color && setDrawings(inside, { style: { lineColor: layer.color } })
+                    }
+                  >
+                    <Paintbrush className="size-3.5" /> Colour its drawings with it
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => duplicateLayer(layer)}>
+                    <Copy className="size-3.5" /> Duplicate layer with drawings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onChange(moveLayer(layers, layer.id, -1))}>
+                    <ArrowUp className="size-3.5" /> Move up
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onChange(moveLayer(layers, layer.id, 1))}>
+                    <ArrowDown className="size-3.5" /> Move down
+                  </DropdownMenuItem>
+                  {layer.folderId && (
                     <DropdownMenuItem
-                      key={f.id}
-                      onSelect={() => onChange(updateLayer(layers, layer.id, { folderId: f.id }))}
+                      onSelect={() => onChange(updateLayer(layers, layer.id, { folderId: null }))}
                     >
-                      <Folder className="size-3.5" /> Move to {f.name}
+                      <Layers className="size-3.5" /> Move out of folder
                     </DropdownMenuItem>
-                  ))}
-                <DropdownMenuItem
-                  disabled={layers.layers.length <= 1}
-                  onSelect={() => deleteLayer(layer)}
-                  className="text-destructive"
-                >
-                  <Trash2 className="size-3.5" /> Delete layer
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  )}
+                  {layers.folders
+                    .filter((f) => f.id !== layer.folderId)
+                    .map((f) => (
+                      <DropdownMenuItem
+                        key={f.id}
+                        onSelect={() => onChange(updateLayer(layers, layer.id, { folderId: f.id }))}
+                      >
+                        <Folder className="size-3.5" /> Move to {f.name}
+                      </DropdownMenuItem>
+                    ))}
+                  <DropdownMenuItem
+                    disabled={layers.layers.length <= 1}
+                    onSelect={() => deleteLayer(layer)}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="size-3.5" /> Delete layer
+                  </DropdownMenuItem>
+                </>
+              )}
+            />
           </DragHandleRow>
         </DropTarget>
         {expanded && (
@@ -705,7 +717,7 @@ export function LayersPanel({
                   : "No drawings. Drag some here."}
               </li>
             )}
-            {visibleNodes(tree).map((node) => renderNode(node, layer, order, tree))}
+            {roots.map((node, i) => renderNode(node, layer, order, aboveOf(tree, roots, i)))}
           </ul>
         )}
       </li>
@@ -951,71 +963,48 @@ export function LayersPanel({
                         onChange(updateFolder(layers, folder.id, { locked: !folder.locked }))
                       }
                     />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 shrink-0"
-                          aria-label={`${folder.name} options`}
-                        >
-                          <MoreHorizontal className="size-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="w-56"
-                        onCloseAutoFocus={(e) => e.preventDefault()}
-                      >
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            const next = addLayer(layers, "", folder.id);
-                            setOpen((current) => new Set([...current, next.activeLayerId]));
-                            setEditing(next.activeLayerId);
-                            onChange(next);
-                          }}
-                        >
-                          <Plus className="size-3.5" /> New layer here
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => setEditing(folder.id)}>
-                          <Pencil className="size-3.5" /> Rename
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            onChange({
-                              ...layers,
-                              layers: layers.layers.map((l) => ({
-                                ...l,
-                                visible: l.folderId === folder.id,
-                              })),
-                              folders: layers.folders.map((f) => ({
-                                ...f,
-                                visible: f.id === folder.id ? true : f.visible,
-                              })),
-                            })
-                          }
-                        >
-                          <Focus className="size-3.5" /> Show only this folder
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          disabled={!count}
-                          onSelect={() =>
-                            actions.onRevealDrawings(
-                              inside.flatMap((l) => drawingsIn(layers, l.id, ids)),
-                            )
-                          }
-                        >
-                          <Crosshair className="size-3.5" /> Show its drawings on the chart
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() => onChange(removeFolder(layers, folder.id))}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="size-3.5" /> Delete folder (keep layers)
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <RowMenu
+                      label={`${folder.name} options`}
+                      className="w-56"
+                      items={() => (
+                        <>
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              const next = addLayer(layers, "", folder.id);
+                              setOpen((current) => new Set([...current, next.activeLayerId]));
+                              setEditing(next.activeLayerId);
+                              onChange(next);
+                            }}
+                          >
+                            <Plus className="size-3.5" /> New layer here
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => setEditing(folder.id)}>
+                            <Pencil className="size-3.5" /> Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => onChange(soloFolder(layers, folder.id))}
+                          >
+                            <Focus className="size-3.5" /> Show only this folder
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={!count}
+                            onSelect={() =>
+                              actions.onRevealDrawings(
+                                inside.flatMap((l) => drawingsIn(layers, l.id, ids)),
+                              )
+                            }
+                          >
+                            <Crosshair className="size-3.5" /> Show its drawings on the chart
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => onChange(removeFolder(layers, folder.id))}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="size-3.5" /> Delete folder (keep layers)
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    />
                   </DragHandleRow>
                 </DropTarget>
                 {expanded && (
@@ -1070,7 +1059,7 @@ export function LayersPanel({
       )}
     </div>
   );
-}
+});
 
 const split = (dragId: string): [string, string] => {
   const i = dragId.indexOf(":");
@@ -1192,7 +1181,8 @@ function DrawingRow({
   onStartRename: () => void;
   onVisible: () => void;
   onLocked: () => void;
-  menu: React.ReactNode;
+  /** The options menu's items, built only when it opens. */
+  menu: () => React.ReactNode;
   children?: React.ReactNode;
 }) {
   const hasInside = insideCount > 0;
@@ -1297,29 +1287,65 @@ function DrawingRow({
             offIcon={Lock}
             onClick={onLocked}
           />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={`${name} options`}
-                className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-              >
-                <MoreHorizontal className="size-3" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-64"
-              onCloseAutoFocus={(e) => e.preventDefault()}
-            >
-              {menu}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <RowMenu small label={`${name} options`} className="w-64" items={menu} />
         </DragHandleRow>
       </DropTarget>
       {children}
     </li>
   );
+}
+
+/** A row's "…" options menu. Its items are built only while it is open: a long list of
+ *  drawings would otherwise build every row's menu on each render. */
+function RowMenu({
+  label,
+  className,
+  small,
+  items,
+}: {
+  label: string;
+  className: string;
+  /** The compact button used on drawing rows. */
+  small?: boolean;
+  items: () => React.ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {small ? (
+          <button
+            type="button"
+            aria-label={label}
+            className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+          >
+            <MoreHorizontal className="size-3" />
+          </button>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0"
+            aria-label={label}
+          >
+            <MoreHorizontal className="size-3.5" />
+          </Button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className={className}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <Deferred render={items} />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Renders `render()` only when mounted, i.e. once the menu around it opens. */
+function Deferred({ render }: { render: () => React.ReactNode }) {
+  return <>{render()}</>;
 }
 
 function BulkBar({
@@ -1484,7 +1510,7 @@ function ColorRow({
         <input
           type="color"
           aria-label="Pick any colour"
-          value={value && /^#[0-9a-f]{6}$/i.test(value) ? value : "#2962ff"}
+          value={isHexColor(value) ? value : "#2962ff"}
           onChange={(e) => onPick(e.target.value)}
           className="absolute inset-0 cursor-pointer opacity-0"
         />

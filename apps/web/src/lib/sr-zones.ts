@@ -41,48 +41,117 @@ interface Bar {
 const sideOf = (price: number, zone: Pick<SrZone, "low" | "high">) =>
   price > zone.high ? "above" : price < zone.low ? "below" : "inside";
 
-/** A zone's behaviour over the candles since it was drawn. */
-export function zoneStats(zone: SrZone, bars: readonly Bar[]): ZoneStats {
-  let touches = 0;
-  let breaks = 0;
-  let lastTouch: number | null = null;
-  let lastBreak = -Infinity;
-  // The side price came from before entering the zone.
-  let origin: "above" | "below" | null = null;
-  let previous: "above" | "below" | "inside" | null = null;
-  for (const bar of bars) {
-    if (bar.time < zone.start) continue;
-    const side = sideOf(bar.close, zone);
-    const entered = bar.low <= zone.high && bar.high >= zone.low;
-    if (previous === null) {
-      previous = side;
-      origin = side === "inside" ? null : side;
-      continue;
-    }
-    if (side === "inside") {
-      if (previous !== "inside") origin = previous;
-    } else {
-      const from: "above" | "below" | null = previous === "inside" ? origin : previous;
-      if (from && from !== side) {
-        breaks += 1;
-        lastBreak = bar.time;
-      } else if (entered || previous === "inside") {
-        // Wicked into the zone (or closed inside) and left on the same side: a rejection.
-        touches += 1;
-        lastTouch = bar.time;
-      }
-      origin = side;
-    }
-    previous = side;
+/** Where a scan of a zone's candles stands; `scanBar` folds one more candle in. */
+interface ZoneScan {
+  touches: number;
+  breaks: number;
+  lastTouch: number | null;
+  lastBreak: number;
+  /** The side price came from before entering the zone. */
+  origin: "above" | "below" | null;
+  previous: "above" | "below" | "inside" | null;
+}
+
+const newScan = (): ZoneScan => ({
+  touches: 0,
+  breaks: 0,
+  lastTouch: null,
+  lastBreak: -Infinity,
+  origin: null,
+  previous: null,
+});
+
+function scanBar(scan: ZoneScan, zone: SrZone, bar: Bar) {
+  if (bar.time < zone.start) return;
+  const side = sideOf(bar.close, zone);
+  const entered = bar.low <= zone.high && bar.high >= zone.low;
+  if (scan.previous === null) {
+    scan.previous = side;
+    scan.origin = side === "inside" ? null : side;
+    return;
   }
-  const last = bars.at(-1);
+  if (side === "inside") {
+    if (scan.previous !== "inside") scan.origin = scan.previous;
+  } else {
+    const from = scan.previous === "inside" ? scan.origin : scan.previous;
+    if (from && from !== side) {
+      scan.breaks += 1;
+      scan.lastBreak = bar.time;
+    } else if (entered || scan.previous === "inside") {
+      // Wicked into the zone (or closed inside) and left on the same side: a rejection.
+      scan.touches += 1;
+      scan.lastTouch = bar.time;
+    }
+    scan.origin = side;
+  }
+  scan.previous = side;
+}
+
+function statsOf(zone: SrZone, scan: ZoneScan, last: Bar | undefined): ZoneStats {
   const position = last && last.time >= zone.start ? sideOf(last.close, zone) : "inside";
-  const reference = position === "inside" ? (origin ?? "above") : position;
+  const reference = position === "inside" ? (scan.origin ?? "above") : position;
   const role =
     zone.kind === "auto" ? (reference === "above" ? "support" : "resistance") : zone.kind;
   const status =
-    position === "inside" ? "testing" : lastBreak > (lastTouch ?? -Infinity) ? "broken" : "holding";
-  return { role, position, touches, breaks, lastTouch, status };
+    position === "inside"
+      ? "testing"
+      : scan.lastBreak > (scan.lastTouch ?? -Infinity)
+        ? "broken"
+        : "holding";
+  return {
+    role,
+    position,
+    touches: scan.touches,
+    breaks: scan.breaks,
+    lastTouch: scan.lastTouch,
+    status,
+  };
+}
+
+/** A zone's behaviour over the candles since it was drawn. */
+export function zoneStats(zone: SrZone, bars: readonly Bar[]): ZoneStats {
+  const scan = newScan();
+  for (const bar of bars) scanBar(scan, zone, bar);
+  return statsOf(zone, scan, bars.at(-1));
+}
+
+/**
+ * `zoneStats` for a live chart, where each tick only changes the forming (last) candle: the
+ * scan over closed candles is kept per zone and extended, and only the last candle is redone.
+ * Anything else (older history loaded, a zone edited) starts the scan over.
+ */
+export function zoneStatsTracker() {
+  const kept = new Map<
+    string,
+    { zone: SrZone; firstTime: number; closed: number; lastClosedTime: number; scan: ZoneScan }
+  >();
+  const stats = (zone: SrZone, bars: readonly Bar[]): ZoneStats => {
+    const closed = Math.max(0, bars.length - 1);
+    const firstTime = bars[0]?.time ?? 0;
+    let entry = kept.get(zone.id);
+    const reusable =
+      entry &&
+      entry.zone === zone &&
+      entry.firstTime === firstTime &&
+      entry.closed <= closed &&
+      (entry.closed === 0 || bars[entry.closed - 1]?.time === entry.lastClosedTime);
+    if (!entry || !reusable) {
+      entry = { zone, firstTime, closed: 0, lastClosedTime: 0, scan: newScan() };
+      kept.set(zone.id, entry);
+    }
+    for (let i = entry.closed; i < closed; i += 1) scanBar(entry.scan, zone, bars[i]!);
+    entry.closed = closed;
+    entry.lastClosedTime = bars[closed - 1]?.time ?? 0;
+    const scan = { ...entry.scan };
+    const last = bars.at(-1);
+    if (last) scanBar(scan, zone, last);
+    return statsOf(zone, scan, last);
+  };
+  /** Forget zones that are gone. */
+  const retain = (ids: ReadonlySet<string>) => {
+    for (const id of kept.keys()) if (!ids.has(id)) kept.delete(id);
+  };
+  return { stats, retain };
 }
 
 export interface ZoneEvent {

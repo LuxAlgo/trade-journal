@@ -42,6 +42,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Charts are faster with many drawings and live prices: the layers panel no longer slows down with deep wave counts, live ticks only redraw the price, bulk drawing edits refresh once, zone statistics and trade labels are not recomputed on every tick, and saved analyses, day versions and background alert checks read far less from the database
 - Vela upgraded to 0.7.7 (required by its Pine add-on)
 - Data loads render as React transitions, so a tab change paints progressively instead of freezing while every card and chart mounts at once
 - The development server runs on Turbopack, roughly halving first-visit compile times when switching tabs in `pnpm dev`
@@ -54,6 +55,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Duplicating or pasting a drawing keeps its source's look instead of restyling the copy with the tool's default template or ink
 - Pine scripts with very long expressions or condition chains no longer fail with "Maximum call stack size exceeded": a script too deep for the indicator worker runs on the page instead, and one too deep for both explains how to split it
 - Chart pattern tools: the Elliott impulse is placed on six points (0-1-2-3-4-5, five waves) and the correction on four (0-A-B-C, three waves), instead of Vela's five and three points; the Shark harmonic is labelled 0-X-A-B-C. Wave drawings made with the old point count keep their points and labels
 - Password protection now verifies the session signature on every API route. Previously, when `JOURNAL_PASSWORD` was set, any request carrying a cookie of the right name was accepted, so a forged cookie could read the journal.

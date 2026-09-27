@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { chartAnalyses, db, journalDays } from "@/db";
 import { isResolution, type Resolution } from "@/lib/market-data";
 import {
@@ -14,9 +14,11 @@ import {
 import { layersProblem, parseLayers, type LayersDocument } from "@/lib/chart-layers";
 import { indicatorsProblem, parseIndicators, type StoredIndicator } from "@/lib/chart-indicators";
 import { parseZones, zonesProblem, type SrZone } from "@/lib/sr-zones";
-import { providerFor } from "./market-data/connections";
-import { RequestError, requireValue } from "./api";
+import { requireDataset, requireProvider, requireSymbol } from "./market-data/request-checks";
+import { requireNoProblem } from "./validation";
+import { requireValue } from "./api";
 import { newId, nowIso } from "./ids";
+import { hasBlob } from "./blob-column";
 import { journalToday, recordSnapshot } from "./analysis-snapshots";
 
 type Row = typeof chartAnalyses.$inferSelect;
@@ -74,33 +76,9 @@ export function parseAnalysisInput(body: unknown, partial: boolean): AnalysisInp
     );
     input.title = b.title.trim();
   }
-  if (has("symbol") || !partial) {
-    requireValue(
-      typeof b.symbol === "string" &&
-        b.symbol.trim().length > 0 &&
-        b.symbol.length <= 100 &&
-        !/[\x00-\x1f]/.test(b.symbol),
-      "Enter the provider's exact instrument symbol.",
-    );
-    input.symbol = b.symbol.trim();
-  }
-  if (has("provider") || !partial) {
-    requireValue(typeof b.provider === "string", "Choose a market data provider.");
-    try {
-      providerFor(b.provider);
-    } catch {
-      throw new RequestError("Choose an available market data provider.");
-    }
-    input.provider = b.provider;
-  }
-  if (has("dataset")) {
-    requireValue(
-      b.dataset === null ||
-        (typeof b.dataset === "string" && /^[a-zA-Z0-9_-]{0,80}$/.test(b.dataset)),
-      "Invalid dataset.",
-    );
-    input.dataset = b.dataset ? (b.dataset as string) : null;
-  }
+  if (has("symbol") || !partial) input.symbol = requireSymbol(b.symbol);
+  if (has("provider") || !partial) input.provider = requireProvider(b.provider).id;
+  if (has("dataset")) input.dataset = requireDataset(b.dataset);
   if (has("resolution") || !partial) {
     requireValue(isResolution(b.resolution), "Choose a supported candle resolution.");
     input.resolution = b.resolution;
@@ -134,23 +112,19 @@ export function parseAnalysisInput(body: unknown, partial: boolean): AnalysisInp
     input.dayDate = b.dayDate as string | null;
   }
   if (has("drawings") || !partial) {
-    const problem = drawingsProblem(b.drawings);
-    requireValue(!problem, problem ?? "");
+    requireNoProblem(drawingsProblem(b.drawings));
     input.drawings = b.drawings as DrawingsDocument;
   }
   if (has("layers")) {
-    const problem = layersProblem(b.layers);
-    requireValue(!problem, problem ?? "");
+    requireNoProblem(layersProblem(b.layers));
     input.layers = b.layers as LayersDocument;
   }
   if (has("indicators")) {
-    const problem = indicatorsProblem(b.indicators);
-    requireValue(!problem, problem ?? "");
+    requireNoProblem(indicatorsProblem(b.indicators));
     input.indicators = b.indicators as StoredIndicator[];
   }
   if (has("zones")) {
-    const problem = zonesProblem(b.zones);
-    requireValue(!problem, problem ?? "");
+    requireNoProblem(zonesProblem(b.zones));
     input.zones = b.zones as SrZone[];
   }
   if (b.image === null) input.image = null;
@@ -197,7 +171,7 @@ export function listAnalyses(
   options: { day?: string; provider?: string; symbol?: string; limit?: number } = {},
 ) {
   const rows = db
-    .select({ ...summaryColumns, hasImage: sql<number>`${chartAnalyses.image} IS NOT NULL` })
+    .select({ ...summaryColumns, hasImage: hasBlob(chartAnalyses.image) })
     .from(chartAnalyses)
     .where(
       and(
@@ -216,7 +190,7 @@ export function getAnalysis(id: string): ChartAnalysis | null {
   const row = db
     .select({
       ...summaryColumns,
-      hasImage: sql<number>`${chartAnalyses.image} IS NOT NULL`,
+      hasImage: hasBlob(chartAnalyses.image),
       visibleFrom: chartAnalyses.visibleFrom,
       visibleTo: chartAnalyses.visibleTo,
       notes: chartAnalyses.notes,
@@ -249,6 +223,36 @@ export function getAnalysis(id: string): ChartAnalysis | null {
     layers: parseLayers(layersJson),
     indicators: parseIndicators(indicatorsJson),
     zones: parseZones(zonesJson),
+  };
+}
+
+/**
+ * What background alerts watch in an analysis: its market, drawings, layers and zones. All
+ * sit before the image in the row, so reading them never loads it.
+ */
+export function analysisAlertSource(id: string) {
+  const row = db
+    .select({
+      symbol: chartAnalyses.symbol,
+      provider: chartAnalyses.provider,
+      dataset: chartAnalyses.dataset,
+      resolution: chartAnalyses.resolution,
+      drawingsJson: chartAnalyses.drawingsJson,
+      layersJson: chartAnalyses.layersJson,
+      zonesJson: chartAnalyses.zonesJson,
+    })
+    .from(chartAnalyses)
+    .where(eq(chartAnalyses.id, id))
+    .get();
+  if (!row) return null;
+  return {
+    symbol: row.symbol,
+    provider: row.provider,
+    dataset: row.dataset,
+    resolution: row.resolution as Resolution,
+    drawings: parseDrawings(row.drawingsJson),
+    layers: parseLayers(row.layersJson),
+    zones: parseZones(row.zonesJson),
   };
 }
 

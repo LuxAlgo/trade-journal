@@ -12,6 +12,7 @@ import { parseZones } from "@/lib/sr-zones";
 import type { Resolution } from "@/lib/market-data";
 import { getTimeZone } from "./settings";
 import { nowIso } from "./ids";
+import { hasBlob } from "./blob-column";
 
 /**
  * Day snapshots: a chart analysis is one evolving board, and every journal day it was
@@ -48,7 +49,7 @@ export function recordSnapshot(analysisId: string, day: string, options: { image
   const state = db.select(STATE).from(chartAnalyses).where(eq(chartAnalyses.id, analysisId)).get();
   if (!state) return;
   const existing = db
-    .select({ hasImage: sql<number>`${chartAnalysisSnapshots.image} IS NOT NULL` })
+    .select({ hasImage: hasBlob(chartAnalysisSnapshots.image) })
     .from(chartAnalysisSnapshots)
     .where(
       and(eq(chartAnalysisSnapshots.analysisId, analysisId), eq(chartAnalysisSnapshots.day, day)),
@@ -81,7 +82,7 @@ const summaryColumns = {
   provider: chartAnalysisSnapshots.provider,
   resolution: chartAnalysisSnapshots.resolution,
   drawingCount: chartAnalysisSnapshots.drawingCount,
-  hasImage: sql<number>`${chartAnalysisSnapshots.image} IS NOT NULL`,
+  hasImage: hasBlob(chartAnalysisSnapshots.image),
   createdAt: chartAnalysisSnapshots.createdAt,
   updatedAt: chartAnalysisSnapshots.updatedAt,
 };
@@ -98,6 +99,7 @@ const toSummary = (row: SummaryRow): AnalysisSnapshotSummary => ({
 
 /** Snapshots of one journal day (oldest first), or one analysis's days (newest first). */
 export function listSnapshots(filter: { day?: string; analysisId?: string }) {
+  if (filter.analysisId && !filter.day) return analysisSnapshots(filter.analysisId);
   return db
     .select(summaryColumns)
     .from(chartAnalysisSnapshots)
@@ -110,6 +112,22 @@ export function listSnapshots(filter: { day?: string; analysisId?: string }) {
     .orderBy(filter.day ? asc(chartAnalysisSnapshots.createdAt) : desc(chartAnalysisSnapshots.day))
     .limit(1000)
     .all()
+    .map(toSummary);
+}
+
+/**
+ * One analysis's days, newest first. SQLite prefers the primary key here, which reads each
+ * row's image to reach the dates stored after it; the list index already holds them.
+ */
+function analysisSnapshots(analysisId: string): AnalysisSnapshotSummary[] {
+  return db
+    .all<SummaryRow>(
+      sql`SELECT analysis_id AS analysisId, day, title, symbol, provider, resolution,
+        drawing_count AS drawingCount, typeof(image) <> 'null' AS hasImage,
+        created_at AS createdAt, updated_at AS updatedAt
+      FROM chart_analysis_snapshots INDEXED BY chart_analysis_snapshots_list
+      WHERE analysis_id = ${analysisId} ORDER BY day DESC LIMIT 1000`,
+    )
     .map(toSummary);
 }
 

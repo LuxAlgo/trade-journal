@@ -5,6 +5,8 @@
  * is pure so the chart, the panel and the server agree on one model.
  */
 
+import { isHexColor } from "./style-validation";
+
 export interface LayerFolder {
   id: string;
   name: string;
@@ -52,7 +54,6 @@ export const MAX_LAYERS = 200;
 export const MAX_LAYER_NAME = 80;
 const MAX_DRAWING_REFS = 5000;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
-const HEX = /^#[0-9a-fA-F]{6}$/;
 
 export const DEFAULT_LAYER_ID = "layer-main";
 
@@ -113,7 +114,7 @@ export function layersProblem(value: unknown): string | null {
       return "A layer belongs to a missing folder.";
     if (typeof layer.visible !== "boolean" || typeof layer.locked !== "boolean")
       return "A layer has invalid settings.";
-    if (layer.color !== undefined && !(typeof layer.color === "string" && HEX.test(layer.color)))
+    if (layer.color !== undefined && !isHexColor(layer.color))
       return "A layer has an invalid colour.";
     layerIds.add(layer.id);
   }
@@ -122,7 +123,7 @@ export function layersProblem(value: unknown): string | null {
   if (!doc.assignments || typeof doc.assignments !== "object" || Array.isArray(doc.assignments))
     return "Layer assignments are invalid.";
   const entries = Object.entries(doc.assignments);
-  if (entries.length > 5000) return "Too many layer assignments.";
+  if (entries.length > MAX_DRAWING_REFS) return "Too many layer assignments.";
   for (const [drawing, layer] of entries)
     if (drawing.length > 100 || typeof layer !== "string" || !layerIds.has(layer))
       return "A drawing is assigned to a missing layer.";
@@ -132,7 +133,7 @@ export function layersProblem(value: unknown): string | null {
     if (!doc.names || typeof doc.names !== "object" || Array.isArray(doc.names))
       return "Drawing names are invalid.";
     const names = Object.entries(doc.names);
-    if (names.length > 5000) return "Too many drawing names.";
+    if (names.length > MAX_DRAWING_REFS) return "Too many drawing names.";
     for (const [drawing, name] of names)
       if (drawing.length > 100 || typeof name !== "string" || name.length > MAX_LAYER_NAME)
         return "A drawing name is invalid.";
@@ -152,13 +153,16 @@ function nestingProblem(doc: Partial<LayersDocument>): string | null {
     for (const [child, parent] of entries)
       if (!isRef(child) || !isRef(parent) || child === parent)
         return "A nested drawing is invalid.";
-    // Walking up from any drawing must end: a drawing can never sit inside itself.
+    // Walking up from any drawing must end: a drawing can never sit inside itself. A chain
+    // that reaches a drawing already checked ends too, so each drawing is walked once.
+    const checked = new Set<string>();
     for (const [child] of entries) {
       const seen = new Set([child]);
-      for (let at = doc.parents[child]; at; at = doc.parents[at]) {
+      for (let at = doc.parents[child]; at && !checked.has(at); at = doc.parents[at]) {
         if (seen.has(at)) return "Drawing nesting has a loop.";
         seen.add(at);
       }
+      for (const id of seen) checked.add(id);
     }
   }
   for (const key of ["drawInto", "focusId"] as const)
@@ -388,16 +392,8 @@ export const updateFolder = (
  * its folder), so a new drawing is never invisible or frozen the moment it is made.
  */
 export function setActiveLayer(doc: LayersDocument, id: string): LayersDocument {
-  const layer = doc.layers.find((l) => l.id === id);
-  if (!layer) return doc;
-  return {
-    ...doc,
-    activeLayerId: id,
-    layers: doc.layers.map((l) => (l.id === id ? { ...l, visible: true, locked: false } : l)),
-    folders: doc.folders.map((f) =>
-      f.id === layer.folderId ? { ...f, visible: true, locked: false } : f,
-    ),
-  };
+  if (!doc.layers.some((l) => l.id === id)) return doc;
+  return { ...revealLayer(doc, id), activeLayerId: id };
 }
 
 export const assignDrawing = (doc: LayersDocument, drawingId: string, layer: string) =>
@@ -521,10 +517,7 @@ export function assignDrawings(doc: LayersDocument, drawingIds: string[], layer:
 
 /** Name a drawing in the panel; an empty name goes back to its type. */
 export function renameDrawing(doc: LayersDocument, drawingId: string, name: string) {
-  const clean = name
-    .replace(/[\r\n\t]+/g, " ")
-    .trim()
-    .slice(0, MAX_LAYER_NAME);
+  const clean = cleanName(name, "");
   const names = { ...doc.names };
   if (clean) names[drawingId] = clean;
   else delete names[drawingId];
@@ -543,7 +536,7 @@ export const setLayerColor = (
   layers: doc.layers.map((l) => {
     if (l.id !== id) return l;
     const { color: _old, ...rest } = l;
-    return color && HEX.test(color) ? { ...rest, color } : rest;
+    return isHexColor(color) ? { ...rest, color } : rest;
   }),
 });
 
@@ -559,6 +552,16 @@ export function soloLayer(doc: LayersDocument, id: string): LayersDocument {
 }
 
 /** Every layer and folder shown, and any focus ended. */
+/** Show only the layers in this folder (and the folder); every other layer is hidden. */
+export function soloFolder(doc: LayersDocument, id: string): LayersDocument {
+  if (!doc.folders.some((f) => f.id === id)) return doc;
+  return {
+    ...doc,
+    layers: doc.layers.map((l) => ({ ...l, visible: l.folderId === id })),
+    folders: doc.folders.map((f) => (f.id === id ? { ...f, visible: true } : f)),
+  };
+}
+
 export const showEverything = (doc: LayersDocument): LayersDocument => ({
   ...without(without(doc, "focusId"), "focusHidden"),
   layers: doc.layers.map((l) => ({ ...l, visible: true })),
@@ -592,11 +595,31 @@ export function ancestorsOf(doc: LayersDocument, drawingId: string): string[] {
   return out;
 }
 
+/**
+ * Parent → children, built once per `parents` object. Every operation writes a new
+ * `parents` object, so the index never goes stale; the panel asks for it once per row.
+ */
+const childIndexes = new WeakMap<Record<string, string>, Map<string, string[]>>();
+const NO_CHILDREN = new Map<string, string[]>();
+function childIndex(doc: LayersDocument): Map<string, string[]> {
+  const parents = doc.parents;
+  if (!parents) return NO_CHILDREN;
+  let index = childIndexes.get(parents);
+  if (!index) {
+    index = new Map();
+    for (const [child, parent] of Object.entries(parents)) {
+      const siblings = index.get(parent);
+      if (siblings) siblings.push(child);
+      else index.set(parent, [child]);
+    }
+    childIndexes.set(parents, index);
+  }
+  return index;
+}
+
 /** Everything inside a drawing, at any depth, in nesting order. */
 export function descendantsOf(doc: LayersDocument, drawingId: string): string[] {
-  const children = new Map<string, string[]>();
-  for (const [child, parent] of Object.entries(doc.parents ?? {}))
-    children.set(parent, [...(children.get(parent) ?? []), child]);
+  const children = childIndex(doc);
   const out: string[] = [];
   const seen = new Set([drawingId]);
   const walk = (id: string) => {
@@ -748,9 +771,11 @@ export function drawingTree(
   const roots: string[] = [];
   for (const id of inLayer) {
     const parent = doc.parents?.[id];
-    if (parent && here.has(parent) && !ancestorsOf(doc, parent).includes(id))
-      children.set(parent, [...(children.get(parent) ?? []), id]);
-    else roots.push(id);
+    if (parent && here.has(parent) && !ancestorsOf(doc, parent).includes(id)) {
+      const siblings = children.get(parent);
+      if (siblings) siblings.push(id);
+      else children.set(parent, [id]);
+    } else roots.push(id);
   }
   const seen = new Set<string>();
   const build = (ids: string[], prefix: string, depth: number): DrawingNode[] =>

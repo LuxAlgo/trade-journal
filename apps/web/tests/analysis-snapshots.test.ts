@@ -134,7 +134,7 @@ describe("each journal day keeps the analysis as it was that day", () => {
   it("the journal day lists every analysis edited that day", async () => {
     at("2026-09-01T09:00:00Z");
     const first = await create({ title: "BTC plan" });
-    const second = await create({ title: "ETH plan", symbol: "ETHUSDT" });
+    await create({ title: "ETH plan", symbol: "ETHUSDT" });
     at("2026-09-02T09:00:00Z");
     await patch(first.id, { notes: "next day" });
     const listed = async (day: string) =>

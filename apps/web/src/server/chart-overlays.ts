@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, inArray, isNull } from "drizzle-orm";
 import { accounts, db, executions, missedTrades, trades } from "@/db";
 import type { ChartOverlayData, ChartTrade } from "@/lib/chart-overlays";
 import { matchingSymbols } from "@/lib/symbol-match";
@@ -39,22 +39,46 @@ export function chartOverlayData(chartSymbol: string, extra: string[] = []): Cha
       .map((a) => [a.id, a]),
   );
   const rows = db
-    .select()
+    .select({
+      key: trades.key,
+      accountId: trades.accountId,
+      symbol: trades.symbol,
+      direction: trades.direction,
+      status: trades.status,
+      openedAt: trades.openedAt,
+      closedAt: trades.closedAt,
+      quantity: trades.quantity,
+      openQuantity: trades.openQuantity,
+      avgEntry: trades.avgEntry,
+      avgExit: trades.avgExit,
+      netPnl: trades.netPnl,
+      stopLoss: trades.stopLoss,
+      profitTarget: trades.profitTarget,
+      executionIdsJson: trades.executionIdsJson,
+    })
     .from(trades)
     .where(inArray(trades.symbol, symbols))
     .orderBy(desc(trades.openedAt))
     .limit(MAX_TRADES)
-    .all();
-  const fillIds = rows.flatMap((row) => parseIds(row.executionIdsJson));
-  const fills = new Map<string, typeof executions.$inferSelect>();
+    .all()
+    .map(({ executionIdsJson, ...row }) => ({ ...row, fillIds: parseIds(executionIdsJson) }));
+  const fillIds = rows.flatMap((row) => row.fillIds);
+  type Fill = Pick<typeof executions.$inferSelect, "executedAt" | "side" | "quantity" | "price">;
+  const fills = new Map<string, Fill>();
   // Stay below SQLite's bind-parameter limit.
   for (let i = 0; i < fillIds.length; i += 500)
-    for (const fill of db
-      .select()
+    for (const { id, ...fill } of db
+      .select({
+        id: executions.id,
+        executedAt: executions.executedAt,
+        side: executions.side,
+        quantity: executions.quantity,
+        price: executions.price,
+      })
       .from(executions)
       .where(inArray(executions.id, fillIds.slice(i, i + 500)))
       .all())
-      fills.set(fill.id, fill);
+      fills.set(id, fill);
   const chartTrades: ChartTrade[] = rows.map((row) => ({
     key: row.key,
     account: accountRows.get(row.accountId)?.name ?? "",
@@ -71,7 +95,7 @@ export function chartOverlayData(chartSymbol: string, extra: string[] = []): Cha
     currency: accountRows.get(row.accountId)?.currency ?? "USD",
     stopLoss: row.stopLoss,
     profitTarget: row.profitTarget,
-    fills: parseIds(row.executionIdsJson)
+    fills: row.fillIds
       .map((id) => fills.get(id))
       .filter((f) => f !== undefined)
       .map((f) => ({

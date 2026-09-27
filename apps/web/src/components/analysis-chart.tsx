@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { RESOLUTIONS, type Resolution } from "@/lib/market-data";
 import { FallbackPineEngine } from "@/lib/pine-fallback-engine";
+import { ALERT_TYPES } from "@/lib/price-alerts";
 import { VELA_TIMEFRAME, type DrawingsDocument } from "@/lib/chart-analysis";
 import { drawingStates, type LayersDocument } from "@/lib/chart-layers";
 import {
@@ -82,14 +83,12 @@ const SIDE_PANEL_KEY = "journal-chart-side-panel-v1";
 export interface ChartDrawing {
   id: string;
   type: string;
+  /** Only for drawings that can raise line alerts; others (a long pen stroke) carry none. */
   anchors: { time: number; price: number }[];
   visible: boolean;
   locked: boolean;
   text?: string;
   color?: string;
-  lineWidth?: number;
-  lineStyle?: string;
-  zIndex: number;
 }
 
 /** How the chart looks and behaves, resolved by the page from the saved preferences. */
@@ -185,17 +184,17 @@ type DrawingsInternals = {
   };
 };
 
+const NO_ANCHORS: ChartDrawing["anchors"] = [];
 const toChartDrawing = (d: SerializedDrawing): ChartDrawing => ({
   id: d.id,
   type: d.type,
-  anchors: d.anchors.map((a) => ({ time: a.time, price: a.price })),
+  anchors: ALERT_TYPES.has(d.type)
+    ? d.anchors.map((a) => ({ time: a.time, price: a.price }))
+    : NO_ANCHORS,
   visible: d.visible,
   locked: d.locked,
   text: d.text?.value,
   color: d.style.lineColor,
-  lineWidth: d.style.lineWidth,
-  lineStyle: d.style.lineStyle,
-  zIndex: d.zIndex,
 });
 
 const dark = () => document.documentElement.classList.contains("dark");
@@ -336,7 +335,19 @@ export function AnalysisChart({
   /** Theme default configs, captured clean at creation; looks are applied over them. */
   const themeBases = useRef<{ dark?: unknown; light?: unknown }>({});
   /** Set while this component writes the config or drawings, so its own writes aren't read back as edits. */
-  const writing = useRef(false);
+  /** Above zero while the chart applies a change of its own, so Vela's change events are
+   *  not taken for the user's (a counter, so nested writes stay covered). */
+  const writing = useRef(0);
+  const hostWrite = <T,>(write: () => T): T => {
+    writing.current += 1;
+    try {
+      return write();
+    } finally {
+      writing.current -= 1;
+    }
+  };
+  /** Set once the chart exists: refreshes layers, undo state and the drawing list after edits. */
+  const edited = useRef(() => {});
   const resolutionRef = useRef(resolution);
   const liveRef = useRef(live);
   const history = useRef(freshHistory(INITIAL_BARS));
@@ -399,11 +410,11 @@ export function AnalysisChart({
     updateDrawings: (patches) => {
       const instance = chart.current;
       if (!instance || !patches.length) return;
-      writing.current = true;
-      try {
+      const byId = new Map(instance.drawings.all().map((d) => [d.id, d]));
+      hostWrite(() => {
         instance.drawings.updateMany(
           patches.map(({ id, patch }) => {
-            const current = instance.drawings.all().find((d) => d.id === id);
+            const current = byId.get(id);
             return {
               id,
               patch: {
@@ -415,12 +426,8 @@ export function AnalysisChart({
             };
           }),
         );
-      } finally {
-        writing.current = false;
-      }
-      applyLayers(instance, layersRef.current);
-      publish(instance);
-      callbacks.current.onEdit();
+      });
+      edited.current();
     },
     duplicate: (ids) => {
       const instance = chart.current;
@@ -431,23 +438,20 @@ export function AnalysisChart({
         .all()
         .map((d) => d.id)
         .filter((id) => !before.has(id));
-      publish(instance);
-      callbacks.current.onEdit();
+      edited.current();
       return copies;
     },
     bringToFront: (ids) => {
       const instance = chart.current;
       if (!instance) return;
       for (const id of ids) instance.drawings.bringToFront(id);
-      publish(instance);
-      callbacks.current.onEdit();
+      edited.current();
     },
     sendToBack: (ids) => {
       const instance = chart.current;
       if (!instance) return;
       for (const id of [...ids].reverse()) instance.drawings.sendToBack(id);
-      publish(instance);
-      callbacks.current.onEdit();
+      edited.current();
     },
     editDrawing: (id) => chart.current?.drawings.openSettings(id),
     selectMany: (ids) => chart.current?.drawings.select(ids),
@@ -551,58 +555,45 @@ export function AnalysisChart({
 
       const refresh = () =>
         setUndoState({ undo: instance.drawings.canUndo(), redo: instance.drawings.canRedo() });
-      const edited = () => {
-        // Undo/redo restore snapshots that predate layer changes; layers stay authoritative.
-        applyLayers(instance, layersRef.current);
-        refresh();
-        publish(instance);
-        callbacks.current.onEdit();
+      let refreshQueued = false;
+      const markEdited = () => {
+        if (refreshQueued) return;
+        refreshQueued = true;
+        // Bulk changes fire one Vela event per drawing: refresh once, after the batch.
+        queueMicrotask(() => {
+          refreshQueued = false;
+          if (chart.current !== instance) return;
+          // Undo/redo restore snapshots that predate layer changes; layers stay authoritative.
+          applyLayers(instance, layersRef.current);
+          refresh();
+          publish(instance);
+          callbacks.current.onEdit();
+        });
       };
+      edited.current = markEdited;
       const seeded = canSeedStyle(instance);
       const offs = [
         instance.on("drawing:created", ({ id }) => {
-          const drawing = instance.drawings.all().find((d) => d.id === id);
-          const tools = appearanceRef.current.tools;
-          // Without the style seed, give each new quick-tool drawing the chosen ink once.
-          if (drawing && !seeded && QUICK_TOOLS.has(drawing.type))
-            instance.drawings.update(id, {
-              style: { ...drawing.style, ...styleFor(drawing.type, prefs.current, tools) },
-            });
-          if (drawing) applyTextDefaults(instance, drawing, tools[drawing.type]);
-          // The tool's default template wins over the last style used.
-          const look = appearanceRef.current;
-          const template =
-            drawing &&
-            findTemplate(look.drawingTemplates, look.defaultDrawingTemplates[drawing.type]);
-          const fresh = template && instance.drawings.all().find((d) => d.id === id);
-          if (template && fresh) {
-            writing.current = true;
-            try {
-              instance.drawings.update(
-                id,
-                templatePatch(
-                  template,
-                  fresh as unknown as TemplateTarget,
-                ) as Partial<SerializedDrawing>,
-              );
-            } finally {
-              writing.current = false;
-            }
-          }
+          // Duplicates and pastes arrive already selected (Vela selects clones before it
+          // announces them); they keep their source's look instead of the new-drawing style.
+          if (!selection.current.includes(id)) styleNewDrawing(instance, id, seeded);
           callbacks.current.onDrawingCreated(id);
-          edited();
+          markEdited();
         }),
         instance.on("drawing:edited", ({ id }) => {
           // A style changed in the drawing's own popup becomes its tool's starting style.
           const current = appearanceRef.current;
-          const drawing = instance.drawings.all().find((d) => d.id === id);
-          if (drawing && current.rememberToolStyles && !writing.current && !isBrush(drawing.type)) {
+          const drawing =
+            current.rememberToolStyles && !writing.current
+              ? instance.drawings.all().find((d) => d.id === id)
+              : undefined;
+          if (drawing && !isBrush(drawing.type)) {
             const style = toolStyleOf(drawing as unknown as Parameters<typeof toolStyleOf>[0]);
             const saved = current.tools[drawing.type];
             const merged = { ...saved, ...style };
             if (!sameToolStyle(saved, merged)) callbacks.current.onToolStyle(drawing.type, merged);
           }
-          edited();
+          markEdited();
         }),
         instance.on("drawing:snap", ({ mode }) => {
           if (!writing.current && mode !== appearanceRef.current.magnet)
@@ -629,7 +620,7 @@ export function AnalysisChart({
               typeof zone === "string" && zone !== appearanceRef.current.timeZone ? zone : null,
           });
         }),
-        instance.on("drawing:removed", edited),
+        instance.on("drawing:removed", markEdited),
         instance.on("drawing:selected", ({ id, ids }) => {
           selection.current = ids;
           callbacks.current.onSelect(id, ids);
@@ -656,7 +647,10 @@ export function AnalysisChart({
         instance.on("load:end", ({ bars: loaded }) => {
           if (!loaded) history.current.loading = false;
           // A market switch resets the axis precision; put the chosen one back.
-          setTimeout(() => applyPrecision(instance, appearanceRef.current.decimals), 0);
+          setTimeout(() => {
+            if (chart.current === instance)
+              applyPrecision(instance, appearanceRef.current.decimals);
+          }, 0);
         }),
         instance.on("viewport:changed", ({ from, to }) => {
           // Scrolling near the oldest candle loads more, like any trading chart.
@@ -666,7 +660,7 @@ export function AnalysisChart({
         }),
       ];
       if (sync) {
-        const following = { current: false };
+        const following = { current: false, timer: 0 as ReturnType<typeof setTimeout> | 0 };
         offs.push(
           instance.renderer.onCrosshairMove((e) => sync.bus.crosshair(sync.id, e.time)),
           instance.on("viewport:changed", ({ from, to }) => {
@@ -675,9 +669,11 @@ export function AnalysisChart({
           sync.bus.subscribe(sync.id, {
             crosshair: (time) => instance.renderer.setExternalCrosshair(time, null),
             range: (range) => {
+              // Ignore the viewport event this move causes, so it is not echoed back.
               following.current = true;
               instance.setVisibleRange(range);
-              setTimeout(() => (following.current = false), 50);
+              if (following.timer) clearTimeout(following.timer);
+              following.timer = setTimeout(() => (following.current = false), 50);
             },
           }),
         );
@@ -692,17 +688,14 @@ export function AnalysisChart({
       });
       const onKey = (event: KeyboardEvent) => {
         if ((event.ctrlKey || event.metaKey) && ["z", "y"].includes(event.key.toLowerCase()))
-          requestAnimationFrame(edited);
+          requestAnimationFrame(markEdited);
       };
       element.addEventListener("keydown", onKey);
       const observer = new MutationObserver(() => {
         const next = dark() ? "dark" : "light";
-        writing.current = true;
-        try {
+        hostWrite(() => {
           instance.setTheme(next);
-        } finally {
-          writing.current = false;
-        }
+        });
         // The theme resets its colours; the saved look goes back on top.
         applyLook(instance);
         drawn.repaint();
@@ -760,10 +753,9 @@ export function AnalysisChart({
   useEffect(() => {
     const previous = layersRef.current;
     layersRef.current = layers;
-    if (chart.current && previous !== layers) {
-      applyLayers(chart.current, layers, previous);
+    // The drawing list only carries visibility and locks from layers; republish when those moved.
+    if (chart.current && previous !== layers && applyLayers(chart.current, layers, previous))
       publish(chart.current);
-    }
   }, [layers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Looks, precision, volume and drawing behaviour follow the preferences in place.
@@ -783,13 +775,39 @@ export function AnalysisChart({
     applyDrawingPrefs(instance, appearance);
   }, [appearance]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * A drawing just placed on the chart: the chosen ink for quick tools (when Vela can't seed
+   * it), the tool's text defaults, then its default template, which wins over both.
+   */
+  function styleNewDrawing(instance: Vela, id: string, seeded: boolean) {
+    const drawing = instance.drawings.all().find((d) => d.id === id);
+    if (!drawing) return;
+    const look = appearanceRef.current;
+    if (!seeded && QUICK_TOOLS.has(drawing.type))
+      instance.drawings.update(id, {
+        style: { ...drawing.style, ...styleFor(drawing.type, prefs.current, look.tools) },
+      });
+    applyTextDefaults(instance, drawing, look.tools[drawing.type]);
+    const template = findTemplate(
+      look.drawingTemplates,
+      look.defaultDrawingTemplates[drawing.type],
+    );
+    const fresh = template && instance.drawings.all().find((d) => d.id === id);
+    if (template && fresh)
+      hostWrite(() =>
+        instance.drawings.update(
+          id,
+          templatePatch(template, fresh as unknown as TemplateTarget) as Partial<SerializedDrawing>,
+        ),
+      );
+  }
+
   /** The theme defaults with the look and time zone over them; removed settings revert. */
   function applyLook(instance: Vela) {
     const base = themeBases.current[dark() ? "dark" : "light"];
     if (!base) return;
     const current = appearanceRef.current;
-    writing.current = true;
-    try {
+    hostWrite(() => {
       instance.renderer.applyConfig(
         mergeStyle(base as StyleDiff, {
           ...current.style,
@@ -801,27 +819,19 @@ export function AnalysisChart({
       const wanted = typeof type === "string" ? type : "candles";
       if (instance.renderer.get("priceStyle") !== wanted || type === "heikinashi")
         instance.renderer.set("priceStyle", wanted);
-    } finally {
-      writing.current = false;
-    }
+    });
   }
 
   function applyDrawingPrefs(instance: Vela, current: ChartAppearance) {
-    writing.current = true;
-    try {
+    hostWrite(() => {
       const api = instance.drawings;
       if (api.getSnapMode() !== current.magnet) api.setSnapMode(current.magnet);
       if (api.getStayMode() !== current.stayInDrawingMode)
         api.setStayMode(current.stayInDrawingMode);
-      const favorites = (api as unknown as { favorites?: () => string[] }).favorites?.();
-      if (favorites && favorites.join() !== current.favoriteTools.join())
-        (api as unknown as { setFavorites?: (t: string[]) => void }).setFavorites?.(
-          current.favoriteTools,
-        );
+      if (api.favorites().join() !== current.favoriteTools.join())
+        api.setFavorites(current.favoriteTools as DrawingTypeKey[]);
       seedToolDefaults(instance, current.tools);
-    } finally {
-      writing.current = false;
-    }
+    });
   }
 
   useEffect(() => {
@@ -834,10 +844,13 @@ export function AnalysisChart({
     return () => document.removeEventListener("fullscreenchange", onFullscreen);
   }, []);
 
-  /** Apply layer visibility/locks without adding undo steps; see `drawingStates`. */
-  function applyLayers(instance: Vela, doc: LayersDocument, previous?: LayersDocument) {
+  /**
+   * Apply layer visibility/locks without adding undo steps; see `drawingStates`. True when
+   * a drawing changed.
+   */
+  function applyLayers(instance: Vela, doc: LayersDocument, previous?: LayersDocument): boolean {
     const patches = drawingStates(doc, instance.drawings.all(), previous);
-    if (!patches.length) return;
+    if (!patches.length) return false;
     const store = (instance.drawings as unknown as DrawingsInternals).ctrl?.store;
     if (typeof store?.setVisible === "function" && typeof store.setLocked === "function") {
       const setVisible = store.setVisible as (id: string, v: boolean) => void;
@@ -852,6 +865,7 @@ export function AnalysisChart({
         patches.map((p) => ({ id: p.id, patch: { visible: p.visible, locked: p.locked } })),
       );
     }
+    return true;
   }
 
   function publish(instance: Vela) {
@@ -887,14 +901,16 @@ export function AnalysisChart({
   }
 
   function revealNow(instance: Vela, ids: string[]) {
-    const times = instance.drawings
-      .all()
-      .filter((d) => ids.includes(d.id))
-      .flatMap((d) => d.anchors.map((a) => a.time));
-    if (!times.length) return;
+    // A loop, not Math.min(...times): long pen strokes have too many points for a spread.
+    let min = Infinity;
+    let max = -Infinity;
+    for (const d of drawingsById(ids))
+      for (const a of d.anchors) {
+        if (a.time < min) min = a.time;
+        if (a.time > max) max = a.time;
+      }
+    if (min === Infinity) return;
     const step = RESOLUTIONS[resolutionRef.current];
-    const min = Math.min(...times);
-    const max = Math.max(...times);
     const pad = Math.max((max - min) * 0.3, step * 20);
     const state = history.current;
     const needsOlder = state.oldest > 0 && min - pad < state.oldest;
@@ -940,24 +956,21 @@ export function AnalysisChart({
   const drawingsApi = () => chart.current?.drawings;
 
   // ── Drawing templates ──
-  const selectedDrawings = () => {
-    const instance = chart.current;
-    if (!instance) return [];
-    return instance.drawings.all().filter((d) => selection.current.includes(d.id));
+  const drawingsById = (ids: string[]) => {
+    const wanted = new Set(ids);
+    return chart.current?.drawings.all().filter((d) => wanted.has(d.id)) ?? [];
   };
+  const selectedDrawings = () => drawingsById(selection.current);
   const templateTarget = () => {
     const picked = selectedDrawings();
     const type = picked[0]?.type ?? chart.current?.drawings.getTool() ?? null;
     return type ? { type, ids: picked.filter((d) => d.type === type).map((d) => d.id) } : null;
   };
-  const drawingsById = (ids: string[]) =>
-    chart.current?.drawings.all().filter((d) => ids.includes(d.id)) ?? [];
   const applyTemplate = (template: DrawingTemplate, ids: string[]) => {
     const instance = chart.current;
     const targets = drawingsById(ids).filter((d) => d.type === template.type);
     if (!instance || !targets.length) return;
-    writing.current = true;
-    try {
+    hostWrite(() => {
       instance.drawings.updateMany(
         targets.map((d) => ({
           id: d.id,
@@ -967,9 +980,7 @@ export function AnalysisChart({
           ) as Partial<SerializedDrawing>,
         })),
       );
-    } finally {
-      writing.current = false;
-    }
+    });
     applyLayers(instance, layersRef.current);
     publish(instance);
     callbacks.current.onEdit();
@@ -986,14 +997,7 @@ export function AnalysisChart({
     );
     changeTemplates(next, appearance.defaultDrawingTemplates);
   };
-  const afterHistoryStep = () => {
-    const instance = chart.current;
-    if (!instance) return;
-    applyLayers(instance, layersRef.current);
-    publish(instance);
-    callbacks.current.onEdit();
-    setUndoState({ undo: instance.drawings.canUndo(), redo: instance.drawings.canRedo() });
-  };
+  const afterHistoryStep = () => edited.current();
   return (
     <PortalContainer.Provider value={portalTarget}>
       <div

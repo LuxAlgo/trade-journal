@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS alert_events (
  delivered INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS alert_events_analysis ON alert_events(analysis_id, at);
+-- The watcher polls each watched analysis's save stamp; this answers it without reading rows.
+CREATE INDEX IF NOT EXISTS background_alert_stamps ON chart_analyses(id, updated_at);
 `;
 
 const ready = new WeakSet<object>();

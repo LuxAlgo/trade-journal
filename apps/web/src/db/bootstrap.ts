@@ -144,6 +144,9 @@ CREATE TABLE IF NOT EXISTS chart_analyses (
 );
 CREATE INDEX IF NOT EXISTS chart_analyses_day ON chart_analyses(day_date);
 CREATE INDEX IF NOT EXISTS chart_analyses_symbol ON chart_analyses(provider, symbol);
+-- Chart tables keep their last columns after the drawings and the image, which SQLite stores
+-- on overflow pages; these indexes let lists read those columns without walking megabytes.
+CREATE INDEX IF NOT EXISTS chart_analyses_recent ON chart_analyses(updated_at, created_at, drawing_count);
 CREATE TABLE IF NOT EXISTS chart_analysis_snapshots (
  analysis_id TEXT NOT NULL REFERENCES chart_analyses(id) ON DELETE CASCADE, day TEXT NOT NULL,
  title TEXT NOT NULL DEFAULT '', symbol TEXT NOT NULL, provider TEXT NOT NULL, dataset TEXT,
@@ -154,6 +157,8 @@ CREATE TABLE IF NOT EXISTS chart_analysis_snapshots (
  PRIMARY KEY (analysis_id, day)
 );
 CREATE INDEX IF NOT EXISTS chart_analysis_snapshots_day ON chart_analysis_snapshots(day);
+CREATE INDEX IF NOT EXISTS chart_analysis_snapshots_list ON chart_analysis_snapshots(analysis_id, day, created_at, updated_at);
+CREATE INDEX IF NOT EXISTS chart_analysis_snapshots_by_day ON chart_analysis_snapshots(day, created_at, updated_at);
 CREATE TABLE IF NOT EXISTS economic_events (
  id TEXT PRIMARY KEY, source TEXT NOT NULL, title TEXT NOT NULL, currency TEXT NOT NULL,
  time INTEGER NOT NULL, impact TEXT NOT NULL, forecast TEXT NOT NULL DEFAULT '',

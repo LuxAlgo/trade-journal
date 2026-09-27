@@ -10,6 +10,7 @@ import {
   zoneEvents,
   zoneFromClicks,
   zoneStats,
+  zoneStatsTracker,
   zonesProblem,
   type SrZone,
 } from "../src/lib/sr-zones";
@@ -181,6 +182,30 @@ const hl = (time: number, high: number, low: number, close: number) => ({
   high,
   low,
   close,
+});
+
+describe("zone statistics on a live chart", () => {
+  it("match a full recount through live ticks, new candles and older history", () => {
+    const tracker = zoneStatsTracker();
+    const z = zone({ start: 0 });
+    // A path that touches, breaks and retests the 100-102 zone.
+    const closes = [105, 103, 101.5, 104, 99, 97, 101, 98, 103, 105, 100.5, 99.5];
+    const bars = closes.map((c, i) => hl(10 + i, c + 0.8, c - 0.8, c));
+    const live: ReturnType<typeof hl>[] = [];
+    for (const bar of bars) {
+      live.push({ ...bar, close: bar.close + 1 });
+      expect(tracker.stats(z, live)).toEqual(zoneStats(z, live));
+      // The forming candle changes on each tick; closed ones never do.
+      live[live.length - 1] = bar;
+      expect(tracker.stats(z, live)).toEqual(zoneStats(z, live));
+    }
+    // Older history loaded in front starts the count over.
+    const deeper = [hl(5, 106, 104, 105), ...live];
+    expect(tracker.stats(z, deeper)).toEqual(zoneStats(z, deeper));
+    // An edited zone is a new zone.
+    const moved = { ...z, low: 97, high: 99 };
+    expect(tracker.stats(moved, deeper)).toEqual(zoneStats(moved, deeper));
+  });
 });
 
 describe("support and resistance zones behave as price ranges", () => {

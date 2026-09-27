@@ -1,4 +1,5 @@
 import { LEGACY_PROP } from "./pattern-fixes";
+import { TOOL_KEY, isColor, isLineStyle, type LineStyle } from "./style-validation";
 
 /**
  * Drawing templates: a named look for one drawing tool, like TradingView's. A template keeps
@@ -10,7 +11,7 @@ import { LEGACY_PROP } from "./pattern-fixes";
 export interface TemplateStyle {
   lineColor?: string;
   lineWidth?: number;
-  lineStyle?: "solid" | "dashed" | "dotted";
+  lineStyle?: LineStyle;
   fillColor?: string;
   fillOpacity?: number;
   arrowLeft?: boolean;
@@ -129,10 +130,8 @@ export function saveTemplate(templates: DrawingTemplate[], next: DrawingTemplate
 
 // ── Validation ──
 
-const TYPE = /^[A-Za-z0-9_-]{1,40}$/;
+const TYPE = TOOL_KEY;
 const ID = /^[A-Za-z0-9_:.-]{1,64}$/;
-const COLOR = /^(#[0-9a-fA-F]{3,8}|rgba?\([\d\s.,%]+\))$/;
-const isColor = (v: unknown) => typeof v === "string" && COLOR.test(v);
 
 export function drawingTemplateProblem(value: unknown): string | null {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -155,7 +154,7 @@ export function drawingTemplateProblem(value: unknown): string | null {
       !(typeof s.lineWidth === "number" && s.lineWidth >= 1 && s.lineWidth <= 20)
     )
       return "A drawing template width is invalid.";
-    if (s.lineStyle !== undefined && !["solid", "dashed", "dotted"].includes(s.lineStyle as string))
+    if (s.lineStyle !== undefined && !isLineStyle(s.lineStyle))
       return "A drawing template line style is invalid.";
     if (
       s.fillOpacity !== undefined &&

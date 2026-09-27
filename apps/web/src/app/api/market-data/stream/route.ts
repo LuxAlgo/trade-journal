@@ -1,5 +1,6 @@
 import { bad, handler, requireValue } from "@/server/api";
-import { connectionKey, providerFor } from "@/server/market-data/connections";
+import { connectionKey } from "@/server/market-data/connections";
+import { requireProvider, requireSymbol } from "@/server/market-data/request-checks";
 import { listenLive, upstreamFor } from "@/server/market-data/live";
 import { MarketDataError } from "@/server/market-data/provider";
 import { isResolution } from "@/lib/market-data";
@@ -16,17 +17,9 @@ const HEARTBEAT_MS = 20_000;
 export const GET = handler((request: Request) => {
   const params = new URL(request.url).searchParams;
   const providerId = params.get("provider") ?? "";
-  const symbol = params.get("symbol")?.trim() ?? "";
   const resolution = params.get("resolution");
-  try {
-    providerFor(providerId);
-  } catch {
-    return bad("Choose an available market data provider.");
-  }
-  requireValue(
-    symbol.length > 0 && symbol.length <= 100 && !/[\x00-\x1f]/.test(symbol),
-    "Enter the provider's exact instrument symbol.",
-  );
+  requireProvider(providerId);
+  const symbol = requireSymbol(params.get("symbol") ?? "");
   requireValue(isResolution(resolution), "Choose a supported candle resolution.");
   try {
     if (!upstreamFor(providerId, symbol, resolution)) return new Response(null, { status: 204 });

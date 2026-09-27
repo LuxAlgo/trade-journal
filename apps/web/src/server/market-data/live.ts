@@ -145,9 +145,15 @@ class Feed {
     this.listeners.add(listener);
     listener(this.state);
     if (!this.socket && !this.retryTimer && !this.closed) this.connect();
+    let active = true;
     return () => {
+      // A second call must not re-arm the linger timer and orphan the first one.
+      if (!active) return;
+      active = false;
       this.listeners.delete(listener);
-      if (this.listeners.size === 0) this.lingerTimer = setTimeout(() => this.close(), LINGER_MS);
+      if (this.listeners.size > 0) return;
+      if (this.lingerTimer) clearTimeout(this.lingerTimer);
+      this.lingerTimer = setTimeout(() => this.close(), LINGER_MS);
     };
   }
 
