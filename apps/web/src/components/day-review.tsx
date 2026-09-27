@@ -183,6 +183,7 @@ function PriceActionSection({
   if (data.problem) return <p className="text-muted-foreground">{data.problem}</p>;
   const action = data.priceAction;
   if (!action) return <p className="text-muted-foreground">No candles for this day.</p>;
+  const unreached = action.levels.filter((l) => l.status === "untouched").length;
   return (
     <section className="space-y-1" aria-label="What price did">
       <p className="font-medium">What price did</p>
@@ -199,24 +200,14 @@ function PriceActionSection({
           ? ` · range ${(action.summary.range / action.averageRange).toFixed(2)}× average`
           : ""}
       </p>
-      {action.levels.length > 0 && (
-        <ul className="space-y-0.5">
-          {action.levels.map((level, i) => (
-            <li key={i} className="flex items-baseline justify-between gap-2">
-              <span className="min-w-0 truncate">
-                {level.label}{" "}
-                <span className="tnum text-muted-foreground">
-                  {level.low === level.high
-                    ? fmtPrice(level.low)
-                    : `${fmtPrice(level.low)} to ${fmtPrice(level.high)}`}
-                </span>
-              </span>
-              <span className="shrink-0 rounded border px-1.5 text-[11px] uppercase tracking-wide">
-                {LEVEL_STATUS[level.status]}
-              </span>
-            </li>
-          ))}
-        </ul>
+      <LevelList levels={action.levels.filter((l) => l.status !== "untouched")} />
+      {unreached > 0 && (
+        <details>
+          <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground">
+            {unreached} level{unreached === 1 ? "" : "s"} not reached
+          </summary>
+          <LevelList levels={action.levels.filter((l) => l.status === "untouched")} />
+        </details>
       )}
       <p className="text-[11px] text-muted-foreground">
         From {action.resolution} candles, in the journal&apos;s time zone. Held: price reached it
@@ -299,5 +290,28 @@ function TradesSection({
         })}
       </ul>
     </section>
+  );
+}
+
+function LevelList({ levels }: { levels: DayPriceAction["levels"] }) {
+  if (!levels.length) return null;
+  return (
+    <ul className="space-y-0.5">
+      {levels.map((level, i) => (
+        <li key={i} className="flex items-baseline justify-between gap-2">
+          <span className="min-w-0 truncate">
+            {level.label}{" "}
+            <span className="tnum text-muted-foreground">
+              {level.low === level.high
+                ? fmtPrice(level.low)
+                : `${fmtPrice(level.low)} to ${fmtPrice(level.high)}`}
+            </span>
+          </span>
+          <span className="shrink-0 rounded border px-1.5 text-[11px] uppercase tracking-wide">
+            {LEVEL_STATUS[level.status]}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
