@@ -32,6 +32,16 @@ const createDb = () => {
   if (!analysisColumns.some((column) => column.name === "zones_json")) {
     sqlite.exec("ALTER TABLE chart_analyses ADD COLUMN zones_json TEXT");
   }
+  // Additive upgrade: analyses and their day versions saved before plans have none.
+  if (!analysisColumns.some((column) => column.name === "plan_json")) {
+    sqlite.exec("ALTER TABLE chart_analyses ADD COLUMN plan_json TEXT");
+  }
+  const snapshotColumns = sqlite.pragma("table_info(chart_analysis_snapshots)") as {
+    name: string;
+  }[];
+  if (!snapshotColumns.some((column) => column.name === "plan_json")) {
+    sqlite.exec("ALTER TABLE chart_analysis_snapshots ADD COLUMN plan_json TEXT");
+  }
   // Materialize CSV bounds once so connection and range lookups never scan candle JSON.
   const csvColumns = sqlite.pragma("table_info(market_csv_datasets)") as { name: string }[];
   sqlite.transaction(() => {

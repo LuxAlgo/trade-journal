@@ -232,6 +232,8 @@ export const chartAnalyses = sqliteTable(
     indicatorsJson: text("indicators_json"),
     /** Support/resistance zones (`SrZone[]`); null = none. */
     zonesJson: text("zones_json"),
+    /** The trading plan (`AnalysisPlan`: bias, playbook, scenarios); null = none. */
+    planJson: text("plan_json"),
     notes: text("notes").notNull().default(""),
     /** Optional journal day ("YYYY-MM-DD") the analysis belongs to. */
     dayDate: text("day_date"),
@@ -271,6 +273,7 @@ export const chartAnalysisSnapshots = sqliteTable(
     layersJson: text("layers_json"),
     indicatorsJson: text("indicators_json"),
     zonesJson: text("zones_json"),
+    planJson: text("plan_json"),
     notes: text("notes").notNull().default(""),
     image: blob("image", { mode: "buffer" }),
     createdAt: text("created_at").notNull(),
@@ -281,6 +284,40 @@ export const chartAnalysisSnapshots = sqliteTable(
     index("chart_analysis_snapshots_day").on(table.day),
   ],
 );
+/**
+ * How each scenario of an analysis's plan went on a journal day, as you graded it (the
+ * day page suggests a grade from the day's candles). Kept apart from the day's version so
+ * later saves that day never overwrite a grade.
+ */
+export const chartPlanReviews = sqliteTable(
+  "chart_plan_reviews",
+  {
+    analysisId: text("analysis_id")
+      .notNull()
+      .references(() => chartAnalyses.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    scenarioId: text("scenario_id").notNull(),
+    outcome: text("outcome").notNull(),
+    note: text("note").notNull().default(""),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.analysisId, table.day, table.scenarioId] })],
+);
+
+/** A trade you marked as taken from an analysis's plan (optionally one scenario). */
+export const chartTradeLinks = sqliteTable(
+  "chart_trade_links",
+  {
+    tradeKey: text("trade_key").primaryKey(),
+    analysisId: text("analysis_id")
+      .notNull()
+      .references(() => chartAnalyses.id, { onDelete: "cascade" }),
+    scenarioId: text("scenario_id"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("chart_trade_links_analysis").on(table.analysisId)],
+);
+
 /**
  * Economic calendar events from an opted-in source, kept so past weeks stay on the chart
  * after the source moves on (the public feed only serves the current week).

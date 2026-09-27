@@ -1,6 +1,7 @@
 import { AGGREGATE_FROM, RESOLUTIONS, type Resolution } from "./market-data";
 import type { LayersDocument } from "./chart-layers";
 import type { StoredIndicator } from "./chart-indicators";
+import type { AnalysisPlan } from "./analysis-plan";
 import type { SrZone } from "./sr-zones";
 
 /** Vela's `SerializedDrawing` as stored: time+price anchors, never pixels. */
@@ -42,6 +43,7 @@ export interface ChartAnalysis extends ChartAnalysisSummary {
   layers: LayersDocument;
   indicators: StoredIndicator[];
   zones: SrZone[];
+  plan: AnalysisPlan;
 }
 
 export const EMPTY_DRAWINGS: DrawingsDocument = { version: 1, drawings: [] };

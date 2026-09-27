@@ -9,6 +9,7 @@ import {
 import { parseLayers } from "@/lib/chart-layers";
 import { parseIndicators } from "@/lib/chart-indicators";
 import { parseZones } from "@/lib/sr-zones";
+import { parsePlan } from "@/lib/analysis-plan";
 import type { Resolution } from "@/lib/market-data";
 import { getTimeZone } from "./settings";
 import { nowIso } from "./ids";
@@ -37,6 +38,7 @@ const STATE = {
   layersJson: chartAnalyses.layersJson,
   indicatorsJson: chartAnalyses.indicatorsJson,
   zonesJson: chartAnalyses.zonesJson,
+  planJson: chartAnalyses.planJson,
   notes: chartAnalyses.notes,
 };
 
@@ -148,6 +150,7 @@ export function getSnapshot(analysisId: string, day: string): AnalysisSnapshot |
       layersJson: chartAnalysisSnapshots.layersJson,
       indicatorsJson: chartAnalysisSnapshots.indicatorsJson,
       zonesJson: chartAnalysisSnapshots.zonesJson,
+      planJson: chartAnalysisSnapshots.planJson,
       notes: chartAnalysisSnapshots.notes,
       dayDate: chartAnalyses.dayDate,
     })
@@ -156,7 +159,7 @@ export function getSnapshot(analysisId: string, day: string): AnalysisSnapshot |
     .where(where(analysisId, day))
     .get();
   if (!row) return null;
-  const { drawingsJson, layersJson, indicatorsJson, zonesJson, hasImage, ...rest } = row;
+  const { drawingsJson, layersJson, indicatorsJson, zonesJson, planJson, hasImage, ...rest } = row;
   return {
     ...rest,
     id: analysisId,
@@ -166,6 +169,7 @@ export function getSnapshot(analysisId: string, day: string): AnalysisSnapshot |
     layers: parseLayers(layersJson),
     indicators: parseIndicators(indicatorsJson),
     zones: parseZones(zonesJson),
+    plan: parsePlan(planJson),
   };
 }
 
@@ -195,6 +199,7 @@ const SNAPSHOT_STATE = {
   layersJson: chartAnalysisSnapshots.layersJson,
   indicatorsJson: chartAnalysisSnapshots.indicatorsJson,
   zonesJson: chartAnalysisSnapshots.zonesJson,
+  planJson: chartAnalysisSnapshots.planJson,
   notes: chartAnalysisSnapshots.notes,
   image: chartAnalysisSnapshots.image,
 };
@@ -215,4 +220,10 @@ export function restoreSnapshot(analysisId: string, day: string): boolean {
     recordSnapshot(analysisId, journalToday(), { image: true });
     return true;
   });
+}
+
+/** The version of an analysis from the last day before `day` that has one, if any. */
+export function previousSnapshot(analysisId: string, day: string): AnalysisSnapshot | null {
+  const earlier = listSnapshots({ analysisId }).find((s) => s.day < day);
+  return earlier ? getSnapshot(analysisId, earlier.day) : null;
 }

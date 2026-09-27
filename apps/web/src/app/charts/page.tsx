@@ -46,6 +46,8 @@ import type {
 } from "@/components/analysis-chart";
 import { IndicatorsPanel } from "@/components/indicators-panel";
 import { PineEditor, type EditorDraft } from "@/components/pine-editor";
+import { PlanEditor } from "@/components/plan-editor";
+import { EMPTY_PLAN, isPlanEmpty, type AnalysisPlan } from "@/lib/analysis-plan";
 import type { ChartIndicator, IndicatorAlert } from "@/components/chart-indicators-bridge";
 import {
   resolveSource,
@@ -705,6 +707,12 @@ const ChartBoard = memo(function ChartBoard({
   const [showAll, setShowAll] = useState(false);
   const privacy = usePrivacy();
   const [zones, setZones] = useState<SrZone[]>([]);
+  const [plan, setPlan] = useState<AnalysisPlan>(EMPTY_PLAN);
+  /** The horizontal line or ray last selected on the chart, for plan prices. */
+  const lastLine = useRef<string | null>(null);
+  const { data: playbookData } = useApi<{ playbooks: { id: string; name: string }[] }>(
+    "/api/playbooks",
+  );
   const [zoneStats, setZoneStats] = useState<Record<string, ZoneStats>>({});
   /** A click-to-place mode waiting for a chart click. */
   const [placing, setPlacing] = useState<"missed" | "zone" | null>(null);
@@ -775,6 +783,7 @@ const ChartBoard = memo(function ChartBoard({
     alertsOn,
     indicators,
     zones,
+    plan,
     viewing,
   });
   state.current = {
@@ -788,6 +797,7 @@ const ChartBoard = memo(function ChartBoard({
     alertsOn,
     indicators,
     zones,
+    plan,
     viewing,
   };
 
@@ -837,6 +847,7 @@ const ChartBoard = memo(function ChartBoard({
         captured.drawings.drawings.length > 0 ||
         current.indicators.length > 0 ||
         current.zones.length > 0 ||
+        !isPlanEmpty(current.plan) ||
         current.title.trim() ||
         current.notes.trim();
       if (!current.analysisId && !worth && !options.create) {
@@ -878,6 +889,7 @@ const ChartBoard = memo(function ChartBoard({
             // The chart's errors are shown, not saved.
             indicators: current.indicators.map(({ error: _error, ...indicator }) => indicator),
             zones: current.zones,
+            plan: current.plan,
           };
           if (
             handle &&
@@ -1166,6 +1178,8 @@ const ChartBoard = memo(function ChartBoard({
         setIndicatorError("");
         setZones(analysis?.zones ?? []);
         state.current.zones = analysis?.zones ?? [];
+        setPlan(analysis?.plan ?? EMPTY_PLAN);
+        state.current.plan = analysis?.plan ?? EMPTY_PLAN;
         setZoneStats({});
         zoneOrigins.current.clear();
         setPlacing(null);
@@ -1983,7 +1997,14 @@ const ChartBoard = memo(function ChartBoard({
             onEdit={schedule}
             onStatus={live$.setStatus}
             onLatest={onLatest}
-            onSelect={(_id, ids) => setSelectedIds(ids)}
+            onSelect={(_id, ids) => {
+              setSelectedIds(ids);
+              // Remembered past the selection: clicking the plan form deselects on the chart.
+              const line = drawings.find(
+                (d) => ids.includes(d.id) && (d.type === "hline" || d.type === "hray"),
+              );
+              if (line) lastLine.current = line.id;
+            }}
             appearance={appearance}
             onLookEdited={onLookEdited}
             onDrawingPrefs={onDrawingPrefs}
@@ -2169,6 +2190,19 @@ const ChartBoard = memo(function ChartBoard({
                   }}
                 />
               </div>
+              <PlanEditor
+                plan={plan}
+                disabled={!board || Boolean(viewing)}
+                playbooks={playbookData?.playbooks ?? []}
+                onChange={(next) => {
+                  setPlan(next);
+                  state.current.plan = next;
+                  schedule();
+                }}
+                pickPrice={() =>
+                  drawings.find((d) => d.id === lastLine.current)?.anchors[0]?.price ?? null
+                }
+              />
               <div className="space-y-1">
                 <Label>Add to journal</Label>
                 <div className="flex gap-2">

@@ -28,7 +28,7 @@ export const POST = handler(async (request: Request) => {
   const linked =
     includeAnalyses === false
       ? []
-      : linkedAnalyses({
+      : await linkedAnalyses({
           notes: [row.notes],
           day: dayKeyOf(trade.openedAt, getTimeZone()),
           symbols: [trade.symbol],

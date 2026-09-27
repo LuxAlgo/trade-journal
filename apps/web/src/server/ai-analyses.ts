@@ -1,16 +1,37 @@
-import { analysisLabel, drawingLabel, type ChartAnalysis } from "@/lib/chart-analysis";
+import { analysisLabel, type ChartAnalysis } from "@/lib/chart-analysis";
+import { describeDrawings } from "@/lib/analysis-text";
 import { matchKeys, symbolKey } from "@/lib/symbol-match";
 import { analysisImage, getAnalysis, listAnalyses } from "./chart-analyses";
-import { getSnapshot, listSnapshots, snapshotImage } from "./analysis-snapshots";
+import { getSnapshot, listSnapshots, previousSnapshot, snapshotImage } from "./analysis-snapshots";
+import { describeChanges } from "@/lib/analysis-diff";
+import { dayPriceAction } from "./day-price-action";
+import { getTimeZone } from "./settings";
+import { listReviews } from "./plan-reviews";
+import { describePlan, planTradeStats } from "@/lib/analysis-plan";
+import { dayTradesFor } from "./trade-links";
+import { similarPastDays } from "./journal-history";
+import { eq } from "drizzle-orm";
+import { db, playbooks } from "@/db";
+
+const playbookName = (id: string | null) =>
+  id
+    ? (db.select({ name: playbooks.name }).from(playbooks).where(eq(playbooks.id, id)).get()
+        ?.name ?? null)
+    : null;
 
 /**
  * Chart analyses linked to a note, for AI reviews: the ones embedded in the note's
  * markdown first, then the day's own versions. A day's version (snapshot) is used
  * wherever there is one, so a review of a past day sees the chart as it was then, not as
- * it evolved later. Each brings its notes, drawings, zones and indicators as text plus
- * its picture, so the model reviews the chart the trader actually marked up.
+ * it evolved later. Each brings its drawings (with their prices), zones, indicators and
+ * notes as text, what price did against its levels that day, and for the first few, its
+ * picture. Models read numbers far better than chart pictures, so the text leads.
  */
-export const MAX_AI_ANALYSES = 3;
+export const MAX_AI_ANALYSES = 6;
+/** Pictures are the costly part of a request; only the first analyses send theirs. */
+export const MAX_AI_IMAGES = 3;
+/** A slow market data source never holds up a review for long. */
+const PRICE_ACTION_TIMEOUT_MS = 8_000;
 
 const EMBED = /\/api\/analyses\/([A-Za-z0-9_-]{1,64})\/(?:snapshots\/(\d{4}-\d{2}-\d{2})\/)?image/g;
 
@@ -32,12 +53,12 @@ export interface LinkedAnalysis {
   image: Buffer | null;
 }
 
-export function linkedAnalyses(source: {
+export async function linkedAnalyses(source: {
   notes?: (string | null | undefined)[];
   day?: string | null;
   /** When set, the day's analyses count only if they chart one of these symbols. */
   symbols?: string[];
-}): LinkedAnalysis[] {
+}): Promise<LinkedAnalysis[]> {
   const refs = source.notes?.flatMap(embeddedAnalyses) ?? [];
   if (source.day) {
     const keys = source.symbols?.length
@@ -58,19 +79,106 @@ export function linkedAnalyses(source: {
     const analysis = ref.day ? getSnapshot(ref.id, ref.day) : getAnalysis(ref.id);
     if (!analysis) continue;
     seen.add(ref.id);
-    const image = !analysis.hasImage
-      ? null
-      : ref.day
-        ? snapshotImage(ref.id, ref.day)
-        : analysisImage(ref.id);
+    const image =
+      !analysis.hasImage || linked.filter((l) => l.image).length >= MAX_AI_IMAGES
+        ? null
+        : ref.day
+          ? snapshotImage(ref.id, ref.day)
+          : analysisImage(ref.id);
+    const day = ref.day ?? source.day ?? null;
     linked.push({
       id: ref.id,
       label: ref.day ? `${analysisLabel(analysis)} (as of ${ref.day})` : analysisLabel(analysis),
-      context: describeAnalysis(analysis, ref.day),
+      context:
+        describeAnalysis(analysis, ref.day) +
+        (ref.day ? changesText(ref.id, ref.day) : "") +
+        (day ? await priceActionText(analysis, day, !source.symbols) : planText(analysis)),
       image,
     });
   }
   return linked;
+}
+
+/** The day's trades on the analysis's symbol, and which you took from its plan. */
+function planTrades(analysis: ChartAnalysis, day: string): string {
+  const trades = dayTradesFor(analysis, day, getTimeZone());
+  if (!trades.length) return "";
+  const own = trades.filter((t) => t.link?.analysisId === analysis.id);
+  const stats = planTradeStats(trades, new Set(own.map((t) => t.key)));
+  const scenario = (id: string | null) =>
+    analysis.plan.scenarios.find((s) => s.id === id)?.name || null;
+  const lines = trades.map((t) => {
+    const from =
+      t.link?.analysisId === analysis.id
+        ? `taken from this plan${scenario(t.link.scenarioId) ? ` (scenario ${JSON.stringify(scenario(t.link.scenarioId))})` : ""}`
+        : t.link
+          ? "taken from another analysis"
+          : "not linked to a plan";
+    return `- ${t.symbol} ${t.direction} opened ${t.openedAt} at ${t.avgEntry}, net ${t.netPnl.toFixed(2)}, ${from}`;
+  });
+  return `Trades that day on this symbol: ${stats.onPlan.trades} from the plan (net ${stats.onPlan.netPnl.toFixed(2)}), ${stats.offPlan.trades} not (net ${stats.offPlan.netPnl.toFixed(2)})\n${lines.join("\n")}`;
+}
+
+/** How the analysis changed since its previous day's version. */
+function changesText(id: string, day: string): string {
+  const current = getSnapshot(id, day);
+  const previous = current && previousSnapshot(id, day);
+  if (!current || !previous) return "";
+  const changes = describeChanges(previous, current);
+  return `\nChanged since its ${previous.day} version: ${changes.length ? `\n${changes.map((c) => `- ${c}`).join("\n")}` : "nothing"}`;
+}
+
+/** The plan alone, for an analysis linked without a day. */
+function planText(analysis: ChartAnalysis) {
+  const plan = describePlan(analysis.plan, { playbook: playbookName(analysis.plan.playbookId) });
+  return plan ? `\n${plan}` : "";
+}
+
+/** The plan with the day's grades, the day's trades, and what price did that day. */
+async function priceActionText(
+  analysis: ChartAnalysis,
+  day: string,
+  /** Trades are across accounts: only for an unfiltered recap, like the shared day note. */
+  withTrades: boolean,
+): Promise<string> {
+  let action: Awaited<ReturnType<typeof dayPriceAction>> = null;
+  let unavailable = "";
+  try {
+    action = await dayPriceAction(
+      analysis,
+      day,
+      getTimeZone(),
+      AbortSignal.timeout(PRICE_ACTION_TIMEOUT_MS),
+    );
+  } catch (error) {
+    unavailable = error instanceof Error ? error.message : "market data error";
+  }
+  const plan = describePlan(analysis.plan, {
+    reviews: listReviews(analysis.id, day),
+    suggestions: action?.scenarios,
+    playbook: playbookName(analysis.plan.playbookId),
+  });
+  let similar = "";
+  if (withTrades && action)
+    similar = await similarPastDays(
+      analysis,
+      day,
+      action.context,
+      AbortSignal.timeout(PRICE_ACTION_TIMEOUT_MS),
+    ).catch(() => "");
+  return [
+    plan,
+    withTrades ? planTrades(analysis, day) : "",
+    similar,
+    action
+      ? `Price action ${action.text}`
+      : unavailable
+        ? `Price action on ${day}: unavailable (${unavailable})`
+        : "",
+  ]
+    .filter(Boolean)
+    .map((part) => `\n${part}`)
+    .join("");
 }
 
 const iso = (time: number | null) =>
@@ -78,15 +186,13 @@ const iso = (time: number | null) =>
 
 /** The analysis as plain text, for the model to read beside its image. */
 export function describeAnalysis(analysis: ChartAnalysis, day: string | null = null): string {
-  const counts = new Map<string, number>();
-  for (const drawing of analysis.drawings.drawings) {
-    const label = drawingLabel(
-      drawing.type,
-      typeof drawing.text === "string" ? drawing.text : undefined,
-    );
-    counts.set(label, (counts.get(label) ?? 0) + 1);
-  }
-  const drawings = [...counts].map(([label, n]) => (n > 1 ? `${label} x${n}` : label));
+  const described = describeDrawings(analysis.drawings.drawings, analysis.layers);
+  const extra = [
+    described.hidden ? `${described.hidden} hidden` : "",
+    described.omitted ? `${described.omitted} more not listed` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   const zones = analysis.zones
     .filter((zone) => zone.visible)
     .map(
@@ -96,7 +202,7 @@ export function describeAnalysis(analysis: ChartAnalysis, day: string | null = n
   const indicators = analysis.indicators.filter((i) => i.visible).map((i) => i.title);
   return [
     `${JSON.stringify(analysisLabel(analysis))}: ${analysis.symbol} ${analysis.resolution} candles from ${analysis.provider}${day ? `, as it stood on journal day ${day}` : ""}, view ${iso(analysis.visibleFrom ?? analysis.rangeFrom)} to ${iso(analysis.visibleTo ?? analysis.rangeTo)} UTC, last edited ${analysis.updatedAt}`,
-    `Drawings: ${drawings.join(", ") || "none"}`,
+    `Drawings (prices; UTC times; nested ones indented under the drawing they belong to)${extra ? `, ${extra}` : ""}:${described.lines.length ? `\n${described.lines.join("\n")}` : " none"}`,
     `Support/resistance zones: ${zones.join("; ") || "none"}`,
     `Indicators: ${indicators.join(", ") || "none"}`,
     `Analysis notes: ${analysis.notes.trim() || "none"}`,
@@ -108,12 +214,14 @@ export function analysesPrompt(linked: LinkedAnalysis[]): string {
   if (!linked.length) return "";
   let image = 0;
   const parts = linked.map((analysis, index) => {
-    const attached = analysis.image ? `image ${(image += 1)} attached` : "no snapshot saved";
+    const attached = analysis.image ? `image ${(image += 1)} attached` : "described as text only";
     return `Chart analysis ${index + 1} (${attached}):\n${analysis.context}`;
   });
-  return `The trader's own chart analyses linked to this, with their chart snapshots attached as
-images. Read the drawings and zones in each image and check the plan against what happened.
-Comment on what the chart shows only when it is visible in the image or listed here.
+  return `The trader's own chart analyses linked to this. Each lists its drawings with their exact
+prices and, where the day is known, what price did against its levels that day (computed from
+the day's candles). Some have their chart snapshot attached as an image. Rely on the listed
+prices and price action over reading the images; use the images for context only. Check the
+plan against what happened, and comment only on what is listed here or clearly visible.
 
 ${parts.join("\n\n")}`;
 }

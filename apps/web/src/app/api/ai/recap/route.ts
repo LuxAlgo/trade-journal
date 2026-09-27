@@ -30,7 +30,7 @@ export const POST = handler(async (request: Request) => {
   // Analyses embedded in the shared note follow the note's rule; the day's own analyses
   // count for a filtered recap only when they chart a symbol traded in that subset.
   const linked = scope.includeAnalyses
-    ? linkedAnalyses({
+    ? await linkedAnalyses({
         notes: [existingNote],
         day: date,
         symbols: onlyDateFilters ? undefined : [...new Set(dayTrades.map((t) => t.symbol))],

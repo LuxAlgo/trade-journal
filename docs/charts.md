@@ -330,6 +330,56 @@ stored events and shows the problem. **Disable** stops fetching and keeps what w
 - Events appear on the time axis; hover or click one for its title, impact, forecast and
   previous value.
 
+## Plans and day reviews
+
+An analysis can carry a **plan** (Analysis card, under the notes): a **bias** (long, short or
+neutral), an optional **playbook**, and up to ten **scenarios**, each with a name, a
+direction, a **trigger**, a **target** and an **invalidation** price and a note. The crosshair
+button beside a price takes the price of the horizontal line or ray you last selected on the
+chart. A scenario whose prices sit on the wrong sides (a long's target below its trigger)
+shows a warning. The plan saves with the analysis and is frozen into each day's version.
+
+On a journal day, each analysis has a **Day review** (under its picture), loaded when opened:
+
+- **What price did**: the session's open, high, low and close, the range against the average
+  of the previous 14 days, the **day type** (see below), and for every horizontal line, ray
+  that had started, price label, shown Fibonacci level and zone: not reached, held (reached
+  and closed back on the same side), broken (closed through) or closed inside. Levels are
+  numbered like the Layers panel (#1, #1.2), and judged with the same rules as the chart's
+  zones. The facts come from the analysis's own market source, from 15-minute candles (or
+  the source's own size) in the journal's time zone; nothing is stored.
+- **Plan**: each scenario with the grade the candles suggest, and why: **played out**
+  (triggered, then reached the target first), **invalidated** (reached the invalidation
+  first), **not triggered**, **triggered, still open**, or **unclear** (one candle reached
+  both, or there is no trigger price). **Accept** keeps the suggestion; the selector sets any
+  grade. Grades are stored per day apart from the day's version, so later saves never
+  overwrite them; a grade for a scenario later removed from that day's plan no longer counts.
+- **Trades this day**: the day's trades on the analysis's symbol, each linked to this plan,
+  to one of its scenarios, or to nothing. A trade entered within 0.3% of a scenario's trigger,
+  in its direction, suggests that scenario. The totals compare trades from the plan with the
+  rest. A trade belongs to one analysis at a time.
+- **Changed since** the previous day's version: drawings added, removed, moved or renamed
+  (with their prices), settings changed (a Fibonacci level set, a wave degree), zones, the
+  bias and scenarios edited, notes rewritten.
+
+**Day types** come from a day's candle: a **trend day** (up or down) closes in the outer 60%
+of its range from the open, a **range day** within 30%, a **mixed day** in between; **quiet**
+is below 0.7x the average range of the previous 14 days, **volatile** above 1.4x; **news** is
+a high-impact economic calendar event that day on the symbol's currencies (stored events
+only, so from when the calendar was switched on).
+
+The **Daily journal** page adds two cards:
+
+- **Weekly review**: an AI review of the seven days ending on the chosen day, from each
+  day's trades (all accounts), trades taken from a plan, plan grades, and the **Keep** and
+  **Fix** lists in the day notes (the lists AI recaps end with, as you edited them).
+- **Results by day type**: closed trades over 30 to 365 days by the type of the day they
+  closed on (shape, volatility, news), with trades, win rate and net P&L. It asks each
+  traded symbol's market source for daily candles only when you press **Show**, through
+  the source of your latest chart of that symbol (symbols without a chart are listed as
+  left out); days follow those candles (UTC for crypto sources). Totals add accounts
+  without converting currencies.
+
 ## AI reviews with chart analyses
 
 AI recaps and trade critiques also look at the chart analyses linked to what they review:
@@ -341,12 +391,21 @@ AI recaps and trade critiques also look at the chart analyses linked to what the
 - **Trade critique**: analyses embedded in the trade's notes, then the versions of the
   trade's entry day on its symbol.
 
-Each linked analysis (at most three) sends its title, symbol, candle size, visible range,
-drawings, zones, indicators and notes as text, and its saved snapshot as an image, so the
-model can check the trade against the plan drawn. The result names the charts it used.
-**Include linked chart analyses** turns this off (remembered per browser); the API field
-is `includeAnalyses: false`. Images go to your configured AI provider like the rest of the
-context, and cost more tokens than text.
+Vision models read chart pictures poorly, so each linked analysis (at most six) is sent
+mainly as text: its title, symbol, candle size, visible range, indicators, zones and notes,
+and **every shown drawing with its prices** (a level's price, a line's two points, each
+shown Fibonacci level's price, an Elliott count's labelled points in its degree, a box's
+price and time range), named and nested as in the Layers panel. With a day it also sends
+the **plan** with that day's grades (yours, else the candles' suggestion), **what price did**
+against its levels and the day type, and for a day version **what changed** since the
+previous day's. An unfiltered recap (all accounts) adds the day's **trades on the symbol**
+and which came from the plan, and up to five **earlier days of the same type** on that
+symbol with your results and grades on them; a filtered recap leaves both out, since they
+span accounts. The first three analyses also send their saved snapshot as an image. The
+model is told to rely on the listed prices over the pictures. The result names the charts it
+used. **Include linked chart analyses** turns this off (remembered per browser); the API
+field is `includeAnalyses: false`. Price facts come from each analysis's market source
+(waiting at most 8 seconds); when a source is off, the text says so and the rest is sent.
 
 ## Indicators
 

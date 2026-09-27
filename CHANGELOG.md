@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Chart analyses carry a trading plan: bias, playbook and scenarios with trigger, target and invalidation prices (a price can be taken from the selected line)
+- Journal days review each analysis: what price did against its levels and zones, the day type (trend or range, quiet or volatile, news), each scenario's grade suggested from the day's candles and confirmed by you, the day's trades linked to the plan or a scenario with on-plan and off-plan totals, and what changed since the previous day's version
+- Daily journal: a weekly AI review (trades, plan grades, trades from a plan, Keep and Fix lessons) and results by day type
+- AI recaps and critiques read chart analyses as numbers: every drawing's prices, the plan and its grades, the day's price action, changes since the previous day and, for unfiltered recaps, the day's trades and earlier days of the same type
 - Chart drawing toolbar can be hidden for more chart (remembered apart for full screen), with a small control on the chart to bring it back or leave full screen
 - Drawing templates, as in TradingView: save a tool's look (colours, line styles, text, Fibonacci levels and ratios, Elliott wave degree) under a name, apply it to selected drawings, and star one as the default for new drawings; built-in Fibonacci and Elliott templates included
 - Elliott wave degrees (Grand supercycle to Subminuette) that relabel a wave count in its notation, such as ①②③, (1)(2)(3) or (i)(ii)(iii)

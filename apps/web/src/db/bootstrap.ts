@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS chart_analyses (
  dataset TEXT, resolution TEXT NOT NULL, range_from INTEGER NOT NULL, range_to INTEGER NOT NULL,
  visible_from INTEGER, visible_to INTEGER, drawings_json TEXT NOT NULL,
  drawing_count INTEGER NOT NULL DEFAULT 0, layers_json TEXT, indicators_json TEXT, zones_json TEXT,
- notes TEXT NOT NULL DEFAULT '', day_date TEXT,
+ plan_json TEXT, notes TEXT NOT NULL DEFAULT '', day_date TEXT,
  image BLOB, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS chart_analyses_day ON chart_analyses(day_date);
@@ -153,12 +153,25 @@ CREATE TABLE IF NOT EXISTS chart_analysis_snapshots (
  resolution TEXT NOT NULL, range_from INTEGER NOT NULL, range_to INTEGER NOT NULL,
  visible_from INTEGER, visible_to INTEGER, drawings_json TEXT NOT NULL,
  drawing_count INTEGER NOT NULL DEFAULT 0, layers_json TEXT, indicators_json TEXT, zones_json TEXT,
- notes TEXT NOT NULL DEFAULT '', image BLOB, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+ plan_json TEXT, notes TEXT NOT NULL DEFAULT '', image BLOB, created_at TEXT NOT NULL,
+ updated_at TEXT NOT NULL,
  PRIMARY KEY (analysis_id, day)
 );
 CREATE INDEX IF NOT EXISTS chart_analysis_snapshots_day ON chart_analysis_snapshots(day);
 CREATE INDEX IF NOT EXISTS chart_analysis_snapshots_list ON chart_analysis_snapshots(analysis_id, day, created_at, updated_at);
 CREATE INDEX IF NOT EXISTS chart_analysis_snapshots_by_day ON chart_analysis_snapshots(day, created_at, updated_at);
+CREATE TABLE IF NOT EXISTS chart_plan_reviews (
+ analysis_id TEXT NOT NULL REFERENCES chart_analyses(id) ON DELETE CASCADE, day TEXT NOT NULL,
+ scenario_id TEXT NOT NULL, outcome TEXT NOT NULL, note TEXT NOT NULL DEFAULT '',
+ updated_at TEXT NOT NULL,
+ PRIMARY KEY (analysis_id, day, scenario_id)
+);
+CREATE TABLE IF NOT EXISTS chart_trade_links (
+ trade_key TEXT PRIMARY KEY,
+ analysis_id TEXT NOT NULL REFERENCES chart_analyses(id) ON DELETE CASCADE,
+ scenario_id TEXT, created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chart_trade_links_analysis ON chart_trade_links(analysis_id);
 CREATE TABLE IF NOT EXISTS economic_events (
  id TEXT PRIMARY KEY, source TEXT NOT NULL, title TEXT NOT NULL, currency TEXT NOT NULL,
  time INTEGER NOT NULL, impact TEXT NOT NULL, forecast TEXT NOT NULL DEFAULT '',

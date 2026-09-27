@@ -14,6 +14,7 @@ import {
 import { layersProblem, parseLayers, type LayersDocument } from "@/lib/chart-layers";
 import { indicatorsProblem, parseIndicators, type StoredIndicator } from "@/lib/chart-indicators";
 import { parseZones, zonesProblem, type SrZone } from "@/lib/sr-zones";
+import { parsePlan, planProblem, type AnalysisPlan } from "@/lib/analysis-plan";
 import { requireDataset, requireProvider, requireSymbol } from "./market-data/request-checks";
 import { requireNoProblem } from "./validation";
 import { requireValue } from "./api";
@@ -54,6 +55,7 @@ export interface AnalysisInput {
   layers?: LayersDocument;
   indicators?: StoredIndicator[];
   zones?: SrZone[];
+  plan?: AnalysisPlan;
   /** null clears a snapshot that no longer matches the drawings. */
   image?: Buffer | null;
 }
@@ -127,6 +129,10 @@ export function parseAnalysisInput(body: unknown, partial: boolean): AnalysisInp
     requireNoProblem(zonesProblem(b.zones));
     input.zones = b.zones as SrZone[];
   }
+  if (has("plan")) {
+    requireNoProblem(planProblem(b.plan));
+    input.plan = b.plan as AnalysisPlan;
+  }
   if (b.image === null) input.image = null;
   else if (has("image")) {
     const image = decodePngDataUrl(b.image);
@@ -158,6 +164,7 @@ const toSummary = (
     | "image"
     | "drawingsJson"
     | "zonesJson"
+    | "planJson"
     | "layersJson"
     | "indicatorsJson"
     | "notes"
@@ -198,6 +205,7 @@ export function getAnalysis(id: string): ChartAnalysis | null {
       layersJson: chartAnalyses.layersJson,
       indicatorsJson: chartAnalyses.indicatorsJson,
       zonesJson: chartAnalyses.zonesJson,
+      planJson: chartAnalyses.planJson,
     })
     .from(chartAnalyses)
     .where(eq(chartAnalyses.id, id))
@@ -209,6 +217,7 @@ export function getAnalysis(id: string): ChartAnalysis | null {
     layersJson,
     indicatorsJson,
     zonesJson,
+    planJson,
     visibleFrom,
     visibleTo,
     notes,
@@ -223,6 +232,7 @@ export function getAnalysis(id: string): ChartAnalysis | null {
     layers: parseLayers(layersJson),
     indicators: parseIndicators(indicatorsJson),
     zones: parseZones(zonesJson),
+    plan: parsePlan(planJson),
   };
 }
 
@@ -264,9 +274,10 @@ export const analysisImage = (id: string): Buffer | null =>
     .get()?.image ?? null;
 
 const columns = (input: AnalysisInput) => {
-  const { drawings, layers, indicators, zones, ...rest } = input;
+  const { drawings, layers, indicators, zones, plan, ...rest } = input;
   return {
     ...rest,
+    ...(plan ? { planJson: JSON.stringify(plan) } : {}),
     ...(zones ? { zonesJson: JSON.stringify(zones) } : {}),
     ...(indicators ? { indicatorsJson: JSON.stringify(indicators) } : {}),
     ...(layers ? { layersJson: JSON.stringify(layers) } : {}),

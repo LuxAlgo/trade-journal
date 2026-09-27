@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CandlestickChart, FilePlus2, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { DayReview } from "./day-review";
 import { postJson, useApi } from "@/lib/use-api";
 import {
   analysisEditPath,
@@ -145,6 +146,7 @@ export function DayAnalyses({
                       <Trash2 aria-hidden="true" className="size-3" />
                     </button>
                   </div>
+                  <DayReview analysisId={s.analysisId} date={date} />
                 </figcaption>
               </figure>
             );

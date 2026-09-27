@@ -6,10 +6,12 @@ touches as little as possible.
 
 ## Where the add-ons touch upstream files
 
-| File                         | Change                                                                                                           | If a merge conflicts                                                        |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `apps/web/src/middleware.ts` | One import and one line: `if (isPublicAppAsset(pathname)) return NextResponse.next();` after the `/login` check. | Keep upstream's version and add the line back after its public-path checks. |
-| `CHANGELOG.md`               | Entries under `[Unreleased]`.                                                                                    | Keep both.                                                                  |
+| File                                                              | Change                                                                                                           | If a merge conflicts                                                        |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `apps/web/src/middleware.ts`                                      | One import and one line: `if (isPublicAppAsset(pathname)) return NextResponse.next();` after the `/login` check. | Keep upstream's version and add the line back after its public-path checks. |
+| `CHANGELOG.md`                                                    | Entries under `[Unreleased]`.                                                                                    | Keep both.                                                                  |
+| `apps/web/src/app/journal/page.tsx`                               | Two imports and two elements above the day list: `<WeeklyReview timeZone={timeZone} />` and `<DayTypeStats />`.  | Keep upstream's page and add the two elements back above the day list.      |
+| `apps/web/src/app/api/ai/recap/route.ts`, `.../critique/route.ts` | `await` before `linkedAnalyses(...)` (it fetches the day's price action).                                        | Keep upstream's route and add the `await` back.                             |
 
 Nothing else upstream owns is changed: no database schema, bootstrap or upgrade edits (the
 add-on creates its own tables), no dependencies (`package.json` and the lockfile are untouched;
