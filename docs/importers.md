@@ -181,7 +181,50 @@ Existing installations initially use their previous timezone as the import
 default. Saving a display-only timezone change preserves that previous import
 default. Neither setting rewrites stored executions.
 
-### Correcting an earlier import
+### IBKR broker sync and timezone recovery
+
+**Import → Broker sync → Interactive Brokers** downloads Flex XML through the
+Broker SDK. It uses **Default import timezone** for statement times without an
+explicit offset; the connection form shows the effective setting. Confirm the
+timezone of your Flex statement with IBKR. The instrument's exchange does not
+determine this setting. An explicit `Z` or numeric offset in a timestamp takes
+precedence. Display timezone still controls rendering and analytics only.
+
+This applies to broker sync. Direct Flex XML file upload is not supported; the
+IBKR file-upload formats are CSV. Date-only records retain the midnight fallback.
+Invalid timestamps, unsupported suffixes and ambiguous or nonexistent local times
+at daylight-saving transitions are skipped and counted in the sync warning.
+Check the source report for those records before relying on the resulting totals.
+
+The first sync that stores executions records its statement timezone internally.
+Further syncs use the same timezone and existing deduplication. Accounts containing
+older synced executions without this record, or with a different recorded timezone,
+stop before changing executions, trades, notes or sync status. Transfers cannot
+combine synced history with unknown or incompatible timezone provenance.
+
+To recover affected history:
+
+1. Stop the app and copy the **entire data directory**, including `journal.db`,
+   encryption key and attachments, as described in [Export and backup](../README.md#export-and-backup).
+   Keep that backup and the original Flex report.
+2. Restart the app and select the verified statement timezone in
+   **Settings → Journal → Default import timezone**.
+3. Connect a **separate journal account** to IBKR with the same Flex query and a
+   distinguishable name. Ensure the query covers the full history you want to recover.
+4. Select each account separately in the account filter. Compare execution times,
+   dates, execution and trade counts, fees, open positions and P&L against the report.
+   For example, September 18, 2026 at `08:59:05` in New York should store as
+   `12:59:05Z` and display as `14:59:05` in Rome.
+5. Keep the original account, trades and notes for comparison. Sync the corrected
+   account going forward, and select that account in reports:
+   **archiving alone does not exclude the original trades from All accounts**.
+
+Changing a setting does not repair existing data. Do not transfer the old history
+into the recovered account. This update does not automatically rewrite timestamps
+or migrate annotations. If a corrected account already has the right history,
+restore its recorded default import timezone to resume syncing it.
+
+### Correcting an earlier file import
 
 Changing the import timezone does not repair existing timestamps. Re-importing
 with a different timezone creates different execution hashes and can add duplicate

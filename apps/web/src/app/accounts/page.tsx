@@ -218,8 +218,13 @@ function Accounts() {
                       `Transfer all data into which account?\n${others.map((candidate, index) => `${index + 1}. ${candidate.name}`).join("\n")}\n\nEnter a number:`,
                     );
                     const chosen = others[Number(target) - 1];
-                    if (chosen)
-                      await action(account.id, { action: "transfer", toAccountId: chosen.id });
+                    if (chosen) {
+                      try {
+                        await action(account.id, { action: "transfer", toAccountId: chosen.id });
+                      } catch (error) {
+                        alert(error instanceof Error ? error.message : "Transfer failed");
+                      }
+                    }
                   }}
                 >
                   Transfer data

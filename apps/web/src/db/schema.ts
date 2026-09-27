@@ -73,6 +73,8 @@ export const accounts = sqliteTable("accounts", {
   credentialsEnc: text("credentials_enc"),
   autoSync: integer("auto_sync", { mode: "boolean" }).notNull().default(false),
   lastSyncAt: text("last_sync_at"),
+  /** Timezone used by corrected IBKR sync; null on legacy histories. Follows account transfers. */
+  ibkrSyncTimeZone: text("ibkr_sync_time_zone"),
   /** Latest snapshot from sync, for display: { equity, positions } JSON. */
   snapshotJson: text("snapshot_json"),
   archivedAt: text("archived_at"),

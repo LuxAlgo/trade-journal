@@ -502,6 +502,9 @@ function FileImport() {
 function BrokerConnect() {
   const router = useRouter();
   const { data } = useApi<{ brokers: BrokerInfo[] }>("/api/brokers");
+  const { data: settingsData, error: settingsError } = useApi<{ importTimeZone: string }>(
+    "/api/settings",
+  );
   const [brokerId, setBrokerId] = useState("");
   const [name, setName] = useState("");
   const [credentials, setCredentials] = useState<Record<string, string>>({});
@@ -514,12 +517,20 @@ function BrokerConnect() {
     setBusy(true);
     setError(null);
     try {
-      const created = await postJson<{ id: string }>("/api/accounts", {
+      const created = await postJson<{
+        id: string;
+        sync: { skipped: number; skippedReasons: string[] };
+      }>("/api/accounts", {
         name: name || broker.displayName,
         kind: "sync",
         broker: broker.id,
         credentials,
       });
+      if (created.sync.skipped > 0) {
+        alert(
+          `${created.sync.skipped} broker record(s) were skipped: ${created.sync.skippedReasons.join(" ")}`,
+        );
+      }
       router.push(`/?accounts=${encodeURIComponent(created.id)}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connection failed");
@@ -560,6 +571,15 @@ function BrokerConnect() {
             <p className="rounded-md bg-muted/60 p-2.5 text-xs text-muted-foreground">
               {broker.readOnlySetup}
             </p>
+            {broker.id === "ibkr-flex" && (
+              <p className="text-xs text-muted-foreground">
+                {settingsError
+                  ? "Could not load the import timezone. Refresh and try again."
+                  : settingsData
+                    ? `Statement timezone: ${settingsData.importTimeZone}. Used for Flex timestamps without an offset. Change it in Settings → Journal before connecting.`
+                    : "Loading statement timezone…"}
+              </p>
+            )}
             <div>
               <Label className="mb-1 block text-xs text-muted-foreground">Account name</Label>
               <Input
@@ -572,6 +592,7 @@ function BrokerConnect() {
               <div key={field.key}>
                 <Label className="mb-1 block text-xs text-muted-foreground">{field.label}</Label>
                 <Input
+                  aria-label={field.label}
                   type={field.secret ? "password" : "text"}
                   value={credentials[field.key] ?? ""}
                   onChange={(event) =>
@@ -584,7 +605,13 @@ function BrokerConnect() {
             {error && <p className="text-sm text-loss">{error}</p>}
             <Button
               onClick={connect}
-              disabled={busy || broker.credentials.some((field) => !credentials[field.key])}
+              disabled={
+                busy ||
+                broker.credentials.some(
+                  (field) => !/optional/i.test(field.label) && !credentials[field.key]?.trim(),
+                ) ||
+                (broker.id === "ibkr-flex" && !isTimeZone(settingsData?.importTimeZone))
+              }
             >
               {busy ? "Connecting…" : "Connect & sync"}
             </Button>
