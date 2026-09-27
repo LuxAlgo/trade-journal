@@ -23,6 +23,10 @@ click.
 4. Draw. The quick toolbar has pan/select, pen, highlighter, trend line, horizontal line,
    rectangle, arrow, text and eraser, plus ink color, stroke width, undo, redo, clear and
    full screen. Vela's side toolbar adds Fibonacci, channels, patterns, measuring and more.
+   **Hide drawing tools** (at the end of the quick toolbar) folds it away for more chart,
+   useful in full screen on a phone; a small control at the top of the chart shows it again
+   and keeps the full screen switch. The choice is remembered per browser, apart for full
+   screen and the normal view. Vela's side toolbar folds with its own « button.
 
 From a journal day, **Chart analysis** opens Charts with that day chosen for **Add**. Every
 note editor has a **Chart** menu that inserts a saved analysis at the cursor.

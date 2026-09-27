@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Chart drawing toolbar can be hidden for more chart (remembered apart for full screen), with a small control on the chart to bring it back or leave full screen
 - Drawing templates, as in TradingView: save a tool's look (colours, line styles, text, Fibonacci levels and ratios, Elliott wave degree) under a name, apply it to selected drawings, and star one as the default for new drawings; built-in Fibonacci and Elliott templates included
 - Elliott wave degrees (Grand supercycle to Subminuette) that relabel a wave count in its notation, such as ①②③, (1)(2)(3) or (i)(ii)(iii)
 - Chart layers: drawings can sit inside other drawings (an Elliott wave holds its sub-waves), numbered like an outline, with draw inside, focus on a wave, hide what is inside, go to a wave, and duplicate or delete a whole tree
