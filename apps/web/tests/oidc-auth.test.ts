@@ -551,6 +551,12 @@ describe("configuration fails closed", () => {
     }
   });
 
+  it("an issuer missing its trailing slash is refused, with a hint for Authentik", async () => {
+    configure({ JOURNAL_OIDC_ISSUER: provider.issuer.replace(/\/$/, "") });
+    expect(errorOf((await startLogin()).response)).toBe("unavailable");
+    expect(warnings.join("\n")).toMatch(/end with a slash/);
+  });
+
   it("an unreachable provider is reported and retried on the next sign-in", async () => {
     configure({ JOURNAL_OIDC_ISSUER: "http://127.0.0.1:9/application/o/journal/" });
     expect(errorOf((await startLogin()).response)).toBe("unavailable");
@@ -567,6 +573,19 @@ describe("password sign-in alongside single sign-on", () => {
     expect(await canRead((await signIn()).session)).toBe(true);
     const body = await (await authRoute.GET()).json();
     expect(body).toMatchObject({ password: true, oidc: { problem: null } });
+  });
+
+  it("signing out of a password session stays in the journal", async () => {
+    configure({ JOURNAL_PASSWORD: "correct-horse" });
+    const { sessionToken } = await import("../src/server/auth");
+    const response = await logoutRoute.POST(
+      new Request(`${APP}/api/auth/logout`, {
+        method: "POST",
+        headers: { cookie: `journal_session=${sessionToken()}` },
+      }),
+    );
+    expect(await response.json()).toEqual({ redirect: "/login" });
+    expect(setCookies(response).get("journal_session")!.attributes).toContain("Max-Age=0");
   });
 
   it("with only single sign-on, the password endpoint does not pretend to sign you in", async () => {

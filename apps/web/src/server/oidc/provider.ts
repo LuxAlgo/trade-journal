@@ -94,9 +94,14 @@ async function discover(settings: OidcSettings): Promise<client.Configuration> {
       timeout: HTTP_TIMEOUT_SECONDS,
     });
   } catch (error) {
+    // The issuer must match the provider's exactly; Authentik's end in a slash.
+    const hint =
+      /issuer does not match/.test(reason(error)) && !settings.issuer.pathname.endsWith("/")
+        ? ` Check JOURNAL_OIDC_ISSUER character for character; Authentik's end with a slash (${settings.issuer.href}/).`
+        : "";
     throw new OidcError(
       "unavailable",
-      `Could not read the provider's discovery document at ${settings.issuer.href}: ${reason(error)}`,
+      `Could not read the provider's discovery document at ${settings.issuer.href}: ${reason(error)}.${hint}`,
     );
   }
   const server = config.serverMetadata();
@@ -399,12 +404,15 @@ export async function finishLogin(
 // ── Sign-out ──
 
 /**
- * End the journal session behind `cookie`. With `JOURNAL_OIDC_LOGOUT=provider` (the
- * default) and a provider that has an end-session endpoint, also returns where to send the
- * browser so the provider ends its session (OIDC RP-Initiated Logout 1.0).
+ * End the journal session behind `cookie`. When it was a single sign-on session, with
+ * `JOURNAL_OIDC_LOGOUT=provider` (the default) and a provider that has an end-session
+ * endpoint, also returns where to send the browser so the provider ends its session (OIDC
+ * RP-Initiated Logout 1.0).
  */
 export async function logout(cookie: string | undefined): Promise<URL | null> {
   const ended = deleteSession(cookie);
+  // Only a single sign-on session has a provider session to end (not a password one).
+  if (!ended) return null;
   const result = oidcConfig();
   if (!result.enabled || !result.ok || result.settings.logout !== "provider") return null;
   const settings = result.settings;
@@ -419,7 +427,7 @@ export async function logout(cookie: string | undefined): Promise<URL | null> {
   const parameters: Record<string, string> = {
     post_logout_redirect_uri: new URL("/login", settings.redirectUri).href,
   };
-  if (ended?.idToken) parameters.id_token_hint = ended.idToken;
+  if (ended.idToken) parameters.id_token_hint = ended.idToken;
   return client.buildEndSessionUrl(config, parameters);
 }
 
