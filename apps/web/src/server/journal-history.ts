@@ -19,6 +19,8 @@ import {
 import { lessonsFrom, weekEnding } from "@/lib/journal-lessons";
 import { OUTCOME_LABELS, isOutcome, parsePlan, type ScenarioOutcome } from "@/lib/analysis-plan";
 import { candles, highImpactNews } from "./day-price-action";
+import type { MarketBar } from "@/lib/market-data";
+import { barsOfDay, dailyBarAt, dayWindow, journalDayOf } from "@/lib/day-window";
 
 /**
  * The journal's past, for AI reviews: earlier days like a given one (same symbol, same day
@@ -28,8 +30,6 @@ import { candles, highImpactNews } from "./day-price-action";
 const DAY_MS = 86_400_000;
 const LOOKBACK_DAYS = 120;
 const MAX_SIMILAR = 5;
-
-const utcDay = (time: number) => new Date(time).toISOString().slice(0, 10);
 
 /**
  * Graded scenario outcomes per journal day, optionally only for analyses on a symbol. A grade
@@ -67,10 +67,16 @@ function gradesByDay(days: string[], symbol?: string): Map<string, ScenarioOutco
   return out;
 }
 
-/** Closed trades per UTC day on a symbol (daily candles are UTC days). */
-function tradesByDay(symbol: string, from: number, to: number) {
+/**
+ * Closed trades on a symbol per daily candle they closed in, keyed by the journal day that
+ * candle stands for (so they line up with plan grades, which are per journal day).
+ */
+function tradesByDay(symbol: string, bars: readonly MarketBar[], timeZone: string) {
   const keys = matchKeys(symbol);
   const out = new Map<string, { trades: number; wins: number; netPnl: number }>();
+  const first = bars[0];
+  const last = bars.at(-1);
+  if (!first || !last) return out;
   for (const t of db
     .select({
       symbol: trades.symbol,
@@ -82,14 +88,15 @@ function tradesByDay(symbol: string, from: number, to: number) {
     .where(
       and(
         ne(trades.status, "open"),
-        gte(trades.closedAt, new Date(from - DAY_MS).toISOString()),
-        lt(trades.closedAt, new Date(to + DAY_MS).toISOString()),
+        gte(trades.closedAt, new Date(first.time - DAY_MS).toISOString()),
+        lt(trades.closedAt, new Date(last.time + 2 * DAY_MS).toISOString()),
       ),
     )
     .all()) {
-    const time = t.closedAt ? Date.parse(t.closedAt) : NaN;
-    if (!(time >= from && time < to) || !keys.has(symbolKey(t.symbol))) continue;
-    const day = utcDay(time);
+    if (!t.closedAt || !keys.has(symbolKey(t.symbol))) continue;
+    const bar = dailyBarAt(bars, Date.parse(t.closedAt));
+    if (!bar) continue;
+    const day = journalDayOf(bar, timeZone);
     const row = out.get(day) ?? { trades: 0, wins: 0, netPnl: 0 };
     row.trades += 1;
     if (t.status === "win") row.wins += 1;
@@ -100,30 +107,36 @@ function tradesByDay(symbol: string, from: number, to: number) {
 }
 
 /**
- * Earlier days on the same symbol with the same shape and volatility as `context`, newest
- * first, with your trades and graded scenarios on them. Uses the source's daily candles.
+ * Earlier days on the same symbol with the same shape and volatility as `day`, newest
+ * first, with your trades and graded scenarios on them. Every day, `day` included, is read
+ * from the source's daily candles so they compare like with like; `context` (from the day's
+ * intraday candles) stands in when the day has no daily candle yet.
  */
 export async function similarPastDays(
   source: { provider: string; dataset: string | null; symbol: string },
   day: string,
   context: DayContext,
+  timeZone: string,
   signal?: AbortSignal,
 ): Promise<string> {
-  const end = Date.parse(`${day}T00:00:00Z`);
-  const from = end - LOOKBACK_DAYS * DAY_MS;
-  const bars = await candles(source, "1d", from - 15 * DAY_MS, end, signal);
+  const window = dayWindow(day, timeZone);
+  const from = window.from - LOOKBACK_DAYS * DAY_MS;
+  const bars = await candles(source, "1d", from - 16 * DAY_MS, window.to + DAY_MS, signal);
   const averages = trailingRanges(bars, 14);
+  const own = barsOfDay(bars, "1d", window)[0];
+  const target = own ? dayContext(own, averages[bars.indexOf(own)] ?? null) : context;
   const matches: { day: string; context: DayContext }[] = [];
   bars.forEach((bar, i) => {
-    if (bar.time < from) return;
+    // Only days whose candle had closed before this one began.
+    if (bar.time < from || bar.time + DAY_MS > window.from) return;
     const past = dayContext(bar, averages[i] ?? null);
-    if (past.shape === context.shape && past.volatility === context.volatility)
+    if (past.shape === target.shape && past.volatility === target.volatility)
       matches.push({
-        day: utcDay(bar.time),
+        day: journalDayOf(bar, timeZone),
         context: { ...past, news: highImpactNews(source.symbol, bar.time, bar.time + DAY_MS) },
       });
   });
-  const tradeDays = tradesByDay(source.symbol, from, end);
+  const tradeDays = tradesByDay(source.symbol, bars, timeZone);
   const recent = matches.reverse().slice(0, MAX_SIMILAR * 3);
   const grades = gradesByDay(
     recent.map((m) => m.day),
@@ -135,7 +148,7 @@ export async function similarPastDays(
     ...recent.filter((m) => !tradeDays.has(m.day) && !grades.has(m.day)),
   ].slice(0, MAX_SIMILAR);
   if (!ranked.length) return "";
-  const label = `${SHAPE_LABELS[context.shape].toLowerCase()}${context.volatility ? `, ${VOLATILITY_LABELS[context.volatility].toLowerCase()}` : ""}`;
+  const label = `${SHAPE_LABELS[target.shape].toLowerCase()}${target.volatility ? `, ${VOLATILITY_LABELS[target.volatility].toLowerCase()}` : ""}`;
   const lines = ranked.map((m) => {
     const t = tradeDays.get(m.day);
     const g = grades.get(m.day);

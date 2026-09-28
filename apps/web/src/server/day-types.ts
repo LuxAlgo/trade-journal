@@ -9,12 +9,14 @@ import {
   type DayTypeRow,
 } from "@/lib/day-context";
 import { candles, highImpactNews } from "./day-price-action";
+import type { MarketBar } from "@/lib/market-data";
+import { dailyBarAt } from "@/lib/day-window";
 
 /**
  * Your closed trades split by the kind of day they closed on (trend or range, quiet or
  * volatile, news or not). Day types come from the source's daily candles, one request per
- * symbol, through the market source of your latest chart of that symbol; days follow those
- * candles (UTC for crypto sources).
+ * symbol, through the market source of your latest chart of that symbol; a trade counts
+ * under the candle it closed in, so days follow those candles (UTC for crypto sources).
  */
 
 const DAY_MS = 86_400_000;
@@ -27,8 +29,6 @@ export interface DayTypeBreakdown {
   rows: DayTypeRow[];
   symbols: { symbol: string; trades: number; source: string | null; problem: string | null }[];
 }
-
-const utcDay = (time: number) => new Date(time).toISOString().slice(0, 10);
 
 export async function dayTypeBreakdown(
   days: number,
@@ -54,7 +54,7 @@ export async function dayTypeBreakdown(
     .all()
     .flatMap((t) => {
       const time = t.closedAt ? Date.parse(t.closedAt) : NaN;
-      return time >= from && time < to ? [{ ...t, day: utcDay(time) }] : [];
+      return time >= from && time < to ? [{ ...t, time }] : [];
     });
   const counts = new Map<string, number>();
   for (const t of closed) counts.set(t.symbol, (counts.get(t.symbol) ?? 0) + 1);
@@ -69,6 +69,8 @@ export async function dayTypeBreakdown(
     .orderBy(desc(chartAnalyses.updatedAt))
     .all();
   const contexts = new Map<string, DayContext>();
+  /** Each symbol's daily candles, to find the one each trade closed in. */
+  const candlesOf = new Map<string, MarketBar[]>();
   const report: DayTypeBreakdown["symbols"] = [];
   for (const [symbol, count] of symbols) {
     const source = analyses.find((a) => matchKeys(a.symbol).has(symbolKey(symbol)));
@@ -82,7 +84,7 @@ export async function dayTypeBreakdown(
       bars.forEach((bar, i) => {
         if (bar.time < from - DAY_MS) return;
         contexts.set(
-          `${symbol}|${utcDay(bar.time)}`,
+          `${symbol}|${bar.time}`,
           dayContext(
             bar,
             averages[i] ?? null,
@@ -90,6 +92,7 @@ export async function dayTypeBreakdown(
           ),
         );
       });
+      candlesOf.set(symbol, bars);
       report.push({
         symbol,
         trades: count,
@@ -105,6 +108,11 @@ export async function dayTypeBreakdown(
       });
     }
   }
-  const rows = dayTypeStats(closed, (symbol, day) => contexts.get(`${symbol}|${day}`));
+  // A trade counts under the candle it closed in, whatever midnight the source stamps at.
+  const withDays = closed.map((t) => {
+    const bar = dailyBarAt(candlesOf.get(t.symbol) ?? [], t.time);
+    return { ...t, day: bar ? String(bar.time) : "" };
+  });
+  const rows = dayTypeStats(withDays, (symbol, day) => contexts.get(`${symbol}|${day}`));
   return { from, to, rows, symbols: report };
 }

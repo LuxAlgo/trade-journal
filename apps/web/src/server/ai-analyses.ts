@@ -164,6 +164,7 @@ async function priceActionText(
       analysis,
       day,
       action.context,
+      getTimeZone(),
       AbortSignal.timeout(PRICE_ACTION_TIMEOUT_MS),
     ).catch(() => "");
   return [

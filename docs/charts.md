@@ -377,7 +377,8 @@ The **Daily journal** page adds two cards:
   closed on (shape, volatility, news), with trades, win rate and net P&L. It asks each
   traded symbol's market source for daily candles only when you press **Show**, through
   the source of your latest chart of that symbol (symbols without a chart are listed as
-  left out); days follow those candles (UTC for crypto sources). Totals add accounts
+  left out); a trade counts under the daily candle it closed in, so days follow those
+  candles (UTC for crypto sources). Totals add accounts
   without converting currencies.
 
 ## AI reviews with chart analyses

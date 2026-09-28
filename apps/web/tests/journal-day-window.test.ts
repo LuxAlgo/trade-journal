@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { zonedToUtc } from "../src/lib/market-sessions";
-import { barsOfDay, dailyBarsBefore, dayWindow, DAY_MS } from "../src/lib/day-window";
+import {
+  barsOfDay,
+  dailyBarAt,
+  dailyBarsBefore,
+  dayWindow,
+  DAY_MS,
+  journalDayOf,
+} from "../src/lib/day-window";
 import type { MarketBar } from "../src/lib/market-data";
 
 const iso = (time: number) => new Date(time).toISOString();
@@ -82,5 +89,35 @@ describe("daily candles against a journal day", () => {
     expect(picked).toHaveLength(24);
     expect(iso(picked[0]!.time)).toBe("2026-03-10T04:00:00.000Z");
     expect(barsOfDay([daily("2026-03-09")], "1w", window)).toEqual([]);
+  });
+});
+
+describe("trades against daily candles", () => {
+  it("a trade counts under the candle it closed in, not under its UTC date", () => {
+    // A stock source stamps daily candles at New York midnight (05:00Z in winter).
+    const stock = ["2026-03-02", "2026-03-03"].map((d) => ({
+      ...daily(d),
+      time: Date.parse(`${d}T05:00:00Z`),
+    }));
+    // 22:00 New York on 03-02 is 03:00Z on 03-03, still inside the 03-02 candle.
+    expect(iso(dailyBarAt(stock, Date.parse("2026-03-03T03:00:00Z"))!.time)).toBe(
+      "2026-03-02T05:00:00.000Z",
+    );
+    expect(dailyBarAt(stock, Date.parse("2026-03-02T04:59:00Z"))).toBeUndefined();
+  });
+
+  it("a trade on a day without a candle (a weekend on a stock) counts under none", () => {
+    const friday = [{ ...daily("2026-03-06"), time: Date.parse("2026-03-06T05:00:00Z") }];
+    expect(dailyBarAt(friday, Date.parse("2026-03-07T15:00:00Z"))).toBeUndefined();
+    expect(dailyBarAt([], Date.parse("2026-03-07T15:00:00Z"))).toBeUndefined();
+  });
+
+  it("a daily candle stands for the journal day holding most of its hours", () => {
+    const bar = daily("2026-03-10");
+    expect(journalDayOf(bar, "UTC")).toBe("2026-03-10");
+    expect(journalDayOf(bar, "America/New_York")).toBe("2026-03-10");
+    expect(journalDayOf(bar, "Asia/Kolkata")).toBe("2026-03-10");
+    // In Auckland (UTC+13) a UTC candle spends 13 of its 24 hours on the next day.
+    expect(journalDayOf(bar, "Pacific/Auckland")).toBe("2026-03-11");
   });
 });

@@ -66,6 +66,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Password protection now verifies the session signature on every API route. Previously, when `JOURNAL_PASSWORD` was set, any request carrying a cookie of the right name was accepted, so a forged cookie could read the journal.
 - Journal day reviews in time zones west of UTC: the "range against the average" no longer counts the day itself among the previous days, and a chart from a daily candle file describes the day by that day's candle instead of the next one
 - A journal day in a time zone whose clocks spring forward at midnight (Chile, Cuba, Paraguay) starts at 01:00 that day instead of 23:00 the evening before
+- AI "similar earlier days": each trade counts under the daily candle it closed in and the day being reviewed is typed from its own daily candle, so trades no longer land on the neighbouring day and days are compared like with like. "Results by day type" matches trades to candles the same way, which fixes sources whose daily candles open at the exchange's midnight
 
 ## [0.1.0] - 2026-09-03
 

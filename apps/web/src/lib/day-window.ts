@@ -1,3 +1,4 @@
+import { dayKeyOf } from "@luxalgo/journal-core";
 import { RESOLUTIONS, type MarketBar, type Resolution } from "./market-data";
 import { zonedToUtc } from "./market-sessions";
 
@@ -55,3 +56,27 @@ export function dailyBarsBefore(
 ): MarketBar[] {
   return bars.filter((bar) => bar.time + DAY_MS <= from).slice(-count);
 }
+
+/**
+ * The daily candle whose day contains `time` (bars ascending), or undefined when none does
+ * (a weekend on a stock). Matches a trade to the candle it happened in, whatever midnight
+ * the source stamps its candles at.
+ */
+export function dailyBarAt(bars: readonly MarketBar[], time: number): MarketBar | undefined {
+  let lo = 0;
+  let hi = bars.length - 1;
+  let found: MarketBar | undefined;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const bar = bars[mid]!;
+    if (bar.time <= time) {
+      found = bar;
+      lo = mid + 1;
+    } else hi = mid - 1;
+  }
+  return found && time < found.time + DAY_MS ? found : undefined;
+}
+
+/** The journal day a daily candle stands for: the one holding most of its hours. */
+export const journalDayOf = (bar: MarketBar, timeZone: string) =>
+  dayKeyOf(new Date(bar.time + DAY_MS / 2).toISOString(), timeZone);
