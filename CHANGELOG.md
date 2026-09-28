@@ -76,6 +76,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Live charts show the candle still forming, as documented: the server dropped it from chart history, so polled sources (Alpaca, OANDA) showed the last finished close (up to a whole candle old, a day on 1d) and a Coinbase chart started today's candle at the first streamed trade, with the wrong open, high, low and volume. Background alerts on polled sources also follow the forming candle now. Estimates still use finished candles only
 - Coinbase live candles no longer count the last trade again on every reconnect (Coinbase re-sends it when subscribing)
 - A slow history answer for a chart or timeframe you already left no longer sets the price header, and so can no longer fire line alerts for every line between two symbols' prices. A chart that fails to open shows why and releases its data feed and indicator worker
+- Charts on built candle sizes (4h, 2h, 30m, 1w on most sources) no longer lose their newest candle, or on London Strategic Edge whole months, when scrolled to the deepest history: the finer candles asked for now always fit one request, and a capped answer keeps its newest candles
 
 ## [0.1.0] - 2026-09-03
 

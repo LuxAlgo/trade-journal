@@ -6,6 +6,7 @@ import {
   type Resolution,
 } from "@/lib/market-data";
 import type { MarketDataProvider } from "./provider";
+import { MAX_BARS } from "./http";
 
 /**
  * Serve every candle size from any source: sizes the source doesn't offer are built from
@@ -22,11 +23,16 @@ export function withAggregation(
       const base = AGGREGATE_FROM[request.resolution];
       if (!base || native.includes(request.resolution)) return provider.history(request, apiKey);
       const step = RESOLUTIONS[request.resolution];
-      // Start at the first bucket's open so its candle is complete.
-      const history = await provider.history(
-        { ...request, resolution: base, from: bucketStart(request.from, request.resolution) },
-        apiKey,
-      );
+      // Start at the first bucket's open so its candle is complete, but never earlier than
+      // one request of finer candles can hold: past that cap an adapter keeps the oldest
+      // candles, and the newest buckets (the ones a chart shows) would go missing.
+      let from = bucketStart(request.from, request.resolution);
+      const earliest = request.to - (MAX_BARS - 1) * RESOLUTIONS[base];
+      if (from < earliest) {
+        const bucket = bucketStart(earliest, request.resolution);
+        from = bucket === earliest ? bucket : bucket + step;
+      }
+      const history = await provider.history({ ...request, resolution: base, from }, apiKey);
       const bars = aggregateBars(history.bars, request.resolution).filter(
         (bar) => bar.time + step > request.from && bar.time < request.to,
       );

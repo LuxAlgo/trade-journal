@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { aggregateBars, bucketStart, type MarketBar } from "../src/lib/market-data";
 import { withAggregation } from "../src/server/market-data/aggregate";
+import { MAX_BARS } from "../src/server/market-data/http";
 import type { MarketDataProvider } from "../src/server/market-data/provider";
 import { DEFAULT_TIMEFRAMES, parseTimeframes, toggleTimeframe } from "../src/lib/chart-timeframes";
 import { matchKeys, matchingSymbols, symbolKey } from "../src/lib/symbol-match";
@@ -83,6 +84,41 @@ describe("larger candle sizes are built from finer candles", () => {
     expect(result.bars.map((b) => b.time)).toEqual([start + 4 * H, start + 8 * H]);
     expect(result.bars[0]).toMatchObject({ open: 4, high: 8, low: 3, close: 7.5, volume: 4 });
     expect(result.warnings.at(-1)).toMatch(/built from 1h/);
+  });
+
+  it("a deep window of built candles keeps the newest ones", async () => {
+    // A source that, like the adapters, keeps at most MAX_BARS candles from the start.
+    const history = vi.fn<MarketDataProvider["history"]>(async (request) => {
+      const first = Math.ceil(request.from / H) * H;
+      const count = Math.min(MAX_BARS, Math.ceil((request.to - first) / H));
+      return {
+        provider: "test",
+        symbol: request.symbol,
+        resolution: request.resolution,
+        bars: Array.from({ length: count }, (_, i) => bar(first + i * H, 1, 2, 0, 1)),
+        fetchedAt: "2026-09-01T00:00:00Z",
+        truncated: false,
+        warnings: [],
+      };
+    });
+    const provider = withAggregation({
+      id: "test",
+      name: "Test",
+      environmentKey: "",
+      history,
+      test: async () => {},
+    });
+    // What the history route asks for a 4h chart: the deepest span 1h candles allow.
+    const to = Date.parse("2026-09-01T00:00:00Z") + 30 * 60_000;
+    const result = await provider.history(
+      { symbol: "X", resolution: "4h", from: to - MAX_BARS * H, to },
+      "",
+    );
+    const asked = history.mock.calls[0]![0];
+    expect((asked.to - asked.from) / H).toBeLessThan(MAX_BARS);
+    expect(asked.from % (4 * H)).toBe(0);
+    // The candle holding `to` is there, whole buckets before it.
+    expect(result.bars.at(-1)!.time).toBe(Math.floor(to / (4 * H)) * 4 * H);
   });
 
   it("sizes the source serves natively pass straight through", async () => {

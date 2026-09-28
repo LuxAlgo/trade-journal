@@ -77,7 +77,8 @@ export function result(
     provider: name,
     symbol: request.symbol,
     resolution: request.resolution,
-    bars: rows.slice(0, MAX_BARS),
+    // Past the cap, the newest candles matter most (a chart's); estimates refuse it anyway.
+    bars: rows.slice(-MAX_BARS),
     fetchedAt: new Date().toISOString(),
     truncated: truncated || rows.length > MAX_BARS,
     quoteCurrency,
