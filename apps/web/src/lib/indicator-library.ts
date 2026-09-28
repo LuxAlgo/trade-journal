@@ -392,7 +392,10 @@ hline(20, "Lower", color=color.gray)`,
     source: `//@version=5
 indicator("CCI")
 len = input.int(20, "Length", minval=1)
-plot(ta.cci(hlc3, len), "CCI", color=color.teal)
+// A flat stretch has no deviation to measure against: no reading rather than 0.
+spread = ta.dev(hlc3, len)
+cci = ta.cci(hlc3, len)
+plot(spread == 0 ? na : cci, "CCI", color=color.teal)
 hline(100, "Upper", color=color.gray)
 hline(0, "Zero", color=color.new(color.gray, 60))
 hline(-100, "Lower", color=color.gray)`,
@@ -405,7 +408,10 @@ hline(-100, "Lower", color=color.gray)`,
     source: `//@version=5
 indicator("Williams %R")
 len = input.int(14, "Length", minval=1)
-plot(ta.wpr(len), "%R", color=color.purple)
+// A flat range has no position in it: no reading rather than 0 (which reads overbought).
+range = ta.highest(high, len) - ta.lowest(low, len)
+wpr = ta.wpr(len)
+plot(range == 0 ? na : wpr, "%R", color=color.purple)
 hline(-20, "Overbought", color=color.gray)
 hline(-80, "Oversold", color=color.gray)`,
   },
@@ -487,7 +493,10 @@ plot(ta.sma(volume, len), "Average", color=color.orange)`,
     source: `//@version=5
 indicator("MFI")
 len = input.int(14, "Length", minval=1)
-plot(ta.mfi(hlc3, len), "MFI", color=color.purple)
+// Without volume there is no money flow: no reading rather than 100.
+flow = math.sum(volume, len)
+mfi = ta.mfi(hlc3, len)
+plot(flow == 0 ? na : mfi, "MFI", color=color.purple)
 hline(80, "Overbought", color=color.gray)
 hline(20, "Oversold", color=color.gray)`,
   },

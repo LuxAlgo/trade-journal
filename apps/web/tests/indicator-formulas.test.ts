@@ -74,3 +74,33 @@ describe("the linear regression channel", () => {
     expect(Number.isFinite(out.Upper![99]!)).toBe(true);
   });
 });
+
+describe("oscillators without a reading", () => {
+  const flat = series(Array.from({ length: 60 }, () => 100)).map((c) => ({
+    ...c,
+    high: 100,
+    low: 100,
+  }));
+  const moving = series(Array.from({ length: 60 }, (_, i) => 100 + Math.sin(i / 3) * 4));
+
+  it("Williams %R and CCI show nothing on a flat market instead of an extreme", async () => {
+    expect((await plots("williams-r", flat))["%R"]!.at(-1)).toBeNaN();
+    expect((await plots("cci", flat)).CCI!.at(-1)).toBeNaN();
+  });
+
+  it("MFI shows nothing without volume instead of 100", async () => {
+    const volumeless = moving.map((c) => ({ ...c, volume: 0 }));
+    expect((await plots("mfi", volumeless)).MFI!.at(-1)).toBeNaN();
+  });
+
+  it("they read normally on a moving market with volume", async () => {
+    const wpr = (await plots("williams-r", moving))["%R"]!.at(-1)!;
+    const cci = (await plots("cci", moving)).CCI!.at(-1)!;
+    const mfi = (await plots("mfi", moving)).MFI!.at(-1)!;
+    expect(wpr).toBeGreaterThanOrEqual(-100);
+    expect(wpr).toBeLessThanOrEqual(0);
+    expect(Number.isFinite(cci)).toBe(true);
+    expect(mfi).toBeGreaterThanOrEqual(0);
+    expect(mfi).toBeLessThanOrEqual(100);
+  });
+});

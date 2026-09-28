@@ -72,6 +72,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Line alerts (on the page and in the background) no longer fire "crossed above" when price only touches a line, and no longer miss the real break that follows; a sloped line passing through a flat price now counts as a crossing
 - Support/resistance zones and day review levels count a touch or break by the first candle they scan (judged from its open), so a level tested at the day's open no longer reads "held (0 rejections)"
 - The built-in Linear regression channel draws its bands from the spread of the closes around the fitted line, as TradingView does; they used the spread around the mean, which on a trend made them many times too wide
+- Built-in Williams %R, CCI and MFI show no reading on a flat market or without volume, instead of a fixed value that read as an extreme (%R 0, MFI 100)
 
 ## [0.1.0] - 2026-09-03
 
