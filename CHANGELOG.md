@@ -77,6 +77,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - Coinbase live candles no longer count the last trade again on every reconnect (Coinbase re-sends it when subscribing)
 - A slow history answer for a chart or timeframe you already left no longer sets the price header, and so can no longer fire line alerts for every line between two symbols' prices. A chart that fails to open shows why and releases its data feed and indicator worker
 - Charts on built candle sizes (4h, 2h, 30m, 1w on most sources) no longer lose their newest candle, or on London Strategic Edge whole months, when scrolled to the deepest history: the finer candles asked for now always fit one request, and a capped answer keeps its newest candles
+- Charts no longer lose unsaved edits when you open another symbol or analysis while saving fails: the chart stays open with **Save and open** and **Open anyway**. A save asked for while another runs (leaving the page, **Add to journal**) now waits for the save that includes its edits, and a newer open always wins over a slower earlier one
+- If chart settings fail to load, changing a setting no longer overwrites your saved watchlist, symbol colours, looks and templates with the defaults; the page says the settings did not load
+- An indicator whose code fails when a chart reopens stays on the analysis with its error instead of being dropped by the next autosave
 
 ## [0.1.0] - 2026-09-03
 

@@ -36,11 +36,16 @@ export function createIndicatorBridge(
   /** Unsubscribers for each indicator's `ready` (compiled: real title and inputs known). */
   const readiness = new Map<string, () => void>();
   const errors = new Map<string, string>();
+  /**
+   * Saved indicators the chart could not add back. They stay in what is saved, with their
+   * error, until you remove or fix them: an autosave must never drop them silently.
+   */
+  const failed = new Map<string, ChartIndicator>();
   let restoring = false;
 
   const scriptHandles = () => instance.indicators().filter((h) => h.source !== undefined);
-  const snapshot = (): ChartIndicator[] =>
-    scriptHandles().map((h: IndicatorHandle) => ({
+  const snapshot = (): ChartIndicator[] => [
+    ...scriptHandles().map((h: IndicatorHandle) => ({
       id: h.id,
       ref: refs.get(h.id) ?? { kind: "inline" },
       // Until compiled, Vela shows a placeholder; the source already declares the title.
@@ -50,7 +55,9 @@ export function createIndicatorBridge(
       props: { ...h.propValues() },
       visible: h.visible,
       ...(errors.has(h.id) ? { error: errors.get(h.id) } : {}),
-    }));
+    })),
+    ...failed.values(),
+  ];
   const publish = (edited: boolean) => {
     if (!restoring) hooks.onChange(snapshot(), edited);
   };
@@ -115,7 +122,7 @@ export function createIndicatorBridge(
             if (!item.visible) handle.setVisible(false);
             watch(handle.id);
           } catch (error) {
-            errors.set(item.id, errorText(error));
+            failed.set(item.id, { ...item, error: errorText(error) });
           }
         }
       } finally {
@@ -141,7 +148,11 @@ export function createIndicatorBridge(
      */
     async replace(id: string, ref: IndicatorRef, source: string): Promise<RunResult> {
       const current = find(id);
-      if (!current) return this.add(ref, source);
+      if (!current) {
+        const result = await this.add(ref, source);
+        if (result.ok && failed.delete(id)) publish(true);
+        return result;
+      }
       const next = indicatorId();
       refs.set(next, ref);
       const result = await instance.runIndicator(source, {
@@ -160,15 +171,21 @@ export function createIndicatorBridge(
     },
     /** Point indicators at another source (a script saved from the editor). */
     relink(id: string, ref: IndicatorRef) {
-      if (!find(id)) return;
-      refs.set(id, ref);
+      const broken = failed.get(id);
+      if (broken) failed.set(id, { ...broken, ref });
+      else if (find(id)) refs.set(id, ref);
+      else return;
       publish(true);
     },
     remove(id: string) {
-      find(id)?.remove();
+      if (failed.delete(id)) publish(true);
+      else find(id)?.remove();
     },
     setVisible(id: string, visible: boolean) {
-      find(id)?.setVisible(visible);
+      const broken = failed.get(id);
+      if (!broken) return find(id)?.setVisible(visible);
+      failed.set(id, { ...broken, visible });
+      publish(true);
     },
     openSettings(id: string) {
       if (instance.renderer.supportsIndicatorSettings) instance.renderer.openIndicatorSettings(id);

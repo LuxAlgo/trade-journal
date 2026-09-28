@@ -105,6 +105,7 @@ import {
 import type { MarketCsvDataset } from "@/lib/market-csv";
 import { providerInfo } from "@/lib/market-providers";
 import { lineCrossings, type LineSides } from "@/lib/price-alerts";
+import { queueFlush } from "@/lib/save-queue";
 import { recentSymbols, type RecentSymbol } from "@/lib/recent-symbols";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn, fmtNumber } from "@/lib/utils";
@@ -230,6 +231,23 @@ interface ChartCapture {
 }
 
 /** What opening a chart asks for: a symbol, a saved analysis, or a day's version of one. */
+const mergeFlushOptions = (a: FlushOptions, b: FlushOptions): FlushOptions => ({
+  final: a.final || b.final,
+  create: a.create || b.create,
+});
+
+interface FlushOptions {
+  /** Leaving the chart: also refresh a stale snapshot image. */
+  final?: boolean;
+  /** Create the analysis even with nothing on it yet. */
+  create?: boolean;
+}
+/** How a flush went: `ok` false means the edits are still unsaved (the error is shown). */
+interface FlushResult {
+  ok: boolean;
+  id: string | null;
+}
+
 interface OpenTarget {
   provider?: string;
   dataset?: string | null;
@@ -242,6 +260,8 @@ interface OpenTarget {
   resolution?: Resolution;
   /** An analysis that is gone or open in another chart opens the symbol instead. */
   fallback?: boolean;
+  /** Open even though the current chart's edits could not be saved (they are lost). */
+  discard?: boolean;
 }
 
 /** Where the chart you are working on shows its controls: header, top card, below, sidebar. */
@@ -327,22 +347,28 @@ function ChartLab() {
   const scripts = useMemo(() => scriptData?.scripts ?? [], [scriptData]);
 
   // ── Chart preferences (looks, symbols, drawing defaults), saved on the server ──
-  const { data: prefsData } = useApi<{ preferences: ChartPreferences }>("/api/chart-preferences");
+  const { data: prefsData, error: prefsLoadError } = useApi<{ preferences: ChartPreferences }>(
+    "/api/chart-preferences",
+  );
   const [prefs, setPrefs] = useState<ChartPreferences>(DEFAULT_PREFERENCES);
   const [prefsReady, setPrefsReady] = useState(false);
   const [prefsError, setPrefsError] = useState("");
   const prefsRef = useRef(prefs);
   prefsRef.current = prefs;
+  /** Saving replaces every stored setting, so nothing is saved before they have loaded. */
+  const prefsLoaded = useRef(false);
   useEffect(() => {
     if (!prefsData || prefsReady) return;
     setPrefs(prefsData.preferences);
     prefsRef.current = prefsData.preferences;
+    prefsLoaded.current = true;
     setPrefsReady(true);
   }, [prefsData, prefsReady]);
   const prefsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savePrefs = useCallback((next: ChartPreferences) => {
     prefsRef.current = next;
     setPrefs(next);
+    if (!prefsLoaded.current) return;
     if (prefsTimer.current) clearTimeout(prefsTimer.current);
     prefsTimer.current = setTimeout(() => {
       postJson("/api/chart-preferences", prefsRef.current, "PUT")
@@ -612,9 +638,10 @@ function ChartLab() {
             })}
           </div>
           <div ref={setBelow} className="contents" />
-          {prefsError && (
+          {(prefsError || (prefsLoadError && !prefsReady)) && (
             <p role="alert" className="text-sm text-destructive">
-              {prefsError}
+              {prefsError ||
+                `Chart settings could not be loaded (${prefsLoadError}), so changes to them are not saved. Reload the page to try again.`}
             </p>
           )}
         </div>
@@ -704,6 +731,8 @@ const ChartBoard = memo(function ChartBoard({
   const [opening, setOpening] = useState(false);
   const openingRef = useRef(false);
   const [openError, setOpenError] = useState("");
+  /** An open refused because this chart's edits did not save: it can go ahead anyway. */
+  const [openBlocked, setOpenBlocked] = useState<OpenTarget | null>(null);
   const [showAll, setShowAll] = useState(false);
   const privacy = usePrivacy();
   const [zones, setZones] = useState<SrZone[]>([]);
@@ -806,8 +835,10 @@ const ChartBoard = memo(function ChartBoard({
   const saver = useRef({
     timer: null as ReturnType<typeof setTimeout> | null,
     dirty: false,
-    running: null as Promise<void> | null,
-    again: false,
+    /** The flush in progress, follow-up saves included. */
+    running: null as Promise<FlushResult> | null,
+    /** A flush asked for while one ran: saved once more, with these options, before it ends. */
+    again: null as FlushOptions | null,
     imageAt: 0,
     capture: null as ChartCapture | null,
     /** What the "All analyses" list shows of this analysis, as last saved. */
@@ -825,24 +856,31 @@ const ChartBoard = memo(function ChartBoard({
   };
 
   const flush = useCallback(
-    async (options: { final?: boolean; create?: boolean } = {}): Promise<string | null> => {
+    async (options: FlushOptions = {}): Promise<FlushResult> => {
       const s = saver.current;
       if (s.timer) clearTimeout(s.timer);
       s.timer = null;
-      if (s.running) {
-        s.again = true;
-        await s.running;
-        return state.current.analysisId;
-      }
+      return queueFlush(s, options, (next) => saveOnce(s, next), mergeFlushOptions);
+    },
+    [refreshAll, refreshSymbolAnalyses, refreshSnapshotDays, shell, paneId],
+  );
+
+  /** One save of the chart as it is now; not ok when it failed (the edits stay unsaved). */
+  const saveOnce = async (
+    s: (typeof saver)["current"],
+    options: FlushOptions,
+  ): Promise<FlushResult> => {
+    {
       const current = state.current;
+      const done = { ok: true, id: current.analysisId };
       // A day's version is read-only: nothing on the chart is saved while viewing it.
-      if (!current.board || current.viewing) return current.analysisId;
+      if (!current.board || current.viewing) return done;
       const refreshSnapshot =
         Boolean(current.analysisId) && options.final && Date.now() - s.imageAt >= SNAPSHOT_EVERY_MS;
-      if (!s.dirty && !options.create && !refreshSnapshot) return current.analysisId;
+      if (!s.dirty && !options.create && !refreshSnapshot) return done;
       const handle = chart.current;
       const captured = capture();
-      if (!captured) return current.analysisId;
+      if (!captured) return done;
       // Viewing a chart creates nothing; the first drawing, title or note does.
       const worth =
         captured.drawings.drawings.length > 0 ||
@@ -854,10 +892,10 @@ const ChartBoard = memo(function ChartBoard({
       if (!current.analysisId && !worth && !options.create) {
         s.dirty = false;
         setSaveState({ state: "idle" });
-        return null;
+        return { ok: true, id: null };
       }
       const board = current.board;
-      const run = (async () => {
+      const ok = await (async () => {
         s.dirty = false;
         setSaveState({ state: "saving" });
         try {
@@ -921,26 +959,23 @@ const ChartBoard = memo(function ChartBoard({
           s.listed = listed;
           refreshSnapshotDays();
           if (state.current.board === board) setSaveState({ state: "saved", at: Date.now() });
+          return true;
         } catch (cause) {
-          if (state.current.board !== board) return;
           s.dirty = true;
-          setSaveState({
-            state: "error",
-            message: cause instanceof Error ? cause.message : "Could not save.",
-          });
+          if (state.current.board === board)
+            setSaveState({
+              state: "error",
+              message: cause instanceof Error ? cause.message : "Could not save.",
+            });
+          return false;
         }
       })();
-      s.running = run;
-      await run;
-      s.running = null;
-      if (s.again) {
-        s.again = false;
-        if (s.dirty) await flush();
-      }
-      return state.current.analysisId;
-    },
-    [refreshAll, refreshSymbolAnalyses, refreshSnapshotDays, shell, paneId],
-  );
+      return {
+        ok,
+        id: state.current.board === board ? state.current.analysisId : current.analysisId,
+      };
+    }
+  };
 
   const schedule = useCallback(() => {
     if (state.current.viewing) return;
@@ -1084,6 +1119,8 @@ const ChartBoard = memo(function ChartBoard({
 
   // ── Opening a chart ──
   const boardKey = useRef(0);
+  /** Each open's number: only the newest one may change the chart. */
+  const openSeq = useRef(0);
   const openBoard = useCallback(
     async (target: OpenTarget) => {
       // An analysis open in another chart is worked on there.
@@ -1094,17 +1131,36 @@ const ChartBoard = memo(function ChartBoard({
       }
       const wanted = target.analysisId && !elsewhere ? target.analysisId : null;
       const snapshotDay = wanted && target.snapshotDay ? target.snapshotDay : null;
+      const seq = ++openSeq.current;
+      /** A newer open started while this one waited: it owns the chart now. */
+      class Superseded extends Error {}
+      const check = () => {
+        if (seq !== openSeq.current) throw new Superseded();
+      };
       // Claimed before loading, so two charts opening at once never pick the same one.
       if (wanted) shell.hold(paneId, wanted);
       openingRef.current = true;
       setOpening(true);
       setOpenError("");
+      setOpenBlocked(null);
+      /** Save what the chart has; opening another would drop edits that did not save. */
+      const saveFirst = async () => {
+        const saved = await flush({ final: true });
+        check();
+        if (!saved.ok && !target.discard) {
+          setOpenBlocked(target);
+          throw new Error(
+            "This chart's latest changes could not be saved, so it stays open. Try again, or open the other chart anyway and lose them.",
+          );
+        }
+      };
       try {
-        await flush({ final: true });
+        await saveFirst();
         const read = async <T,>(url: string): Promise<T> => {
           const response = await fetch(url);
-          const body = await response.json();
-          if (!response.ok) throw new Error(body.error ?? "Request failed.");
+          const body = (await response.json().catch(() => ({}))) as { error?: string };
+          check();
+          if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status}).`);
           return body as T;
         };
         let analysis: ChartAnalysis | null = null;
@@ -1124,7 +1180,7 @@ const ChartBoard = memo(function ChartBoard({
             ).analysis;
           }
         } catch (cause) {
-          if (!target.fallback) throw cause;
+          if (cause instanceof Superseded || !target.fallback) throw cause;
         }
         if (!analysis && !target.fresh && target.provider && target.symbol) {
           // Each symbol reopens its latest analysis, drawings included, unless another
@@ -1142,16 +1198,19 @@ const ChartBoard = memo(function ChartBoard({
             ).analysis;
           }
         }
+        // Edits made while this loaded are saved too, before the chart changes.
+        if (saver.current.dirty || saver.current.running) await saveFirst();
         shell.hold(paneId, analysis?.id ?? null);
         const nextProvider = analysis?.provider ?? target.provider!;
         const nextSymbol = analysis?.symbol ?? target.symbol!.trim();
         const nextDataset = analysis ? analysis.dataset : (target.dataset ?? null);
         boardKey.current += 1;
+        if (saver.current.timer) clearTimeout(saver.current.timer);
         saver.current = {
           timer: null,
           dirty: false,
           running: null,
-          again: false,
+          again: null,
           imageAt: analysis ? Date.now() : 0,
           capture: null,
           listed: analysis ? `${analysis.title}|${analysis.drawings.drawings.length}` : "",
@@ -1215,11 +1274,14 @@ const ChartBoard = memo(function ChartBoard({
         setBoard(next);
         shell.addRecent({ provider: nextProvider, dataset: nextDataset, symbol: nextSymbol });
       } catch (cause) {
+        if (cause instanceof Superseded) return;
         shell.hold(paneId, state.current.analysisId);
         setOpenError(cause instanceof Error ? cause.message : "Could not open the chart.");
       } finally {
-        openingRef.current = false;
-        setOpening(false);
+        if (seq === openSeq.current) {
+          openingRef.current = false;
+          setOpening(false);
+        }
       }
     },
     [flush, shell, paneId],
@@ -1609,7 +1671,9 @@ const ChartBoard = memo(function ChartBoard({
     setJournalDay(day);
     setJournalStatus(null);
     try {
-      const id = await flush({ final: true, create: true });
+      const saved = await flush({ final: true, create: true });
+      if (!saved.ok) throw new Error("Save the chart first: its latest changes are not saved.");
+      const id = saved.id;
       if (!id) throw new Error("Open a chart first.");
       await postJson(
         `/api/analyses/${encodeURIComponent(id)}`,
@@ -1852,9 +1916,23 @@ const ChartBoard = memo(function ChartBoard({
           </div>
         )}
         {openError && (
-          <p role="alert" className="text-sm text-destructive">
-            {openError}
-          </p>
+          <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+            <span>{openError}</span>
+            {openBlocked && (
+              <>
+                <Button size="sm" variant="outline" onClick={() => void openBoard(openBlocked)}>
+                  Save and open
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void openBoard({ ...openBlocked, discard: true })}
+                >
+                  Open anyway
+                </Button>
+              </>
+            )}
+          </div>
         )}
         {board && (
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -2440,7 +2518,7 @@ const ChartBoard = memo(function ChartBoard({
                 disabledReason={
                   viewing ? "A day's version is read-only; open the live analysis." : undefined
                 }
-                ensureAnalysis={() => flush({ create: true })}
+                ensureAnalysis={() => flush({ create: true }).then((saved) => saved.id)}
               />
             </SectionCard>
 
