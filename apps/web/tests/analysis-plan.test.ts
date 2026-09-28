@@ -64,6 +64,16 @@ describe("a plan's scenarios are graded from the day's candles", () => {
     expect(suggestOutcome(scenario({ trigger: null }), [bar(0, 101, 99)]).outcome).toBe("unclear");
   });
 
+  it("a trigger candle that also reaches the target or the invalidation is unclear", () => {
+    const s = scenario({ trigger: 100, target: 103, invalidation: 98 });
+    // Reached 97.5 in the trigger candle: stopped out, or not yet triggered, unknowable.
+    expect(suggestOutcome(s, [bar(0, 101.5, 97.5), bar(1, 104, 100)]).outcome).toBe("unclear");
+    // Reached 103.2 in the trigger candle, then pulled back: not "still open".
+    const pulled = suggestOutcome(s, [bar(0, 103.2, 99), bar(1, 101, 99.5)]);
+    expect(pulled.outcome).toBe("unclear");
+    expect(pulled.reason).toContain("reached the trigger and the target");
+  });
+
   it("warns when a scenario's prices sit on the wrong sides", () => {
     expect(scenarioWarning(scenario())).toBeNull();
     expect(scenarioWarning(scenario({ target: 90 }))).toMatch(/target sits above/);

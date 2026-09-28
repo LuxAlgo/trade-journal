@@ -68,6 +68,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - A journal day in a time zone whose clocks spring forward at midnight (Chile, Cuba, Paraguay) starts at 01:00 that day instead of 23:00 the evening before
 - AI "similar earlier days": each trade counts under the daily candle it closed in and the day being reviewed is typed from its own daily candle, so trades no longer land on the neighbouring day and days are compared like with like. "Results by day type" matches trades to candles the same way, which fixes sources whose daily candles open at the exchange's midnight
 - Day review trade times are shown in the journal's time zone (they were in the browser's), and the section is named "Trades opened this day" to say which trades it lists. Economic event times on charts and in the calendar list name their time zone
+- Plan grading: a scenario whose trigger candle also reached its target or invalidation is suggested as unclear. It was graded from the following candles only, so a stop hit in the trigger candle could read as played out, and a target reached there as still open
 
 ## [0.1.0] - 2026-09-03
 

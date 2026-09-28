@@ -351,7 +351,7 @@ On a journal day, each analysis has a **Day review** (under its picture), loaded
 - **Plan**: each scenario with the grade the candles suggest, and why: **played out**
   (triggered, then reached the target first), **invalidated** (reached the invalidation
   first), **not triggered**, **triggered, still open**, or **unclear** (one candle reached
-  both, or there is no trigger price). **Accept** keeps the suggestion; the selector sets any
+  both, the candle that triggered it also reached either, or there is no trigger price). **Accept** keeps the suggestion; the selector sets any
   grade. Grades are stored per day apart from the day's version, so later saves never
   overwrite them; a grade for a scenario later removed from that day's plan no longer counts.
 - **Trades opened this day**: the trades on the analysis's symbol opened that journal day

@@ -127,7 +127,8 @@ export interface OutcomeSuggestion {
 /**
  * What the day's candles say about a scenario: it triggers on the first candle that trades
  * through its trigger, then plays out or is invalidated by whichever of target and
- * invalidation a later candle reaches first. One candle reaching both is unclear.
+ * invalidation a later candle reaches first. One candle reaching both is unclear, and so is
+ * a trigger candle that also reaches either: inside one candle the order is unknown.
  */
 export function suggestOutcome(
   scenario: PlanScenario,
@@ -144,15 +145,23 @@ export function suggestOutcome(
   const long = scenario.direction === "long";
   let triggeredAt: number | null = null;
   for (const bar of bars) {
-    if (triggeredAt === null) {
-      if (bar.low <= trigger && bar.high >= trigger) triggeredAt = bar.time;
-      continue;
-    }
     const hitTarget =
       scenario.target !== null && (long ? bar.high >= scenario.target : bar.low <= scenario.target);
     const hitStop =
       scenario.invalidation !== null &&
       (long ? bar.low <= scenario.invalidation : bar.high >= scenario.invalidation);
+    if (triggeredAt === null) {
+      if (bar.low > trigger || bar.high < trigger) continue;
+      triggeredAt = bar.time;
+      if (hitTarget || hitStop)
+        return {
+          outcome: "unclear",
+          triggeredAt,
+          resolvedAt: bar.time,
+          reason: `The candle at ${fmtTime(bar.time)} reached the trigger and the ${hitTarget ? (hitStop ? "target and invalidation" : "target") : "invalidation"}; which came first is unknown.`,
+        };
+      continue;
+    }
     if (hitTarget && hitStop)
       return {
         outcome: "unclear",
