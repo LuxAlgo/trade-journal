@@ -445,7 +445,11 @@ export function createChartOverlays(
             panel: {
               items: [
                 { type: "field", label: "Impact", value: e.impact },
-                { type: "field", label: "Time", value: new Date(e.time).toLocaleString() },
+                {
+                  type: "field",
+                  label: "Time",
+                  value: new Date(e.time).toLocaleString([], { timeZoneName: "short" }),
+                },
                 ...(e.forecast
                   ? [{ type: "field" as const, label: "Forecast", value: e.forecast }]
                   : []),

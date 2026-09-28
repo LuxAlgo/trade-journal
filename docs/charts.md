@@ -354,7 +354,9 @@ On a journal day, each analysis has a **Day review** (under its picture), loaded
   both, or there is no trigger price). **Accept** keeps the suggestion; the selector sets any
   grade. Grades are stored per day apart from the day's version, so later saves never
   overwrite them; a grade for a scenario later removed from that day's plan no longer counts.
-- **Trades this day**: the day's trades on the analysis's symbol, each linked to this plan,
+- **Trades opened this day**: the trades on the analysis's symbol opened that journal day
+  (times in the journal's time zone; a trade held overnight counts on the day it was taken
+  from the plan, while the journal's P&L counts it on the day it closed), each linked to this plan,
   to one of its scenarios, or to nothing. A trade entered within 0.3% of a scenario's trigger,
   in its direction, suggests that scenario. The totals compare trades from the plan with the
   rest. A trade belongs to one analysis at a time.

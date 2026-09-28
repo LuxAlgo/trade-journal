@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { postJson, useApi } from "@/lib/use-api";
 import { fmtPrice } from "@/lib/analysis-text";
+import { formatTimestamp } from "@/lib/timezone";
 import {
   OUTCOMES,
   OUTCOME_LABELS,
@@ -40,9 +41,10 @@ export function DayReview({ analysisId, date }: { analysisId: string; date: stri
     reviews: ScenarioReview[];
     changes: { since: string; list: string[] } | null;
   }>(open ? `${base}/review` : null);
-  const { data: tradeData, refresh: refreshTrades } = useApi<{ trades: DayTrade[] }>(
-    open ? `${base}/trades` : null,
-  );
+  const { data: tradeData, refresh: refreshTrades } = useApi<{
+    trades: DayTrade[];
+    timeZone: string;
+  }>(open ? `${base}/trades` : null);
   const [problem, setProblem] = useState("");
   const action = priceData?.priceAction;
   const plan = reviewData?.plan;
@@ -156,7 +158,13 @@ export function DayReview({ analysisId, date }: { analysisId: string; date: stri
           </section>
         )}
         {open && tradeData && (
-          <TradesSection analysisId={analysisId} plan={plan} trades={trades} onLink={link} />
+          <TradesSection
+            analysisId={analysisId}
+            plan={plan}
+            trades={trades}
+            timeZone={tradeData.timeZone}
+            onLink={link}
+          />
         )}
       </div>
     </details>
@@ -221,20 +229,23 @@ function TradesSection({
   analysisId,
   plan,
   trades,
+  timeZone,
   onLink,
 }: {
   analysisId: string;
   plan: AnalysisPlan | undefined;
   trades: DayTrade[];
+  /** The journal's: the day's trades were picked by it. */
+  timeZone: string;
   onLink: (trade: DayTrade, linked: boolean, scenarioId: string | null) => void;
 }) {
   if (!trades.length)
-    return <p className="text-muted-foreground">No trades on this symbol this day.</p>;
+    return <p className="text-muted-foreground">No trades on this symbol opened this day.</p>;
   const own = new Set(trades.filter((t) => t.link?.analysisId === analysisId).map((t) => t.key));
   const stats = planTradeStats(trades, own);
   return (
-    <section className="space-y-1" aria-label="Trades this day">
-      <p className="font-medium">Trades this day</p>
+    <section className="space-y-1" aria-label="Trades opened this day">
+      <p className="font-medium">Trades opened this day</p>
       <p className="text-muted-foreground">
         From this plan: {stats.onPlan.trades} (<Pnl value={stats.onPlan.netPnl} />) · Not from it:{" "}
         {stats.offPlan.trades} (<Pnl value={stats.offPlan.netPnl} />)
@@ -249,10 +260,7 @@ function TradesSection({
                 {t.direction.toUpperCase()} {t.symbol} @ {fmtPrice(t.avgEntry)} ·{" "}
                 <Pnl value={t.netPnl} />{" "}
                 <span className="text-muted-foreground">
-                  {new Date(t.openedAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {formatTimestamp(t.openedAt, timeZone).slice(11, 16)}
                 </span>
               </span>
               <select

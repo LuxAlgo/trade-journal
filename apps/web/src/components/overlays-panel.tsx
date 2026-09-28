@@ -220,6 +220,7 @@ export function OverlaysPanel({
                           weekday: "short",
                           hour: "2-digit",
                           minute: "2-digit",
+                          timeZoneName: "short",
                         })}
                       </span>{" "}
                       {eventSummary(e)}

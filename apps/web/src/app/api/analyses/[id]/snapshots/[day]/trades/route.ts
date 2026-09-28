@@ -18,7 +18,8 @@ const read = async (context: Context) => {
 export const GET = handler(async (_request: Request, context: Context) => {
   const { day, snapshot } = await read(context);
   if (!snapshot) return bad("That day has no version of this analysis.", 404);
-  return ok({ trades: dayTradesFor(snapshot, day, getTimeZone()) });
+  const timeZone = getTimeZone();
+  return ok({ trades: dayTradesFor(snapshot, day, timeZone), timeZone });
 });
 
 /**
@@ -46,5 +47,6 @@ export const PUT = handler(async (request: Request, context: Context) => {
     trade.key,
     body.linked ? { analysisId: id, scenarioId: scenarioId as string | null } : null,
   );
-  return ok({ trades: dayTradesFor(snapshot, day, getTimeZone()) });
+  const timeZone = getTimeZone();
+  return ok({ trades: dayTradesFor(snapshot, day, timeZone), timeZone });
 });
