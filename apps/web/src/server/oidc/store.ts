@@ -54,12 +54,19 @@ export interface LoginTransaction {
 }
 
 export const TRANSACTION_TTL_MS = 10 * 60_000;
+/** Logins in progress kept at most; anyone can start one, so the table stays bounded. */
+const MAX_PENDING_LOGINS = 1000;
 
 /** Store a transaction; returns the id for the browser's cookie. */
 export function saveTransaction(transaction: LoginTransaction): string {
   const id = newId();
   const sql = client();
   sql.prepare("DELETE FROM oidc_login_transactions WHERE expires_at <= ?").run(now());
+  sql
+    .prepare(
+      "DELETE FROM oidc_login_transactions WHERE id_hash IN (SELECT id_hash FROM oidc_login_transactions ORDER BY expires_at DESC LIMIT -1 OFFSET ?)",
+    )
+    .run(MAX_PENDING_LOGINS - 1);
   sql
     .prepare(
       "INSERT INTO oidc_login_transactions (id_hash, state, nonce, code_verifier, return_to, expires_at) VALUES (?, ?, ?, ?, ?, ?)",

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import * as client from "openid-client";
 import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify, type JWTPayload } from "jose";
 import { oidcConfig, type OidcSettings } from "./config";
@@ -34,7 +35,10 @@ export class OidcError extends Error {
   }
 }
 
-/** Only the error's own message, never its `cause` (which can hold token responses). */
+/**
+ * Log a failure by message only: never an error object, whose properties (`cause` details,
+ * response bodies) can hold tokens. Messages name the check that failed, not the values.
+ */
 export function logOidcFailure(stage: string, error: unknown) {
   const code = error instanceof OidcError ? error.code : "unexpected";
   const message = error instanceof Error ? error.message.slice(0, 300) : "unknown error";
@@ -68,8 +72,15 @@ const DISCOVERY_TTL_MS = 24 * 3600_000;
 const HTTP_TIMEOUT_SECONDS = 10;
 let discovered: { key: string; at: number; config: Promise<client.Configuration> } | null = null;
 
+/** What the discovered client depends on (a rotated secret or new redirect URI starts over). */
 const settingsKey = (s: OidcSettings) =>
-  JSON.stringify([s.issuer.href, s.clientId, Boolean(s.clientSecret), s.allowHttp]);
+  JSON.stringify([
+    s.issuer.href,
+    s.clientId,
+    s.clientSecret ? createHash("sha256").update(s.clientSecret).digest("hex") : null,
+    s.redirectUri.href,
+    s.allowHttp,
+  ]);
 
 /** Forget the discovered provider (tests, or a provider that changed its keys or endpoints). */
 export function resetOidcDiscovery() {

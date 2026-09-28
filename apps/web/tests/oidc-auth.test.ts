@@ -32,7 +32,7 @@ const CLIENT_SECRET = "s3cret-client-value-that-is-long-enough-for-hs256-0123456
 let provider: TestProvider;
 const warnings: string[] = [];
 
-function configure(env: Record<string, string | undefined> = {}) {
+function configure(env: Record<string, string | undefined> = {}, reset = true) {
   const base: Record<string, string | undefined> = {
     JOURNAL_PASSWORD: "",
     JOURNAL_OIDC_ISSUER: provider.issuer,
@@ -52,7 +52,7 @@ function configure(env: Record<string, string | undefined> = {}) {
     ...env,
   };
   for (const [key, value] of Object.entries(base)) vi.stubEnv(key, value ?? "");
-  resetOidcDiscovery();
+  if (reset) resetOidcDiscovery();
 }
 
 /** Every cookie a response sets, by name, with its attributes. */
@@ -205,6 +205,17 @@ describe("signing in with an OpenID Connect provider", () => {
     expect(await canRead(second)).toBe(true);
   });
 
+  it("on https, both cookies are Secure", async () => {
+    configure({ JOURNAL_PUBLIC_URL: "https://journal.example.com" });
+    const { location, transaction, response: start } = await startLogin();
+    expect(setCookies(start).get("journal_oidc_login")!.attributes).toContain("Secure");
+    expect(new URL(location).searchParams.get("redirect_uri")).toBe(
+      "https://journal.example.com/api/auth/oidc/callback",
+    );
+    const response = await callback(provider.authorize(location), transaction);
+    expect(setCookies(response).get("journal_session")!.attributes).toContain("Secure");
+  });
+
   it("an unsafe return path goes home instead of off-site", async () => {
     for (const next of ["//evil.example", "https://evil.example/x", "/\\evil.example"]) {
       const { response } = await signIn({}, next);
@@ -247,6 +258,31 @@ describe("the callback refuses what it did not ask for", () => {
     const { location, transaction } = await startLogin();
     db.$client.prepare("UPDATE oidc_login_transactions SET expires_at = ?").run(Date.now() - 1);
     expect(errorOf(await callback(provider.authorize(location), transaction))).toBe("state");
+  });
+
+  it("logins in progress stay bounded, the newest kept", async () => {
+    db.$client.prepare("DELETE FROM oidc_login_transactions").run();
+    const insert = db.$client.prepare(
+      "INSERT INTO oidc_login_transactions (id_hash, state, nonce, code_verifier, return_to, expires_at) VALUES (?, 's', 'n', 'v', '/', ?)",
+    );
+    for (let i = 0; i < 1200; i += 1) insert.run(`old-${i}`, Date.now() + 60_000 + i);
+    const { location, transaction } = await startLogin();
+    const count = db.$client.prepare("SELECT COUNT(*) AS n FROM oidc_login_transactions").get() as {
+      n: number;
+    };
+    expect(count.n).toBe(1000);
+    // The login just started survives the trim and completes.
+    expect(
+      (await callback(provider.authorize(location), transaction)).headers.get("location"),
+    ).toBe("/trades");
+  });
+
+  it("a rotated client secret is used on the next sign-in", async () => {
+    await signIn();
+    configure({ JOURNAL_OIDC_CLIENT_SECRET: "rotated-secret" }, false);
+    // Discovery is not reset here: the new secret alone must take effect (and fail).
+    const { location, transaction } = await startLogin();
+    expect(errorOf(await callback(provider.authorize(location), transaction))).toBe("token");
   });
 
   it("a code issued for another login fails the PKCE check", async () => {
