@@ -273,13 +273,19 @@ fill(a, b, color=spanA > spanB ? color.new(color.green, 85) : color.new(color.re
     key: "linreg",
     name: "Linear regression channel",
     category: "Trend",
-    description: "Least-squares trend line with bands two deviations away.",
+    description:
+      "Least-squares trend line with bands two deviations of the closes from the line away.",
     source: `//@version=5
 indicator("Linear regression", overlay=true)
 len = input.int(100, "Length", minval=2)
 mult = input.float(2, "Deviations", step=0.5)
 mid = ta.linreg(close, len, 0)
-dev = ta.stdev(close, len)
+// The spread of the closes around the fitted line (not around their mean).
+slope = mid - ta.linreg(close, len, 1)
+float squares = 0.0
+for i = 0 to len - 1
+    squares += math.pow(close[i] - (mid - slope * i), 2)
+dev = math.sqrt(squares / len)
 plot(mid, "Regression", color=color.orange, linewidth=2)
 plot(mid + mult * dev, "Upper", color=color.new(color.orange, 50))
 plot(mid - mult * dev, "Lower", color=color.new(color.orange, 50))`,
