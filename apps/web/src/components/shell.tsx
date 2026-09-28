@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { LuxAlgoMark } from "@/components/luxalgo-mark";
 import { PrivacyToggle } from "./privacy";
 import { ThemeToggle } from "./theme";
+import { SignOutButton } from "./sign-out";
 import { PageTransition } from "./page-transition";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
@@ -234,6 +235,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               {navigation()}
               <div className="border-t p-3">
                 <PrivacyToggle />
+                <SignOutButton />
               </div>
               {footer}
             </DialogPrimitive.Content>
@@ -284,6 +286,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="w-full space-y-1">
             <ThemeToggle iconOnly={sidebarCollapsed} />
             <PrivacyToggle iconOnly={sidebarCollapsed} />
+            <SignOutButton iconOnly={sidebarCollapsed} />
           </div>
         </div>
         {footer}

@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Sign in with an OpenID Connect provider such as Authentik, Keycloak or Zitadel (`JOURNAL_OIDC_*` settings, see [docs/authentication.md](docs/authentication.md)): authorization code flow with PKCE, state and nonce, ID token signature and claim validation, an allow-list of groups, verified emails or subjects, server-side sessions, **Sign out** in the sidebar (optionally ending the provider session too) and back-channel logout. Password sign-in keeps working and can be used alongside it
 - Chart analyses carry a trading plan: bias, playbook and scenarios with trigger, target and invalidation prices (a price can be taken from the selected line)
 - Journal days review each analysis: what price did against its levels and zones, the day type (trend or range, quiet or volatile, news), each scenario's grade suggested from the day's candles and confirmed by you, the day's trades linked to the plan or a scenario with on-plan and off-plan totals, and what changed since the previous day's version
 - Daily journal: a weekly AI review (trades, plan grades, trades from a plan, Keep and Fix lessons) and results by day type
