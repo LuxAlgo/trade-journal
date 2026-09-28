@@ -81,6 +81,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - If chart settings fail to load, changing a setting no longer overwrites your saved watchlist, symbol colours, looks and templates with the defaults; the page says the settings did not load
 - An indicator whose code fails when a chart reopens stays on the analysis with its error instead of being dropped by the next autosave
 - Smaller chart fixes: Title and Notes are read-only while viewing a day's version (typing there was discarded); an ink colour added from the colour picker is remembered after a reload; a script too deep for the indicator worker skips it on every chart, not only the one that found out; the day review shows when its plan or trades fail to load; a source that returns no candles says so instead of "Loading candles…"
+- The Template menu works from the keyboard: **D** stars the focused template and **Delete** deletes one of yours, and saving a look opens a small dialog (the name field inside the menu could not be reached with Tab)
 
 ## [0.1.0] - 2026-09-03
 

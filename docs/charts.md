@@ -236,12 +236,13 @@ settings on the journal server, so every browser has them.
 - **Template** on the chart toolbar works on the selected drawings (select one on the chart
   or click it in the Layers panel), or on the tool you just chose when nothing is selected.
   Click a template to apply it to every selected drawing of that tool.
-- **Save its look as…** saves the selected drawing's look under a name; saving under a name
-  you already used for that tool updates it. Style the drawing first with Vela's own controls
+- **Save its look as a template…** asks for a name and saves the selected drawing's look
+  under it; saving under a name you already used for that tool updates it. Style the drawing first with Vela's own controls
   (the Levels dialog edits Fibonacci ratios and colours). The bin deletes one of yours.
 - The **star** makes a template the one new drawings of that tool start with (it wins over
   "remember the last style used"); starring it again goes back to the last style used. With no
-  drawing selected, clicking a template stars it.
+  drawing selected, clicking a template stars it. From the keyboard, on a template in the
+  menu, **D** stars it and **Delete** deletes one of yours.
 - Built-in templates: Fibonacci retracement (classic levels, golden pocket 0.618 to 0.65,
   optimal trade entry 0.62 / 0.705 / 0.79, retracement with targets to 2.618, minimal grey),
   Fibonacci extension and trend-based extension (classic targets, wave 3 and 5 targets), and
