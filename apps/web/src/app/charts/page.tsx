@@ -2247,7 +2247,7 @@ const ChartBoard = memo(function ChartBoard({
                   id="analysis-title"
                   value={title}
                   maxLength={200}
-                  disabled={!board}
+                  disabled={!board || Boolean(viewing)}
                   placeholder={board ? `${board.symbol} · ${resolution}` : "Opening range levels"}
                   onChange={(event) => {
                     setTitle(event.target.value);
@@ -2262,7 +2262,7 @@ const ChartBoard = memo(function ChartBoard({
                   id="analysis-notes"
                   value={notes}
                   rows={3}
-                  disabled={!board}
+                  disabled={!board || Boolean(viewing)}
                   placeholder="Thesis, levels to watch, invalidation…"
                   onChange={(event) => {
                     setNotes(event.target.value);
@@ -2635,7 +2635,12 @@ function LivePrice({ store }: { store: LiveStore }) {
         </>
       ) : (
         status.state !== "error" && (
-          <span className="text-sm text-muted-foreground">Loading candles…</span>
+          <span className="text-sm text-muted-foreground">
+            {/* Candles arrived (updatedAt) but none: say so rather than load forever. */}
+            {status.updatedAt
+              ? "No candles from this source for this symbol and candle size."
+              : "Loading candles…"}
+          </span>
         )
       )}
       {status.state !== "error" && status.updatedAt && (

@@ -78,13 +78,19 @@ describe("scripts too deep for the worker run on the page instead", () => {
     const worker = fakeEngine("worker", { prepare: /deep/ });
     const page = fakeEngine("page");
     const engine = new FallbackPineEngine(worker.engine, () => page.engine);
-    const { models, errors } = await run(engine, "deep script");
+    const { models, errors } = await run(engine, "deep compile script");
     await settle();
     expect(models).toEqual([{ from: "page" }]);
     expect(errors).toEqual([]);
-    // Remembered: the next chart that opens it skips the worker.
-    await run(engine, "deep script");
+    // Remembered: running it again, or on the next chart that opens it, skips the worker.
+    await run(engine, "deep compile script");
+    const next = fakeEngine("worker", { prepare: /deep/ });
+    await run(
+      new FallbackPineEngine(next.engine, () => fakeEngine("page").engine),
+      "deep compile script",
+    );
     expect(worker.spy.prepare).toHaveBeenCalledTimes(1);
+    expect(next.spy.prepare).not.toHaveBeenCalled();
   });
 
   it("a script that overflows the worker while running moves to the page with its latest inputs", async () => {
@@ -92,7 +98,7 @@ describe("scripts too deep for the worker run on the page instead", () => {
     const page = fakeEngine("page");
     const { session, models, errors } = await run(
       new FallbackPineEngine(worker.engine, () => page.engine),
-      "deep script",
+      "deep run script",
       { Length: 14 },
     );
     session.update({ Length: 21 });
@@ -109,7 +115,7 @@ describe("scripts too deep for the worker run on the page instead", () => {
       fakeEngine("worker", { prepare: /deep/ }).engine,
       () => fakeEngine("page", { prepare: /deep/ }).engine,
     );
-    await expect(engine.prepare("deep script", "ind-1")).rejects.toThrow(TOO_DEEP_MESSAGE);
+    await expect(engine.prepare("deep for both script", "ind-1")).rejects.toThrow(TOO_DEEP_MESSAGE);
   });
 
   it("other script errors pass through unchanged", async () => {

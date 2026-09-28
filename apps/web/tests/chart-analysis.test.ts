@@ -163,6 +163,13 @@ describe("stylus preferences only restore known choices", () => {
       ),
     ).toEqual({ ...DEFAULT_STYLUS, penDraws: false, penTool: "highlighter" });
   });
+
+  it("keeps an ink colour you added from the colour picker", () => {
+    expect(parseStylusPreference(JSON.stringify({ color: "#12ab9f" })).color).toBe("#12ab9f");
+    expect(parseStylusPreference(JSON.stringify({ color: "url(x)" })).color).toBe(
+      DEFAULT_STYLUS.color,
+    );
+  });
 });
 
 describe("saved chart analyses", () => {

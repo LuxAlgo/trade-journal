@@ -35,6 +35,8 @@ type Values = Parameters<ExecutionSession["update"]>[0];
 
 /** Sources remembered as too deep for the worker, so reopening a chart skips the failed try. */
 const MAX_REMEMBERED = 50;
+/** Shared by every chart on the page (each chart makes its own engine). */
+const tooDeep = new Set<string>();
 
 export class FallbackPineEngine implements ScriptingEngine {
   readonly language = "pine";
@@ -44,7 +46,6 @@ export class FallbackPineEngine implements ScriptingEngine {
   private readonly onMain = new WeakSet<PreparedScript>();
   /** What each worker-prepared script was made from, to prepare it again on the page. */
   private readonly origins = new WeakMap<PreparedScript, { source: string; id: string }>();
-  private readonly tooDeep = new Set<string>();
 
   constructor(
     private readonly worker: ScriptingEngine & { terminate?: () => void },
@@ -65,9 +66,9 @@ export class FallbackPineEngine implements ScriptingEngine {
   }
 
   private remember(source: string) {
-    this.tooDeep.add(source);
-    if (this.tooDeep.size > MAX_REMEMBERED)
-      this.tooDeep.delete(this.tooDeep.values().next().value!);
+    tooDeep.delete(source);
+    tooDeep.add(source);
+    if (tooDeep.size > MAX_REMEMBERED) tooDeep.delete(tooDeep.values().next().value!);
   }
 
   private async prepareOnPage(source: string, id: string): Promise<PreparedScript> {
@@ -82,7 +83,7 @@ export class FallbackPineEngine implements ScriptingEngine {
   }
 
   async prepare(source: string, id: string): Promise<PreparedScript> {
-    if (this.tooDeep.has(source)) return this.prepareOnPage(source, id);
+    if (tooDeep.has(source)) return this.prepareOnPage(source, id);
     try {
       const prepared = await this.worker.prepare(source, id);
       this.origins.set(prepared, { source, id });

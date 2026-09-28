@@ -36,12 +36,20 @@ export function DayReview({ analysisId, date }: { analysisId: string; date: stri
     priceAction: DayPriceAction | null;
     problem: string | null;
   }>(open ? `${base}/price-action` : null);
-  const { data: reviewData, refresh: refreshReview } = useApi<{
+  const {
+    data: reviewData,
+    error: reviewError,
+    refresh: refreshReview,
+  } = useApi<{
     plan: AnalysisPlan;
     reviews: ScenarioReview[];
     changes: { since: string; list: string[] } | null;
   }>(open ? `${base}/review` : null);
-  const { data: tradeData, refresh: refreshTrades } = useApi<{
+  const {
+    data: tradeData,
+    error: tradeError,
+    refresh: refreshTrades,
+  } = useApi<{
     trades: DayTrade[];
     timeZone: string;
   }>(open ? `${base}/trades` : null);
@@ -80,6 +88,16 @@ export function DayReview({ analysisId, date }: { analysisId: string; date: stri
         {problem && (
           <p role="alert" className="text-destructive">
             {problem}
+          </p>
+        )}
+        {reviewError && (
+          <p role="alert" className="text-destructive">
+            The plan and its grades could not be loaded: {reviewError}
+          </p>
+        )}
+        {tradeError && (
+          <p role="alert" className="text-destructive">
+            The day&apos;s trades could not be loaded: {tradeError}
           </p>
         )}
         <PriceActionSection

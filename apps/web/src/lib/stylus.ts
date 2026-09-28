@@ -1,3 +1,4 @@
+import { isHexColor } from "./style-validation";
 export type BrushTool = "freehand" | "highlighter";
 
 export interface StylusPreference {
@@ -44,9 +45,11 @@ export function parseStylusPreference(raw: string | null): StylusPreference {
     return {
       penDraws: typeof value.penDraws === "boolean" ? value.penDraws : DEFAULT_STYLUS.penDraws,
       penTool: isBrush(value.penTool) ? value.penTool : DEFAULT_STYLUS.penTool,
-      color: STYLUS_COLORS.some((c) => c.value === value.color)
-        ? value.color!
-        : DEFAULT_STYLUS.color,
+      // A built-in ink or one you added from the colour picker (a plain hex colour).
+      color:
+        STYLUS_COLORS.some((c) => c.value === value.color) || isHexColor(value.color)
+          ? value.color!
+          : DEFAULT_STYLUS.color,
       width: STYLUS_WIDTHS.some((w) => w.value === value.width)
         ? value.width!
         : DEFAULT_STYLUS.width,
