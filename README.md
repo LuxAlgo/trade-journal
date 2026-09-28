@@ -67,13 +67,16 @@ docker compose up -d
 
 ### Configuration (all optional)
 
-| Env var             | Effect                                                                                                   |
-| ------------------- | -------------------------------------------------------------------------------------------------------- |
-| `JOURNAL_PASSWORD`  | Require a password; recommended when accessible beyond localhost                                         |
-| `JOURNAL_SECRET`    | Encryption key source for credentials at rest (default: generated key file in the data dir)              |
-| `JOURNAL_DATA_DIR`  | Database, attachments, and local encryption key directory (default `./data` relative to the app process) |
-| `ANTHROPIC_API_KEY` | Anthropic AI key via env instead of the Settings page                                                    |
-| `OPENAI_API_KEY`    | OpenAI AI key via env instead of the Settings page                                                       |
+| Env var             | Effect                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `JOURNAL_PASSWORD`  | Require a password; recommended when accessible beyond localhost                                                   |
+| `JOURNAL_OIDC_*`    | Sign in through an OpenID Connect provider such as Authentik; see [docs/authentication.md](docs/authentication.md) |
+| `JOURNAL_SECRET`    | Encryption key source for credentials at rest (default: generated key file in the data dir)                        |
+| `JOURNAL_DATA_DIR`  | Database, attachments, and local encryption key directory (default `./data` relative to the app process)           |
+| `ANTHROPIC_API_KEY` | Anthropic AI key via env instead of the Settings page                                                              |
+| `OPENAI_API_KEY`    | OpenAI AI key via env instead of the Settings page                                                                 |
+
+**Single sign-on.** To sign in with Authentik, Keycloak or another OpenID Connect provider instead of (or as well as) a password, register `https://<your journal>/api/auth/oidc/callback` as the redirect URI at the provider and set `JOURNAL_PUBLIC_URL`, `JOURNAL_OIDC_ISSUER`, `JOURNAL_OIDC_CLIENT_ID`, `JOURNAL_OIDC_CLIENT_SECRET` and who may sign in (for example `JOURNAL_OIDC_ALLOWED_GROUPS`). The [authentication guide](docs/authentication.md) has every setting, the Authentik walkthrough and troubleshooting.
 
 Set these in the process environment or in `apps/web/.env.local` for local Next.js runs; the root [`.env.example`](.env.example) documents the optional values. For Docker, configure the service environment in [`docker-compose.yml`](docker-compose.yml).
 
