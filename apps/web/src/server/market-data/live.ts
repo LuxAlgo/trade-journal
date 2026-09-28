@@ -64,9 +64,14 @@ export function parseBinanceTrade(data: unknown): LiveTrade | null {
   return time === null || price === null || size === null ? null : [time, price, size];
 }
 
+/**
+ * Coinbase match: one trade. `last_match`, which Coinbase sends again on every (re)subscribe,
+ * is a trade the history's forming candle already holds; counting it would add its size
+ * again on every reconnect.
+ */
 export function parseCoinbaseMatch(data: unknown): LiveTrade | null {
   const m = data as Record<string, unknown> | null;
-  if (!m || (m.type !== "match" && m.type !== "last_match")) return null;
+  if (!m || m.type !== "match") return null;
   const time = Date.parse(typeof m.time === "string" ? m.time : "");
   const price = num(m.price);
   const size = num(m.size);

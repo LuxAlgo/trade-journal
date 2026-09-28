@@ -71,7 +71,7 @@ export const oanda: MarketDataProvider = {
       return validateBars(
         array(body.candles)
           .map(record)
-          .filter((row) => row.complete === true)
+          .filter((row) => row.complete === true || (request.forming && row.complete === false))
           .map((row) => {
             const mid = record(row.mid);
             return {

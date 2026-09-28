@@ -73,6 +73,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Support/resistance zones and day review levels count a touch or break by the first candle they scan (judged from its open), so a level tested at the day's open no longer reads "held (0 rejections)"
 - The built-in Linear regression channel draws its bands from the spread of the closes around the fitted line, as TradingView does; they used the spread around the mean, which on a trend made them many times too wide
 - Built-in Williams %R, CCI and MFI show no reading on a flat market or without volume, instead of a fixed value that read as an extreme (%R 0, MFI 100)
+- Live charts show the candle still forming, as documented: the server dropped it from chart history, so polled sources (Alpaca, OANDA) showed the last finished close (up to a whole candle old, a day on 1d) and a Coinbase chart started today's candle at the first streamed trade, with the wrong open, high, low and volume. Background alerts on polled sources also follow the forming candle now. Estimates still use finished candles only
+- Coinbase live candles no longer count the last trade again on every reconnect (Coinbase re-sends it when subscribing)
 
 ## [0.1.0] - 2026-09-03
 

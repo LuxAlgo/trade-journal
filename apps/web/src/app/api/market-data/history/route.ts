@@ -32,6 +32,8 @@ const fetchWindow = (r: Source, from: number, to: number) =>
       from,
       to,
       signal: r.signal,
+      // A chart shows the candle still forming: its current price.
+      forming: true,
     },
     connectionKey(r.provider.id),
   );

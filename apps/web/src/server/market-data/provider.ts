@@ -7,6 +7,11 @@ export interface HistoryRequest {
   from: number;
   to: number;
   signal?: AbortSignal;
+  /**
+   * Keep the candle still forming (a live chart's current price). Off by default: estimates
+   * and reviews use finished candles only.
+   */
+  forming?: boolean;
 }
 
 /** Adapters supply data only. Chart rendering and analytics do not depend on an adapter. */

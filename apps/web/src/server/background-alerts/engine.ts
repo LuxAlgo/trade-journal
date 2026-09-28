@@ -71,6 +71,8 @@ const defaultLatest: AlertEngineDeps["latest"] = async (rules, signal) => {
       from: now - 3 * step,
       to: now,
       signal,
+      // The current price is the forming candle's close, not the last finished one.
+      forming: true,
     },
     connectionKey(rules.provider),
   );

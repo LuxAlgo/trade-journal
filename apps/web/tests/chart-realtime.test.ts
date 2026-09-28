@@ -110,6 +110,15 @@ describe("exchange messages", () => {
       }),
     ).toEqual([t0 + 500, 84000, 0.2]);
     expect(live.parseCoinbaseMatch({ type: "subscriptions" })).toBeNull();
+    // Re-sent on every (re)subscribe: already in the forming candle, never counted again.
+    expect(
+      live.parseCoinbaseMatch({
+        type: "last_match",
+        time: "2026-09-26T10:00:00.5Z",
+        price: "84000",
+        size: "0.2",
+      }),
+    ).toBeNull();
   });
 
   it("only exchanges with a public stream get one", () => {
