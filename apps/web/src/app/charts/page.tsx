@@ -2297,7 +2297,8 @@ const ChartBoard = memo(function ChartBoard({
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={!board || Boolean(viewing)}
+                    // "Today" is the journal's: wait for its time zone before adding.
+                    disabled={!board || Boolean(viewing) || !settings}
                     onClick={() => void addToJournal()}
                   >
                     <BookOpenText /> Add
