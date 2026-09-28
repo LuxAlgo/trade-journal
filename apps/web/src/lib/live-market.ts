@@ -150,8 +150,19 @@ export class JournalMarketProvider implements DataProvider {
     },
   ) {}
 
+  /** Set once the chart is gone: late responses and timers report nothing. */
+  private disposed = false;
+  /** The timeframe of the newest "up to now" request; older ones' answers are stale. */
+  private current: string | null = null;
+
   private onStatus(status: LiveStatus) {
-    this.hooks.onStatus(status);
+    if (!this.disposed) this.hooks.onStatus(status);
+  }
+
+  /** The chart was removed: stop reporting (pending requests and polls become no-ops). */
+  dispose() {
+    this.disposed = true;
+    this.wakers.clear();
   }
 
   /** Newest candle time seen per timeframe, so a resumed poll fills the gap. */
@@ -161,6 +172,7 @@ export class JournalMarketProvider implements DataProvider {
 
   private latest(bars: OHLCV[], timeframe: string) {
     const bar = bars.at(-1);
+    if (this.disposed || (this.current !== null && timeframe !== this.current)) return;
     if (!bar || bar.time < (this.recent.get(timeframe)?.bar.time ?? 0)) return;
     this.lastTime.set(timeframe, Math.max(this.lastTime.get(timeframe) ?? 0, bar.time));
     const latest = { bar, previousClose: bars.at(-2)?.close ?? null };
@@ -213,11 +225,13 @@ export class JournalMarketProvider implements DataProvider {
   async getBars(ticker: string, timeframe: string, range: BarRange): Promise<OHLCV[]> {
     const resolution = resolutionForTimeframe(timeframe);
     if (!resolution) throw new Error(`Unsupported timeframe ${timeframe}.`);
+    // A request with no end is "up to now": its last candle is the current price. Only the
+    // newest such request may report it (a slow answer for the timeframe you left must not).
+    if (range.to == null) this.current = timeframe;
     try {
       // Vela treats a failed load as "no candles" and would leave the chart blank, so a
       // brief upstream hiccup is retried before it is reported.
       const bars = await retry(() => this.request(ticker, resolution, historyWindow(range)));
-      // A request with no end is "up to now": its last candle is the current price.
       if (range.to == null) this.latest(bars, timeframe);
       this.onStatus({ state: this.paused ? "paused" : "live", updatedAt: Date.now() });
       return bars;
@@ -259,7 +273,7 @@ export class JournalMarketProvider implements DataProvider {
         () => {
           publishTimer = null;
           publishedAt = Date.now();
-          if (stopped || !forming.bar) return;
+          if (stopped || this.disposed || !forming.bar) return;
           const latest = { bar: { ...forming.bar }, previousClose: forming.previousClose };
           this.recent.set(timeframe, latest);
           this.hooks.onLatest?.(latest);

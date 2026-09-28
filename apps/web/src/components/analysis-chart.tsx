@@ -492,6 +492,12 @@ export function AnalysisChart({
       ]);
       const { Vela } = vela;
       if (disposed || !host.current) return;
+      // Each resource registers its teardown as soon as it exists, so a setup that fails
+      // halfway still releases what it made; they run newest first.
+      const teardown: (() => void)[] = [];
+      cleanup = () => {
+        while (teardown.length) teardown.pop()!();
+      };
       applyPatternFixes(vela);
       const { drawings, visible } = seed.current;
       const step = RESOLUTIONS[resolutionRef.current];
@@ -512,6 +518,10 @@ export function AnalysisChart({
       });
       feed.setPaused(!liveRef.current);
       provider.current = feed;
+      teardown.push(() => {
+        feed.dispose();
+        if (provider.current === feed) provider.current = null;
+      });
       const name = velaProviderName(source.provider);
       const instance = new Vela(element, {
         symbol: `${name}:${symbol}`,
@@ -524,10 +534,16 @@ export function AnalysisChart({
         drawings: true,
         ...(visible ? { visibleRange: visible } : {}),
       });
+      let engine: FallbackPineEngine | null = null;
+      teardown.push(() => {
+        instance.destroy();
+        engine?.terminate();
+        if (chart.current === instance) chart.current = null;
+      });
       instance.data.registerProvider(name, feed);
       // Pine Script indicators run in a Web Worker so heavy scripts never block drawing.
       // Scripts too deep for the worker's smaller stack fall back to the page's thread.
-      const engine = new FallbackPineEngine(
+      engine = new FallbackPineEngine(
         new PineWorkerEngine({ props: "strategy" }),
         () => new PineEngine({ props: "strategy" }),
       );
@@ -549,6 +565,11 @@ export function AnalysisChart({
         onChange: (list, edited) => callbacks.current.onIndicatorsChange(list, edited),
         onAlert: (alert) => callbacks.current.onIndicatorAlert(alert),
       });
+      teardown.push(() => {
+        indicatorsSeed.current = indicators.list();
+        indicators.dispose();
+        if (bridge.current === indicators) bridge.current = null;
+      });
       indicators.restore(indicatorsSeed.current);
       bridge.current = indicators;
       const drawn = createChartOverlays(
@@ -566,6 +587,10 @@ export function AnalysisChart({
         overlayRef.current,
       );
       overlays.current = drawn;
+      teardown.push(() => {
+        drawn.dispose();
+        if (overlays.current === drawn) overlays.current = null;
+      });
 
       const refresh = () =>
         setUndoState({ undo: instance.drawings.canUndo(), redo: instance.drawings.canRedo() });
@@ -717,7 +742,7 @@ export function AnalysisChart({
       observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
       const resize = new ResizeObserver(() => instance.resize());
       resize.observe(element);
-      cleanup = () => {
+      teardown.push(() => {
         offs.forEach((off) => off());
         detachStylus();
         element.removeEventListener("keydown", onKey);
@@ -727,18 +752,13 @@ export function AnalysisChart({
           drawings: instance.drawings.toJSON() as unknown as DrawingsDocument,
           visible: instance.getVisibleRange(),
         };
-        drawn.dispose();
-        if (overlays.current === drawn) overlays.current = null;
-        indicatorsSeed.current = indicators.list();
-        indicators.dispose();
-        if (bridge.current === indicators) bridge.current = null;
-        instance.destroy();
-        engine.terminate();
-        if (chart.current === instance) chart.current = null;
-        if (provider.current === feed) provider.current = null;
-      };
-    })().catch(() => {
-      if (!disposed) setError("The chart could not be rendered.");
+      });
+    })().catch((error: unknown) => {
+      cleanup();
+      if (!disposed)
+        setError(
+          `The chart could not be rendered${error instanceof Error && error.message ? `: ${error.message}` : "."}`,
+        );
     });
     return () => {
       disposed = true;
