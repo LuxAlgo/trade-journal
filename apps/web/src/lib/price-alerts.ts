@@ -38,39 +38,45 @@ export function linePriceAt(line: AlertLine, time: number): number | null {
   return null;
 }
 
+/** The side of a line a price was last strictly on, per drawing id. */
+export type LineSides = Map<string, 1 | -1>;
+
 /**
- * Lines crossed between two consecutive closes. Touching the line from one side and
- * leaving on the other counts once; resting exactly on it does not repeat.
+ * Lines crossed between two consecutive closes: the close moved strictly to the other side
+ * of the line (priced at each close's time, so a sloped line passing a flat price counts).
+ * Touching the line and going back is not a crossing; resting on it and then leaving on
+ * the other side counts once. `sides` remembers the last strict side of each line across
+ * calls; without it a close exactly on the line has no side and the move off it is missed.
  */
 export function lineCrossings(
   lines: AlertLine[],
   previous: { time: number; close: number },
   next: { time: number; close: number },
+  sides?: LineSides,
 ): LineCrossing[] {
   if (!Number.isFinite(previous.close) || !Number.isFinite(next.close)) return [];
-  if (previous.close === next.close) return [];
   const crossings: LineCrossing[] = [];
   for (const line of lines) {
     if (line.visible === false || !ALERT_TYPES.has(line.type)) continue;
     const before = linePriceAt(line, previous.time);
     const after = linePriceAt(line, next.time);
     if (before === null || after === null) continue;
-    if (previous.close < before && next.close >= after)
-      crossings.push({
-        drawingId: line.id,
-        type: line.type,
-        price: after,
-        direction: "up",
-        time: next.time,
-      });
-    else if (previous.close > before && next.close <= after)
-      crossings.push({
-        drawingId: line.id,
-        type: line.type,
-        price: after,
-        direction: "down",
-        time: next.time,
-      });
+    // A strict side at the previous close wins over the remembered one (the line may have moved).
+    const was = Math.sign(previous.close - before) || (sides?.get(line.id) ?? 0);
+    const now = Math.sign(next.close - after);
+    if (now === 0) {
+      if (was !== 0) sides?.set(line.id, was as 1 | -1);
+      continue;
+    }
+    sides?.set(line.id, now as 1 | -1);
+    if (was === 0 || was === now) continue;
+    crossings.push({
+      drawingId: line.id,
+      type: line.type,
+      price: after,
+      direction: now > 0 ? "up" : "down",
+      time: next.time,
+    });
   }
   return crossings;
 }

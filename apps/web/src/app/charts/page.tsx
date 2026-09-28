@@ -104,7 +104,7 @@ import {
 } from "@/lib/market-data";
 import type { MarketCsvDataset } from "@/lib/market-csv";
 import { providerInfo } from "@/lib/market-providers";
-import { lineCrossings } from "@/lib/price-alerts";
+import { lineCrossings, type LineSides } from "@/lib/price-alerts";
 import { recentSymbols, type RecentSymbol } from "@/lib/recent-symbols";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn, fmtNumber } from "@/lib/utils";
@@ -719,6 +719,7 @@ const ChartBoard = memo(function ChartBoard({
   const [zoneEdge, setZoneEdge] = useState<{ time: number; price: number } | null>(null);
   const [missedPoint, setMissedPoint] = useState<{ time: number; price: number } | null>(null);
   const zoneOrigins = useRef(new Map<string, "above" | "below">());
+  const lineSides = useRef<LineSides>(new Map());
 
   // ── The open analysis ──
   const [analysisId, setAnalysisId] = useState<string | null>(null);
@@ -1182,6 +1183,7 @@ const ChartBoard = memo(function ChartBoard({
         state.current.plan = analysis?.plan ?? EMPTY_PLAN;
         setZoneStats({});
         zoneOrigins.current.clear();
+        lineSides.current.clear();
         setPlacing(null);
         setZoneEdge(null);
         setEditor(null);
@@ -1382,6 +1384,7 @@ const ChartBoard = memo(function ChartBoard({
         state.current.drawings.filter((d) => layerVisible(state.current.layers, d.id)),
         previous,
         bar,
+        lineSides.current,
       ).filter((hit) => now - (alertedAt.current.get(hit.drawingId) ?? 0) > ALERT_COOLDOWN_MS);
       if (!hits.length) return;
       const symbol = state.current.board?.symbol ?? "";

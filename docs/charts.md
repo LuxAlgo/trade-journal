@@ -261,7 +261,8 @@ Code: `lib/drawing-templates.ts` (model, validation, built-ins), `lib/wave-degre
 With **Line alerts** on, the page watches live closes and alerts when price crosses a visible
 horizontal line, horizontal ray, ray, extended line or trend line (trend lines are priced
 along their slope, within their span), and when price enters or breaks a support/resistance
-zone. Alerts appear in the card and, if you allow it, as browser notifications. Each line or
+zone. A crossing means a close strictly on the other side: touching a line and turning back
+does not alert, and resting on a line alerts once price leaves it on the other side. Alerts appear in the card and, if you allow it, as browser notifications. Each line or
 zone alerts at most once a minute per kind. Alerts only run while the page is open; there
 is no background service.
 

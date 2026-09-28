@@ -16,7 +16,12 @@ import {
   updateFolder,
   updateLayer,
 } from "../src/lib/chart-layers";
-import { lineCrossings, linePriceAt } from "../src/lib/price-alerts";
+import {
+  lineCrossings,
+  linePriceAt,
+  type AlertLine,
+  type LineSides,
+} from "../src/lib/price-alerts";
 import { historyWindow, resolutionForTimeframe, velaProviderName } from "../src/lib/live-market";
 import { mergeRecent, parseRecent } from "../src/lib/recent-symbols";
 import { drawingLabel } from "../src/lib/chart-analysis";
@@ -163,10 +168,87 @@ describe("line alerts fire when a live close crosses a drawn line", () => {
       { drawingId: "h", type: "hline", price: 100, direction: "up", time: 2 },
     ]);
     expect(
-      lineCrossings([hline], { time: 1, close: 101 }, { time: 2, close: 100 })[0]!.direction,
+      lineCrossings([hline], { time: 1, close: 101 }, { time: 2, close: 99 })[0]!.direction,
     ).toBe("down");
     expect(lineCrossings([hline], { time: 1, close: 100 }, { time: 2, close: 100 })).toEqual([]);
     expect(lineCrossings([hline], { time: 1, close: 101 }, { time: 2, close: 102 })).toEqual([]);
+  });
+
+  /** Feed closes one by one, as the chart and the background engine do. */
+  const run = (lines: AlertLine[], closes: [number, number][]) => {
+    const sides: LineSides = new Map();
+    return closes
+      .slice(1)
+      .map(([time, close], i) =>
+        lineCrossings(
+          lines,
+          { time: closes[i]![0], close: closes[i]![1] },
+          { time, close },
+          sides,
+        ).map((hit) => hit.direction),
+      );
+  };
+
+  it("touching a line and going back is not a crossing", () => {
+    // Price never trades above 100: no "crossed above".
+    expect(
+      run(
+        [hline],
+        [
+          [1, 99.5],
+          [2, 100],
+          [3, 99.5],
+          [4, 100],
+          [5, 99],
+        ],
+      ).flat(),
+    ).toEqual([]);
+  });
+
+  it("resting on a line and leaving on the other side counts once, when it leaves", () => {
+    expect(
+      run(
+        [hline],
+        [
+          [1, 99.5],
+          [2, 100],
+          [3, 100],
+          [4, 100.5],
+          [5, 101],
+        ],
+      ),
+    ).toEqual([[], [], ["up"], []]);
+  });
+
+  it("a sloped line passing through a flat price is a crossing", () => {
+    const falling: AlertLine = {
+      id: "f",
+      type: "extendedline",
+      anchors: [
+        { time: 0, price: 100.2 },
+        { time: 2, price: 99.8 },
+      ],
+    };
+    // The price sits at 100 while the line falls through it from above.
+    expect(
+      run(
+        [falling],
+        [
+          [0, 100],
+          [2, 100],
+          [3, 100.05],
+        ],
+      ),
+    ).toEqual([["up"], []]);
+  });
+
+  it("a line moved to the other side of the price is judged from where it is now", () => {
+    const sides: LineSides = new Map([["h", -1]]);
+    // Remembered below the line, but the line was dragged under the price: no crossing.
+    expect(lineCrossings([hline], { time: 1, close: 101 }, { time: 2, close: 102 }, sides)).toEqual(
+      [],
+    );
+    expect(sides.get("h")).toBe(1);
   });
 
   it("prices trend lines along their slope and only within their span", () => {

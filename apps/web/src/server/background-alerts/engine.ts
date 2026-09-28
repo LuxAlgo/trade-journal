@@ -1,7 +1,7 @@
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 import { RESOLUTIONS, type Resolution } from "@/lib/market-data";
 import { LIVE_POLL_MS, STREAMING_PROVIDERS, type LiveMessage } from "@/lib/live-market";
-import { ALERT_TYPES, lineCrossings, type AlertLine } from "@/lib/price-alerts";
+import { ALERT_TYPES, lineCrossings, type AlertLine, type LineSides } from "@/lib/price-alerts";
 import { zoneEvents, type SrZone } from "@/lib/sr-zones";
 import { drawingName, effectiveLayer, layerOf } from "@/lib/chart-layers";
 import { analysisEditPath, drawingLabel } from "@/lib/chart-analysis";
@@ -45,6 +45,7 @@ interface Watch extends Rules {
   version: string;
   last: { time: number; close: number } | null;
   origins: Map<string, "above" | "below">;
+  sides: LineSides;
   alertedAt: Map<string, number>;
   state: WatchState;
   error: string | null;
@@ -197,6 +198,7 @@ export class AlertEngine {
       version,
       last: null,
       origins: new Map(),
+      sides: new Map(),
       alertedAt: new Map(),
       state: "starting",
       error: null,
@@ -282,7 +284,7 @@ export class AlertEngine {
       watch.alertedAt.set(key, now);
       fired.push(zoneAlert(watch.analysisId, watch.symbol, event, zone));
     }
-    for (const hit of lineCrossings(watch.lines, previous, { time, close })) {
+    for (const hit of lineCrossings(watch.lines, previous, { time, close }, watch.sides)) {
       if (!ready(hit.drawingId)) continue;
       watch.alertedAt.set(hit.drawingId, now);
       const line = watch.lines.find((l) => l.id === hit.drawingId);
