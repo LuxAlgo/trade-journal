@@ -2,7 +2,7 @@ import type { MarketBar, Resolution } from "@/lib/market-data";
 import type { LayersDocument } from "@/lib/chart-layers";
 import type { StoredDrawing } from "@/lib/chart-analysis";
 import type { SrZone } from "@/lib/sr-zones";
-import { zonedToUtc } from "@/lib/market-sessions";
+import { DAY_MS, barsOfDay, dailyBarsBefore, dayWindow } from "@/lib/day-window";
 import {
   analysisLevels,
   describeDay,
@@ -51,26 +51,9 @@ interface Source {
   plan?: AnalysisPlan;
 }
 
-const DAY_MS = 86_400_000;
 const AVERAGE_DAYS = 14;
 /** Fine enough to judge a level, coarse enough for one request per day. */
 const INTRADAY: Resolution = "15m";
-
-/** A journal day's start and end in UTC, in the journal's time zone. */
-export function dayWindow(day: string, timeZone: string) {
-  const [year, month, date] = day.split("-").map(Number) as [number, number, number];
-  const from = zonedToUtc(year, month, date, 0, 0, timeZone);
-  const next = new Date(Date.UTC(year, month - 1, date + 1));
-  const to = zonedToUtc(
-    next.getUTCFullYear(),
-    next.getUTCMonth() + 1,
-    next.getUTCDate(),
-    0,
-    0,
-    timeZone,
-  );
-  return { from, to };
-}
 
 /** High-impact events stored from the economic calendar, on the symbol's currencies. */
 export function highImpactNews(symbol: string, from: number, to: number): string[] {
@@ -143,15 +126,21 @@ export async function dayPriceAction(
   try {
     bars = await candles(source, INTRADAY, from, to, signal);
   } catch {
-    // Some sources (a candle file) only have their own candle size.
+    // Some sources (a candle file) only have their own candle size. A daily candle is
+    // stamped at its own midnight, so fetch a day either side and pick the day's own.
     resolution = source.resolution;
-    bars = await candles(source, resolution, from, to, signal);
+    const wide = await candles(source, resolution, from - DAY_MS, to + DAY_MS, signal);
+    bars = barsOfDay(wide, resolution, { from, to });
   }
   const summary = sessionSummary(bars);
   if (!summary) return null;
   let averageRange: number | null = null;
   try {
-    const daily = await candles(source, "1d", from - AVERAGE_DAYS * DAY_MS, from, signal);
+    const daily = dailyBarsBefore(
+      await candles(source, "1d", from - (AVERAGE_DAYS + 2) * DAY_MS, from, signal),
+      from,
+      AVERAGE_DAYS,
+    );
     if (daily.length)
       averageRange = daily.reduce((sum, bar) => sum + (bar.high - bar.low), 0) / daily.length;
   } catch {

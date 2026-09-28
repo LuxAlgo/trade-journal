@@ -2,7 +2,7 @@ import { and, eq, gte, inArray, lt } from "drizzle-orm";
 import { chartTradeLinks, db, trades } from "@/db";
 import { matchKeys, symbolKey } from "@/lib/symbol-match";
 import { suggestScenario, type AnalysisPlan } from "@/lib/analysis-plan";
-import { dayWindow } from "./day-price-action";
+import { dayWindow } from "@/lib/day-window";
 import { nowIso } from "./ids";
 
 const DAY_MS = 86_400_000;

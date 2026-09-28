@@ -99,7 +99,20 @@ function zoned(time: number, timeZone: string) {
   };
 }
 
-/** The UTC instant of a wall-clock time in `timeZone` (two passes settle DST offsets). */
+/** How far `timeZone`'s wall clock is ahead of UTC at `time`, in ms. */
+function offsetAt(time: number, timeZone: string) {
+  const z = zoned(time, timeZone);
+  return (
+    Date.UTC(z.year, z.month - 1, z.day, z.hour, z.minute) - Math.floor(time / 60_000) * 60_000
+  );
+}
+
+/**
+ * The UTC instant of a wall-clock time in `timeZone`. A time that happens twice (clocks going
+ * back) is its first occurrence; a time skipped by clocks going forward moves forward by the
+ * gap, as JavaScript's Temporal does (midnight in Santiago on its switch day is 01:00 that
+ * day, not 23:00 the day before).
+ */
 export function zonedToUtc(
   year: number,
   month: number,
@@ -109,13 +122,13 @@ export function zonedToUtc(
   timeZone: string,
 ): number {
   const wall = Date.UTC(year, month - 1, day, hour, minute);
-  let guess = wall;
-  for (let pass = 0; pass < 2; pass += 1) {
-    const z = zoned(guess, timeZone);
-    const seen = Date.UTC(z.year, z.month - 1, z.day, z.hour, z.minute);
-    guess += wall - seen;
-  }
-  return guess;
+  // The offsets a day either side cover any single DST switch near `wall`.
+  const candidates = [
+    wall - offsetAt(wall - 86_400_000, timeZone),
+    wall - offsetAt(wall + 86_400_000, timeZone),
+  ];
+  const valid = candidates.filter((time) => time + offsetAt(time, timeZone) === wall);
+  return valid.length ? Math.min(...valid) : Math.max(...candidates);
 }
 
 const WEEKDAYS = new Set(["Mon", "Tue", "Wed", "Thu", "Fri"]);

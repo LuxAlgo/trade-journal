@@ -64,6 +64,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Pine scripts with very long expressions or condition chains no longer fail with "Maximum call stack size exceeded": a script too deep for the indicator worker runs on the page instead, and one too deep for both explains how to split it
 - Chart pattern tools: the Elliott impulse is placed on six points (0-1-2-3-4-5, five waves) and the correction on four (0-A-B-C, three waves), instead of Vela's five and three points; the Shark harmonic is labelled 0-X-A-B-C. Wave drawings made with the old point count keep their points and labels
 - Password protection now verifies the session signature on every API route. Previously, when `JOURNAL_PASSWORD` was set, any request carrying a cookie of the right name was accepted, so a forged cookie could read the journal.
+- Journal day reviews in time zones west of UTC: the "range against the average" no longer counts the day itself among the previous days, and a chart from a daily candle file describes the day by that day's candle instead of the next one
+- A journal day in a time zone whose clocks spring forward at midnight (Chile, Cuba, Paraguay) starts at 01:00 that day instead of 23:00 the evening before
 
 ## [0.1.0] - 2026-09-03
 
