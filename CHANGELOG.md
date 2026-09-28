@@ -70,6 +70,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Day review trade times are shown in the journal's time zone (they were in the browser's), and the section is named "Trades opened this day" to say which trades it lists. Economic event times on charts and in the calendar list name their time zone
 - Plan grading: a scenario whose trigger candle also reached its target or invalidation is suggested as unclear. It was graded from the following candles only, so a stop hit in the trigger candle could read as played out, and a target reached there as still open
 - Line alerts (on the page and in the background) no longer fire "crossed above" when price only touches a line, and no longer miss the real break that follows; a sloped line passing through a flat price now counts as a crossing
+- Support/resistance zones and day review levels count a touch or break by the first candle they scan (judged from its open), so a level tested at the day's open no longer reads "held (0 rejections)"
 
 ## [0.1.0] - 2026-09-03
 

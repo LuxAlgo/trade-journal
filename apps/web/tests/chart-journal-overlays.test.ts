@@ -238,6 +238,29 @@ describe("support and resistance zones behave as price ranges", () => {
     expect(stats).toMatchObject({ role: "resistance", status: "testing", position: "inside" });
   });
 
+  it("the first candle counts from its open: a test at the open is a touch or a break", () => {
+    const withOpen = (time: number, open: number, high: number, low: number, close: number) => ({
+      ...hl(time, high, low, close),
+      open,
+    });
+    // Opens above 100-102, wicks to 100.5, closes back above: a rejection.
+    expect(zoneStats(zone(), [withOpen(1, 103, 104, 100.5, 103.5)])).toMatchObject({
+      touches: 1,
+      breaks: 0,
+      status: "holding",
+    });
+    // Opens above and closes below on the first candle: a break.
+    expect(zoneStats(zone(), [withOpen(1, 103, 104, 98, 98.5)])).toMatchObject({
+      breaks: 1,
+      status: "broken",
+    });
+    // The live tracker agrees tick by tick.
+    const tracker = zoneStatsTracker();
+    const bars = [withOpen(1, 103, 104, 100.5, 103.5), withOpen(2, 103.5, 104, 99, 99.5)];
+    for (let i = 1; i <= bars.length; i += 1)
+      expect(tracker.stats(zone(), bars.slice(0, i))).toEqual(zoneStats(zone(), bars.slice(0, i)));
+  });
+
   it("ignores candles before the zone was drawn", () => {
     expect(zoneStats(zone({ start: 3 }), [hl(1, 101, 97, 98), hl(3, 106, 104, 105)]).breaks).toBe(
       0,

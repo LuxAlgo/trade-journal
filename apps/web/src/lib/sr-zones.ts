@@ -33,6 +33,8 @@ const ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 interface Bar {
   time: number;
+  /** Where the first scanned candle came from; without it that candle only sets the side. */
+  open?: number;
   high: number;
   low: number;
   close: number;
@@ -66,9 +68,14 @@ function scanBar(scan: ZoneScan, zone: SrZone, bar: Bar) {
   const side = sideOf(bar.close, zone);
   const entered = bar.low <= zone.high && bar.high >= zone.low;
   if (scan.previous === null) {
-    scan.previous = side;
-    scan.origin = side === "inside" ? null : side;
-    return;
+    if (bar.open === undefined || !Number.isFinite(bar.open)) {
+      scan.previous = side;
+      scan.origin = side === "inside" ? null : side;
+      return;
+    }
+    // The first candle is judged from its open, so a test at the open counts.
+    scan.previous = sideOf(bar.open, zone);
+    scan.origin = scan.previous === "inside" ? null : scan.previous;
   }
   if (side === "inside") {
     if (scan.previous !== "inside") scan.origin = scan.previous;

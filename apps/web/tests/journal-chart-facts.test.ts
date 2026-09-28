@@ -185,6 +185,15 @@ describe("a journal day's price action is judged against the analysis", () => {
     expect(outcome({ label: "zone", low: 97.5, high: 98.5 })).toBe("testing");
   });
 
+  it("a level tested by the day's first candle counts that rejection", () => {
+    // Opens at 101, wicks to 100, closes at 101.2; later candles stay above.
+    const opening = [bar(0, 101, 101.5, 100, 101.2), bar(15, 101.2, 103, 101, 102.5)];
+    expect(levelOutcome({ label: "support", low: 100, high: 100 }, opening)).toMatchObject({
+      status: "held",
+      touches: 1,
+    });
+  });
+
   it("takes levels from lines, rays that have started, Fibonacci levels and zones; never hidden ones", () => {
     const drawings = [
       drawing("h", "hline", [[0, 105]]),
