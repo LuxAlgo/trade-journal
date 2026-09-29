@@ -3,7 +3,7 @@ import { accounts, db } from "@/db";
 import { handler, ok, requireValue } from "@/server/api";
 import { getTimeZone } from "@/server/settings";
 import { queryTrades } from "@/server/trades-query";
-import { calendarInsights, calendarScope } from "@/lib/calendar-insights";
+import { calendarInsights, calendarRunningPnl, calendarScope } from "@/lib/calendar-insights";
 
 /** Only compute the visible month, not every dashboard/report breakdown. */
 export const GET = handler(async (request: Request) => {
@@ -47,5 +47,12 @@ export const GET = handler(async (request: Request) => {
     );
     currencies.sort();
   }
-  return ok({ calendar, insights: calendarInsights(calendar), timeZone, currencies, scope });
+  return ok({
+    calendar,
+    insights: calendarInsights(calendar),
+    runningPnl: currencies.length <= 1 ? calendarRunningPnl(trades, timeZone) : {},
+    timeZone,
+    currencies,
+    scope,
+  });
 });

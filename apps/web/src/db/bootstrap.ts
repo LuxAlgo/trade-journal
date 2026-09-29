@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   credentials_enc TEXT,
   auto_sync INTEGER NOT NULL DEFAULT 0,
   last_sync_at TEXT,
+  ibkr_sync_time_zone TEXT,
   snapshot_json TEXT,
   archived_at TEXT,
   created_at TEXT NOT NULL

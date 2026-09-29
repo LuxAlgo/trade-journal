@@ -111,3 +111,24 @@ export const queryTrades = (
 
 export const getTradeByKey = (key: string): TradeRow | undefined =>
   db.select().from(trades).where(eq(trades.key, key)).get();
+
+/** Navigate chronologically within the active filters, with a stable tie-break for equal entries. */
+export const getAdjacentTradeKeys = (
+  currentKey: string,
+  filters: TradeFilters = {},
+  accountId?: string,
+) => {
+  const ordered = queryTrades(filters)
+    .trades.filter((trade) => !accountId || trade.accountId === accountId)
+    .sort((a, b) => {
+      const time = Date.parse(a.openedAt) - Date.parse(b.openedAt);
+      return time || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+    });
+  const index = ordered.findIndex((trade) => trade.key === currentKey);
+  return {
+    prevKey: index > 0 ? (ordered[index - 1]?.key ?? null) : null,
+    nextKey: index >= 0 ? (ordered[index + 1]?.key ?? null) : null,
+    position: index >= 0 ? index + 1 : null,
+    total: ordered.length,
+  };
+};

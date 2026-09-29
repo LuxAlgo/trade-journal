@@ -16,6 +16,7 @@ import {
 } from "@luxalgo/journal-core";
 import { asc } from "drizzle-orm";
 import { accounts, db, playbooks } from "@/db";
+import { calendarRunningPnl } from "@/lib/calendar-insights";
 import { handler, ok } from "@/server/api";
 import { getTimeZone } from "@/server/settings";
 import { queryTrades, type TradeFilters } from "@/server/trades-query";
@@ -39,6 +40,20 @@ export const GET = handler(async (request: Request) => {
   const today = dayKeyOf(new Date().toISOString(), timeZone);
   const calendarYear = Number(url.searchParams.get("calYear") ?? today.slice(0, 4));
   const calendarMonthNum = Number(url.searchParams.get("calMonth") ?? today.slice(5, 7));
+  const calendarPrefix = `${calendarYear}-${String(calendarMonthNum).padStart(2, "0")}`;
+  const calendarTrades = trades.filter(
+    (trade) =>
+      trade.status !== "open" &&
+      trade.closedAt &&
+      dayKeyOf(trade.closedAt, timeZone).startsWith(calendarPrefix),
+  );
+  const calendarCurrencies = [
+    ...new Set(
+      calendarTrades.length
+        ? calendarTrades.map((trade) => accountCurrencies.get(trade.accountId) ?? "USD")
+        : selected.map((account) => account.currency),
+    ),
+  ];
 
   return ok({
     timeZone,
@@ -51,6 +66,8 @@ export const GET = handler(async (request: Request) => {
     dailyCumulative: dailyCumulativeFromDays(days),
     equity,
     calendar: calendarMonthFromDays(days, calendarYear, calendarMonthNum),
+    calendarCurrencies,
+    runningPnl: calendarCurrencies.length <= 1 ? calendarRunningPnl(calendarTrades, timeZone) : {},
     buckets: {
       symbol: bySymbol(trades).slice(0, 20),
       tag: byTag(trades),

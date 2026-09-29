@@ -37,7 +37,7 @@ export function RelativeDrawdownBars({ data }: { data: RelativeDrawdownPoint[] }
             <BarChart
               data={chartData}
               margin={{ top: 2, right: 8, bottom: 0, left: 8 }}
-              barCategoryGap={0}
+              barCategoryGap="8%"
             >
               <CartesianGrid stroke={tokens.gridline} strokeWidth={1} vertical={false} />
               <XAxis
@@ -66,6 +66,8 @@ export function RelativeDrawdownBars({ data }: { data: RelativeDrawdownPoint[] }
                 dataKey="drawdownPct"
                 fill={tokens.loss}
                 fillOpacity={0.82}
+                stroke={tokens.loss}
+                strokeWidth={1}
                 isAnimationActive={false}
               />
             </BarChart>

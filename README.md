@@ -140,6 +140,11 @@ flowchart LR
 | **Prop firms**           | Evaluation and reset expenses, refunds, payout requests, partial receipts, reversals, cash ROI, account phases, renewal reminders, attachments, and generic cash CSV import/export. Separate from trade P&L.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | **Privacy & export**     | Privacy mode masks every monetary value (charts keep their shape) and persists across tabs. Trades export to CSV, reviews to PDF or PNG, and journal records to JSON; credentials, candle datasets, and attachment binaries are excluded from that export.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
+IBKR broker sync uses **Settings → Journal → Default import timezone** for Flex
+timestamps without an offset. Existing synced accounts with unknown or different
+timezone provenance require recovery into a separate account; see
+[IBKR timezone recovery](docs/importers.md#ibkr-broker-sync-and-timezone-recovery).
+
 ## Screenshots
 
 Captured from the local app with generated demo trades and fictional prop firm records. Expand a view to inspect it at full width.

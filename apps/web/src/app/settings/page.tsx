@@ -117,8 +117,9 @@ function Settings() {
                 disabled={!data}
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                Use your broker statement's timezone for timestamps without an offset. You can
-                override it for each file. Changing this setting affects future imports only.
+                Used for timestamps without an offset in file imports and IBKR broker sync. You can
+                override it for each file. Existing trades are not changed; correcting an IBKR
+                account's timezone requires a separate account for recovery.
               </p>
             </div>
             <div>

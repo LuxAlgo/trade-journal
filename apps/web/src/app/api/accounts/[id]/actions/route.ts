@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
 import { accounts, db, executions, trades } from "@/db";
-import { bad, handler, ok } from "@/server/api";
+import { bad, handler, ok, requireValue } from "@/server/api";
 import { nowIso } from "@/server/ids";
 import { rebuildAccount } from "@/server/rebuild";
 import { syncAccount } from "@/server/sync";
+import { ibkrTransferTimeZone } from "@/server/ibkr-sync-timezone";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -30,6 +31,7 @@ export const POST = handler(async (request: Request, { params }: Params) => {
       db.transaction((tx) => {
         tx.delete(trades).where(eq(trades.accountId, id)).run();
         tx.delete(executions).where(eq(executions.accountId, id)).run();
+        tx.update(accounts).set({ ibkrSyncTimeZone: null }).where(eq(accounts.id, id)).run();
       });
       return ok({ cleared: true });
     case "sync":
@@ -37,19 +39,38 @@ export const POST = handler(async (request: Request, { params }: Params) => {
     case "transfer": {
       if (!body.toAccountId) return bad("toAccountId is required");
       const destinationId = body.toAccountId;
+      requireValue(destinationId !== id, "Choose a different destination account.");
       const destination = db.select().from(accounts).where(eq(accounts.id, destinationId)).get();
       if (!destination) return bad("Destination account not found", 404);
 
       // Remember annotations before the move; trade keys are account-prefixed,
       // so after the rebuild they re-anchor under the destination's prefix.
       const sourceTrades = db.select().from(trades).where(eq(trades.accountId, id)).all();
-      db.transaction((tx) => {
-        tx.update(executions)
-          .set({ accountId: destinationId })
-          .where(eq(executions.accountId, id))
-          .run();
-        tx.delete(trades).where(eq(trades.accountId, id)).run();
-      });
+      db.transaction(
+        (tx) => {
+          const currentSource = tx.select().from(accounts).where(eq(accounts.id, id)).get();
+          const currentDestination = tx
+            .select()
+            .from(accounts)
+            .where(eq(accounts.id, destinationId))
+            .get();
+          requireValue(currentSource && currentDestination, "Account not found.");
+          const timeZone = ibkrTransferTimeZone(currentSource, currentDestination);
+          if (timeZone !== undefined) {
+            tx.update(accounts)
+              .set({ ibkrSyncTimeZone: timeZone })
+              .where(eq(accounts.id, destinationId))
+              .run();
+          }
+          tx.update(executions)
+            .set({ accountId: destinationId })
+            .where(eq(executions.accountId, id))
+            .run();
+          tx.delete(trades).where(eq(trades.accountId, id)).run();
+          tx.update(accounts).set({ ibkrSyncTimeZone: null }).where(eq(accounts.id, id)).run();
+        },
+        { behavior: "immediate" },
+      );
       rebuildAccount(destinationId);
 
       for (const source of sourceTrades) {
