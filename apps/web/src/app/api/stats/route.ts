@@ -18,7 +18,8 @@ import { asc } from "drizzle-orm";
 import { accounts, db, playbooks } from "@/db";
 import { calendarRunningPnl } from "@/lib/calendar-insights";
 import { handler, ok } from "@/server/api";
-import { getTimeZone } from "@/server/settings";
+import { getTimeZone, getCurrencyConversion } from "@/server/settings";
+import { currencyProjection } from "@/server/currency-conversion";
 import { queryTrades, type TradeFilters } from "@/server/trades-query";
 
 /** The entire dashboard in one request. */
@@ -27,12 +28,21 @@ export const GET = handler(async (request: Request) => {
   const timeZone = getTimeZone();
   const filters: TradeFilters = readFilters(url.searchParams);
 
-  const { trades } = queryTrades(filters);
+  const { trades: originalTrades } = queryTrades(filters);
   const accountRows = db.select().from(accounts).orderBy(asc(accounts.createdAt)).all();
   const selected = filters.accounts
-    ? accountRows.filter((a) => filters.accounts!.split(",").includes(a.id))
+    ? accountRows.filter((a) =>
+        filters
+          .accounts!.split(",")
+          .map((id) => id.trim())
+          .includes(a.id),
+      )
     : accountRows;
-  const initialBalance = selected.reduce((total, a) => total + a.initialBalance, 0);
+  const {
+    trades,
+    initialBalance,
+    scope: currencyScope,
+  } = currencyProjection(originalTrades, selected, getCurrencyConversion());
 
   const { metrics, days, equity } = computeOverview(trades, { timeZone, initialBalance });
   const accountCurrencies = new Map(accountRows.map((a) => [a.id, a.currency]));
@@ -47,27 +57,42 @@ export const GET = handler(async (request: Request) => {
       trade.closedAt &&
       dayKeyOf(trade.closedAt, timeZone).startsWith(calendarPrefix),
   );
-  const calendarCurrencies = [
-    ...new Set(
-      calendarTrades.length
-        ? calendarTrades.map((trade) => accountCurrencies.get(trade.accountId) ?? "USD")
-        : selected.map((account) => account.currency),
-    ),
-  ];
-
   return ok({
     timeZone,
-    currencies: [...new Set(trades.map((t) => accountCurrencies.get(t.accountId) ?? "USD"))],
+    currencies: currencyScope.monetary
+      ? [currencyScope.currency ?? "USD"]
+      : currencyScope.sourceCurrencies,
+    currencyScope,
+    currencyGroups: currencyScope.monetary
+      ? []
+      : currencyScope.sourceCurrencies.map((currency) => {
+          const groupAccounts = selected.filter((account) => account.currency === currency);
+          const groupTrades = originalTrades.filter(
+            (trade) => accountCurrencies.get(trade.accountId) === currency,
+          );
+          return {
+            currency,
+            metrics: computeOverview(groupTrades, {
+              timeZone,
+              initialBalance: groupAccounts.reduce(
+                (sum, account) => sum + account.initialBalance,
+                0,
+              ),
+            }).metrics,
+          };
+        }),
     accounts: accountRows.map((a) => ({ id: a.id, name: a.name })),
     playbooks: db.select({ id: playbooks.id, name: playbooks.name }).from(playbooks).all(),
-    metrics,
-    edgeScore: computeEdgeScore(metrics),
+    metrics: currencyScope.monetary ? metrics : null,
+    edgeScore: currencyScope.monetary ? computeEdgeScore(metrics) : null,
     days,
     dailyCumulative: dailyCumulativeFromDays(days),
     equity,
     calendar: calendarMonthFromDays(days, calendarYear, calendarMonthNum),
-    calendarCurrencies,
-    runningPnl: calendarCurrencies.length <= 1 ? calendarRunningPnl(calendarTrades, timeZone) : {},
+    calendarCurrencies: currencyScope.monetary
+      ? [currencyScope.currency ?? "USD"]
+      : currencyScope.sourceCurrencies,
+    runningPnl: currencyScope.monetary ? calendarRunningPnl(calendarTrades, timeZone) : {},
     buckets: {
       symbol: bySymbol(trades).slice(0, 20),
       tag: byTag(trades),
@@ -78,7 +103,7 @@ export const GET = handler(async (request: Request) => {
       duration: byDuration(trades),
       direction: byDirection(trades),
     },
-    openPositions: trades
+    openPositions: originalTrades
       .filter((t) => t.status === "open")
       .map((t) => ({
         key: t.key,
@@ -87,8 +112,9 @@ export const GET = handler(async (request: Request) => {
         openedAt: t.openedAt,
         quantity: t.openQuantity,
         avgEntry: t.avgEntry,
+        currency: accountCurrencies.get(t.accountId) ?? "USD",
       })),
-    recentTrades: [...trades]
+    recentTrades: [...(currencyScope.monetary ? trades : originalTrades)]
       .filter((t) => t.status !== "open")
       .sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? ""))
       .slice(0, 10)
@@ -97,6 +123,9 @@ export const GET = handler(async (request: Request) => {
         symbol: t.symbol,
         closedAt: t.closedAt,
         netPnl: t.netPnl,
+        currency: currencyScope.monetary
+          ? (currencyScope.currency ?? "USD")
+          : (accountCurrencies.get(t.accountId) ?? "USD"),
         status: t.status,
       })),
     initialBalance,

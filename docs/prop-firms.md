@@ -96,7 +96,7 @@ Preview validates the whole file, shows counts and the first five rows, and roll
 
 Maximum file size is 2 MB, with 1,000 rows per batch. Convert a bank or firm export to this documented schema first; this release does not claim to recognize arbitrary bank CSVs. Pending payout requests and reversals use the manual forms.
 
-**Export cash CSV** downloads the filtered actual cash movements, including reversals, with their entry/account IDs and references. It is an analysis export with a different schema from the import template. Full **Settings → Export JSON** includes all prop accounts, entries, receipts and the complete audit trail, including archived/voided records. Attachment metadata is included; the attachment binaries require the existing full data-directory backup. JSON is an export format; this release does not add a general backup-restore importer.
+**Export cash CSV** downloads the filtered actual cash movements, including reversals, with their entry/account IDs and references. It is an analysis export with a different schema from the import template. **Settings → Data & backups → Full backup (JSON)** includes all prop accounts, entries, receipts and the complete audit trail, including archived/voided records. Attachment metadata is included; the attachment binaries require the existing full data-directory backup. JSON is an export format; this release does not add a general backup-restore importer.
 
 ## Implementation and reliability
 

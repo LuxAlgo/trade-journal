@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db, settings } from "@/db";
 import { decryptJson, encryptJson } from "./crypto";
 import { EMPTY_DEFAULTS, type JournalDefaults } from "@/lib/journal-defaults";
+import { DEFAULT_CONVERSION, parseCurrencyConversion } from "@/lib/currencies";
 import {
   AI_DEFAULT_MODELS,
   isAiProvider,
@@ -29,6 +30,13 @@ export const setSetting = (key: string, value: string): void => {
 
 export const deleteSetting = (key: string): void => {
   db.delete(settings).where(eq(settings.key, key)).run();
+};
+
+export const getCurrencyConversion = () => {
+  const saved = getSetting("currencyConversion");
+  if (!saved) return DEFAULT_CONVERSION;
+  // Invalid saved settings must not silently fall back to a different valuation.
+  return parseCurrencyConversion(JSON.parse(saved));
 };
 
 /** Journal display timezone (IANA), default UTC. */

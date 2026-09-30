@@ -70,6 +70,16 @@ selections beyond the defaults.
   price-implied gross meaningless)
 - Content-hash dedup on insert: re-importing the same file with the same timezone is a no-op
 
+## CSVs with hedged long and short positions
+
+The CSV column mapper and the declarative fills importers recognize **Open Long**, **Close Long**, **Open Short**, and **Close Short** in the side/action column. Keep these original labels: replacing them with Buy/Sell discards which position a fill belongs to. Long and short positions are matched separately within the selected journal account and symbol, including a source contract when supplied. Optional Position IDs separate independent positions on the same side. Original fills, open positions, partial closes, fees, and the account's FIFO/LIFO/weighted-average method are preserved.
+
+In **Import → File upload**, map the action column to **Side** if the format is not detected. **Position identity and ordering (optional)** lets you map differently named Position ID, Execution ID and Sequence columns. The standard headers `Position ID`, `Execution ID`, `Fill ID`, and `Sequence` are recognized automatically. Use a fill's execution ID, not an order ID shared by several fills. Without Position IDs, same-side fills form the usual flat-to-flat cycle for that contract.
+
+Closes are checked against the selected account's saved fills and the new file together, after duplicate removal. Missing opens, excessive closes, mixed labelled/unlabelled histories, conflicting identities, and uncertain ordering stop the entire import. Identical fills need distinct execution IDs; different-price fills at the same timestamp need a reliable sequence or more precise timestamps. Repeating or reordering the same valid export does not add executions. Keep the export's identity columns consistent between uploads.
+
+If you previously imported the same contract after changing its actions to Buy/Sell, import the complete original history into a separate journal account and compare it before retiring the old one. The importer will not rewrite the old fills or silently combine the two representations. Export one source account at a time. Configure futures multipliers for the imported symbols in Settings; action labels do not establish a multiplier. AI parsing still does not support hedged position histories.
+
 ## NinjaTrader execution exports
 
 Each source account gets a saved identity inside the selected journal account.
@@ -106,7 +116,7 @@ positions from an incomplete file. A blank commission uses configured default
 fees (or zero); an explicit zero stays zero.
 
 Configure a positive contract multiplier for each exact imported futures symbol
-in **Settings → Journal**, then review again. For the anonymized
+in **Settings → Trading**, then review again. For the anonymized
 [issue #10](https://github.com/LuxAlgo/trade-journal/issues/10) fixture, `MNQZ6=2`
 produces five closed trades, 26 executions, and $5,265 before fees. Setting only
 `MNQ=2` does not apply to `MNQZ6`; the new import is blocked until its multiplier
@@ -156,7 +166,7 @@ Existing timestamps are not automatically rewritten.
 
 ## Statement and display timezones
 
-In **Settings → Journal**, set **Display timezone** to the zone you want for trade
+In **Settings → General**, set **Display timezone** to the zone you want for trade
 times, analytics, calendars and journal days. Set **Default import timezone** to
 the zone used by your broker's statement. On **Import → File upload**, you can
 override the **Statement timezone** for an individual file without changing either
@@ -208,7 +218,7 @@ To recover affected history:
    encryption key and attachments, as described in [Export and backup](../README.md#export-and-backup).
    Keep that backup and the original Flex report.
 2. Restart the app and select the verified statement timezone in
-   **Settings → Journal → Default import timezone**.
+   **Settings → General → Default import timezone**.
 3. Connect a **separate journal account** to IBKR with the same Flex query and a
    distinguishable name. Ensure the query covers the full history you want to recover.
 4. Select each account separately in the account filter. Compare execution times,

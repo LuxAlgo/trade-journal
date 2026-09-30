@@ -1,7 +1,8 @@
 import { calendarMonthFromDays, dailyStats, dayKeyOf, readFilters } from "@luxalgo/journal-core";
 import { accounts, db } from "@/db";
 import { handler, ok, requireValue } from "@/server/api";
-import { getTimeZone } from "@/server/settings";
+import { getTimeZone, getCurrencyConversion } from "@/server/settings";
+import { currencyProjection } from "@/server/currency-conversion";
 import { queryTrades } from "@/server/trades-query";
 import { calendarInsights, calendarRunningPnl, calendarScope } from "@/lib/calendar-insights";
 
@@ -22,35 +23,46 @@ export const GET = handler(async (request: Request) => {
     "Choose a valid calendar month.",
   );
   const scope = calendarScope(readFilters(params), year, month);
-  const { trades } = queryTrades(scope);
-  const calendar = calendarMonthFromDays(dailyStats(trades, timeZone), year, month);
+  const { trades: originalTrades } = queryTrades(scope);
+  const selectedIds = scope.accounts?.split(",").map((id) => id.trim());
   const accountRows = db
-    .select({ id: accounts.id, currency: accounts.currency })
+    .select()
     .from(accounts)
-    .all();
-  const currencyByAccount = new Map(accountRows.map((account) => [account.id, account.currency]));
-  const currencies = [
-    ...new Set(
-      trades
-        .filter((trade) => trade.status !== "open" && trade.closedAt)
-        .map((trade) => currencyByAccount.get(trade.accountId) ?? "USD"),
-    ),
-  ].sort();
-  if (!currencies.length) {
-    const selectedIds = scope.accounts?.split(",").map((id) => id.trim());
-    currencies.push(
-      ...new Set(
-        accountRows
-          .filter((account) => !selectedIds || selectedIds.includes(account.id))
-          .map((account) => account.currency),
-      ),
-    );
-    currencies.sort();
-  }
+    .all()
+    .filter((account) => !selectedIds || selectedIds.includes(account.id));
+  const { trades, scope: currencyScope } = currencyProjection(
+    originalTrades,
+    accountRows,
+    getCurrencyConversion(),
+  );
+  const calendar = calendarMonthFromDays(dailyStats(trades, timeZone), year, month);
+  const currencies = currencyScope.monetary
+    ? [currencyScope.currency ?? "USD"]
+    : currencyScope.sourceCurrencies;
+  const currencyGroups = currencyScope.monetary
+    ? []
+    : currencyScope.sourceCurrencies.map((currency) => {
+        const ids = new Set(
+          accountRows
+            .filter((account) => account.currency === currency)
+            .map((account) => account.id),
+        );
+        const groupCalendar = calendarMonthFromDays(
+          dailyStats(
+            originalTrades.filter((trade) => ids.has(trade.accountId)),
+            timeZone,
+          ),
+          year,
+          month,
+        );
+        return { currency, calendar: groupCalendar };
+      });
   return ok({
     calendar,
+    currencyScope,
+    currencyGroups,
     insights: calendarInsights(calendar),
-    runningPnl: currencies.length <= 1 ? calendarRunningPnl(trades, timeZone) : {},
+    runningPnl: currencyScope.monetary ? calendarRunningPnl(trades, timeZone) : {},
     timeZone,
     currencies,
     scope,

@@ -3,6 +3,7 @@ import { rebuildAccount } from "@/server/rebuild";
 import { handler, ok, requireValue } from "@/server/api";
 import {
   getMultipliers,
+  getCurrencyConversion,
   getTimeZone,
   getImportTimeZone,
   aiKeyEnvironment,
@@ -14,12 +15,14 @@ import {
 } from "@/server/settings";
 import { AI_PROVIDERS, AI_PROVIDER_NAMES, isAiProvider, type AiProvider } from "@/lib/ai-settings";
 import { isTimeZone } from "@/lib/timezone";
+import { parseCurrencyConversion, type CurrencyConversion } from "@/lib/currencies";
 
 export const GET = handler(() =>
   ok({
     timeZone: getTimeZone(),
     importTimeZone: getImportTimeZone(),
     multipliers: getMultipliers(),
+    currencyConversion: getCurrencyConversion(),
     ...getAiSettings(),
   }),
 );
@@ -33,11 +36,37 @@ interface SettingsBody {
   openaiKey?: string | null;
   aiProvider?: AiProvider;
   aiModel?: string;
+  currencyConversion?: CurrencyConversion;
 }
 
 export const PATCH = handler(async (request: Request) => {
   const body = (await request.json()) as SettingsBody;
   requireValue(body && typeof body === "object" && !Array.isArray(body), "Enter valid settings.");
+  let conversion: CurrencyConversion | undefined;
+  if (body.currencyConversion !== undefined) {
+    try {
+      conversion = parseCurrencyConversion(body.currencyConversion);
+    } catch (error) {
+      requireValue(false, error instanceof Error ? error.message : "Enter valid conversion rates.");
+    }
+    if (conversion.enabled) {
+      const missing = [
+        ...new Set(
+          db
+            .select({ currency: accounts.currency })
+            .from(accounts)
+            .all()
+            .map((account) => account.currency),
+        ),
+      ].filter(
+        (currency) => currency !== conversion!.reportingCurrency && !conversion!.rates[currency],
+      );
+      requireValue(
+        missing.length === 0,
+        `Enter conversion rates for ${missing.join(", ")} before enabling conversion.`,
+      );
+    }
+  }
   if (body.aiProvider !== undefined)
     requireValue(isAiProvider(body.aiProvider), "Choose Anthropic or OpenAI.");
   const provider = body.aiProvider ?? getAiProvider();
@@ -80,6 +109,7 @@ export const PATCH = handler(async (request: Request) => {
     );
   db.transaction(() => {
     // A display-only change must not silently alter the legacy import default.
+    if (conversion) setSetting("currencyConversion", JSON.stringify(conversion));
     if (body.timeZone !== undefined || body.importTimeZone !== undefined)
       setSetting("importTimeZone", body.importTimeZone ?? getImportTimeZone());
     if (body.timeZone !== undefined) setSetting("timeZone", body.timeZone);

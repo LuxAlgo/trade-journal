@@ -69,6 +69,7 @@ interface PreviewResponse {
     price: number;
     fee?: number;
     executedAt: string;
+    importMetadata?: { position?: { direction: "long" | "short"; effect: "open" | "close" } };
   }[];
 }
 
@@ -496,6 +497,49 @@ function FileImport() {
                   </div>
                 ))}
               </div>
+              <details className="space-y-2 text-xs">
+                <summary className="cursor-pointer text-muted-foreground">
+                  Position identity and ordering (optional)
+                </summary>
+                <p className="text-muted-foreground">
+                  For Open/Close Long/Short rows, map source position IDs, execution IDs or sequence
+                  numbers when available. Columns named Position ID, Execution ID, Fill ID and
+                  Sequence are recognized automatically. An order ID is not an execution ID.
+                </p>
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                  {(["positionId", "executionId", "sequence"] as const).map((field) => (
+                    <div key={field}>
+                      <Label className="mb-1 block text-xs capitalize text-muted-foreground">
+                        {
+                          {
+                            positionId: "Position ID",
+                            executionId: "Execution ID",
+                            sequence: "Sequence",
+                          }[field]
+                        }
+                      </Label>
+                      <Select
+                        value={mapping[field] || "none"}
+                        onValueChange={(value) =>
+                          setMapping((m) => ({ ...m, [field]: value === "none" ? "" : value }))
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="column" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">—</SelectItem>
+                          {preview.headers!.map((header) => (
+                            <SelectItem key={header} value={header}>
+                              {header}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+              </details>
               <Button
                 size="sm"
                 onClick={previewWithMapping}
@@ -548,7 +592,10 @@ function FileImport() {
                       <div key={index}>
                         <div className="flex flex-wrap gap-x-3">
                           <span>
-                            {execution.symbol} · {execution.side.toUpperCase()}
+                            {execution.symbol} ·{" "}
+                            {execution.importMetadata?.position
+                              ? `${execution.importMetadata.position.effect} ${execution.importMetadata.position.direction}`.toUpperCase()
+                              : execution.side.toUpperCase()}
                           </span>
                           <span className="text-muted-foreground">
                             {formatTimestamp(execution.executedAt, displayTimeZone)}

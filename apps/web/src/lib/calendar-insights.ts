@@ -1,3 +1,4 @@
+import type { CurrencyScope } from "./currencies";
 import {
   readFilters,
   dayKeyOf,
@@ -118,6 +119,8 @@ export function calendarRunningPnl(
 }
 
 export interface CalendarResponse {
+  currencyScope?: CurrencyScope;
+  currencyGroups?: { currency: string; calendar: CalendarMonth }[];
   calendar: CalendarMonth;
   insights: CalendarInsights;
   timeZone: string;

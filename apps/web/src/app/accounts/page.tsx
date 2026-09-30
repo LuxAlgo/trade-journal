@@ -1,12 +1,20 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { Archive, ArchiveRestore, RefreshCw, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AccountCreateForm } from "@/components/account-create-form";
 import { FilterBar } from "@/components/filter-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -44,6 +52,7 @@ export default function AccountsPage() {
 function Accounts() {
   const { data, refresh } = useApi<{ accounts: AccountRow[] }>("/api/accounts");
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const action = async <T = unknown,>(id: string, body: Record<string, unknown>) => {
     const result = await postJson<T>(`/api/accounts/${id}/actions`, body);
@@ -70,11 +79,36 @@ function Accounts() {
 
   return (
     <div>
-      <FilterBar title="Accounts" />
+      <FilterBar
+        title="Accounts"
+        actions={
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus />
+            New account
+          </Button>
+        }
+      />
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>New account</DialogTitle>
+            <DialogDescription>
+              Create an account for manual trades or file imports.
+            </DialogDescription>
+          </DialogHeader>
+          <AccountCreateForm
+            showTitle={false}
+            onCreated={() => {
+              refresh();
+              setCreating(false);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
       <div className="grid gap-3 p-4 md:grid-cols-2">
         {data?.accounts.length === 0 && (
           <p className="col-span-full py-16 text-center text-sm text-muted-foreground">
-            No accounts yet — create one on the Import page.
+            No accounts yet — use New account to create your first one.
           </p>
         )}
         {data?.accounts.map((account) => (
@@ -148,9 +182,9 @@ function Accounts() {
                   </span>
                 </div>
               )}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs text-muted-foreground">
+              <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <label className="mb-1 block text-xs text-muted-foreground">
                     Initial balance (anchors drawdown %)
                   </label>
                   <MonetaryField>
@@ -172,8 +206,10 @@ function Accounts() {
                     />
                   </MonetaryField>
                 </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Profit calculation</label>
+                <div className="min-w-0">
+                  <label className="mb-1 block text-xs text-muted-foreground">
+                    Profit calculation
+                  </label>
                   <Select
                     value={account.profitCalcMethod}
                     onValueChange={async (value) => {
