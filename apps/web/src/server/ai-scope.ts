@@ -23,7 +23,11 @@ export function readAiRequest(value: unknown, field: "question" | "date") {
   requireValue(value && typeof value === "object" && !Array.isArray(value), "Invalid AI request");
   const body = value as Record<string, unknown>;
   requireValue(
-    Object.keys(body).every((key) => [field, "filters", "timeZone"].includes(key)),
+    Object.keys(body).every((key) =>
+      [field, "filters", "timeZone", ...(field === "date" ? ["includeAnalyses"] : [])].includes(
+        key,
+      ),
+    ),
     "Unknown AI request field",
   );
   requireValue(
@@ -97,6 +101,10 @@ export function readAiRequest(value: unknown, field: "question" | "date") {
   if (ids) filters.accounts = [...new Set(ids)].join(",");
   const selectedAccounts = ids ? allAccounts.filter((a) => ids.includes(a.id)) : allAccounts;
   const strategies = db.select({ id: playbooks.id, name: playbooks.name }).from(playbooks).all();
+  requireValue(
+    body.includeAnalyses === undefined || typeof body.includeAnalyses === "boolean",
+    "includeAnalyses must be true or false",
+  );
   const date = field === "date" ? body.date : undefined;
   if (field === "date") requireValue(isDay(date), "date (YYYY-MM-DD) is required");
   if (field === "question")
@@ -121,6 +129,8 @@ export function readAiRequest(value: unknown, field: "question" | "date") {
     accounts: selectedAccounts,
     question: typeof body.question === "string" ? body.question.trim() : "",
     date: date as string | undefined,
+    /** Recaps only: send the day's linked chart analyses (text and snapshots). Default on. */
+    includeAnalyses: body.includeAnalyses !== false,
     scope: { label: label(true), timeZone },
     context: `Journal scope: ${label(false)}. Only the filtered data below is available. Do not infer results for excluded accounts or dates.`,
   };

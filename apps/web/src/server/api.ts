@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { AUTH_COOKIE, passwordConfigured, verifySession } from "./auth";
+import { AUTH_COOKIE, authRequired, verifySession } from "./auth";
 
 export class RequestError extends Error {}
 export function requireValue(condition: unknown, message: string): asserts condition {
@@ -24,7 +24,7 @@ export const handler =
   ) =>
   async (...args: A): Promise<Response> => {
     try {
-      if (!options.public && passwordConfigured()) {
+      if (!options.public && authRequired()) {
         const token = (await cookies()).get(AUTH_COOKIE)?.value;
         if (!verifySession(token)) return bad("Unauthorized", 401);
       }

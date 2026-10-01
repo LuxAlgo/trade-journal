@@ -31,6 +31,12 @@ const EXCEPTIONS = {
   // jsdom's test-only CSS helper: reviewed MIT No Attribution license grants
   // unrestricted use, modification and redistribution, without attribution.
   "@csstools/color-helpers": ["MIT-0"],
+  // The Pine Script engine behind chart indicators (docs/charts.md#indicators). A
+  // deliberate, reviewed choice: deployments that include these must meet AGPL-3.0
+  // terms, including offering the corresponding source to network users. The rest of
+  // the codebase stays MIT; keep these two out of changes proposed upstream.
+  "@luxalgo/vela-pinets": ["AGPL-3.0-only"],
+  pinets: ["AGPL-3.0-only"],
 };
 
 const allowedExpression = (expression) => {
