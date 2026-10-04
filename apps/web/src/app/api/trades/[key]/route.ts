@@ -12,7 +12,7 @@ type Params = { params: Promise<{ key: string }> };
 export const GET = handler(async (_request: Request, { params }: Params) => {
   const { key } = await params;
   const row = getTradeByKey(key);
-  if (!row) return bad("Trade not found", 404);
+  if (!row) return bad("Trade not found", 404, "trade_not_found");
   const trade = rowToTrade(row);
   const fills = listExecutions(row.accountId, trade.executionIds);
   return ok({
@@ -50,7 +50,7 @@ export const PATCH = handler(async (request: Request, { params }: Params) => {
   const { key } = await params;
   const decoded = key;
   const row = getTradeByKey(decoded);
-  if (!row) return bad("Trade not found", 404);
+  if (!row) return bad("Trade not found", 404, "trade_not_found");
 
   const body = (await request.json()) as AnnotateBody;
   for (const field of ["stopLoss", "profitTarget", "rating"] as const)
@@ -96,7 +96,7 @@ export const PATCH = handler(async (request: Request, { params }: Params) => {
 export const DELETE = handler(async (_request: Request, { params }: Params) => {
   const { key } = await params;
   const row = getTradeByKey(key);
-  if (!row) return bad("Trade not found", 404);
+  if (!row) return bad("Trade not found", 404, "trade_not_found");
   // Deleting a trade means deleting its executions; the rebuild removes the row.
   deleteExecutionsForTrades(row.accountId, JSON.parse(row.executionIdsJson) as string[]);
   return ok({ deleted: true });

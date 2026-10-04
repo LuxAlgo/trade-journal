@@ -1,0 +1,31 @@
+{
+  "notebook": {
+    "title": "Notebook",
+    "newNote": "New note",
+    "allNotes": "All notes",
+    "newFolder": "New folder",
+    "noteFolder": "Note folder",
+    "searchPlaceholder": "Search notes",
+    "emptyNotes": "No notes here yet.",
+    "untitled": "Untitled",
+    "emptyContent": "empty",
+    "selectOrCreate": "Select or create a note.",
+    "backToNotes": "Back to notes",
+    "titlePlaceholder": "Title",
+    "edit": "Edit",
+    "preview": "Preview",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this note?",
+    "saveNow": "Save now",
+    "folderDialog": {
+      "title": "New folder",
+      "description": "Organize your notes in a named folder.",
+      "nameLabel": "Folder name",
+      "cancel": "Cancel",
+      "create": "Create folder",
+      "creating": "Creating…",
+      "failed": "Could not create the folder. Try again."
+    },
+    "reviewTitle": "Journal note"
+  }
+}

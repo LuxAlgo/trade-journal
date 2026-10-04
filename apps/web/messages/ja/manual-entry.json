@@ -1,0 +1,28 @@
+{
+  "manual-entry": {
+    "addTrade": "取引を追加",
+    "addTradeDescription": "アカウントを選択して買いと売りを入力します。エントリーだけを保存すると未決済ポジションとして記録され、決済も含めると決済済みトレードとして記録されます。",
+    "symbol": "シンボル",
+    "symbolPlaceholder": "AAPL, ESZ6, BTCUSDT…",
+    "execution": "約定 {number}",
+    "dateTime": "日時",
+    "side": "売買",
+    "buy": "買い",
+    "sell": "売り",
+    "quantity": "数量",
+    "quantityPlaceholder": "数量",
+    "price": "価格",
+    "pricePlaceholder": "価格",
+    "fee": "手数料",
+    "feePlaceholder": "手数料",
+    "notes": "メモ（任意）",
+    "notesPlaceholder": "そのセットアップ、トレードした理由、学んだことなど…",
+    "notesHint": "Markdown を使用できます。メモはトレードと一緒に保存されます。未決済ポジションに追加するときは、既存のメモが保持されます。",
+    "saveFailed": "トレードを保存できませんでした。もう一度お試しください。",
+    "addExecution": "約定を追加",
+    "saving": "保存中…",
+    "save": "トレードを保存",
+    "roundTrips": "日時はデバイスのタイムゾーンを使用します。{symbol}の未決済ポジションに一致する約定は、自動的にラウンドトリップとしてつなげられます（現在 {count} 件）。",
+    "theSymbol": "該当シンボル"
+  }
+}

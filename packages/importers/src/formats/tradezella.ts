@@ -33,6 +33,7 @@ export const tradezella: ImportFormat = {
     const warnings = [
       "TradeZella exports are trade-level; entry/exit executions were reconstructed at the reported average prices. Net P&L is preserved exactly.",
     ];
+    const diagnostics = [{ code: "trade_level_reconstructed" }];
 
     for (const row of records) {
       const symbol = pick(row, ["symbol", "instrument"])?.trim().toUpperCase();
@@ -99,6 +100,6 @@ export const tradezella: ImportFormat = {
       executions.push(...tradeToExecutions(trade));
     }
 
-    return { format: "tradezella", executions, skippedRows, warnings };
+    return { format: "tradezella", executions, skippedRows, warnings, diagnostics };
   },
 };

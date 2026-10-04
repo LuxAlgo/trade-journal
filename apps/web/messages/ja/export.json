@@ -1,0 +1,20 @@
+{
+  "export": {
+    "exportPdf": "PDF をエクスポート",
+    "exportPng": "PNG をエクスポート",
+    "privacyHint": "財務数値をエクスポートするには、プライバシーモードをオフにしてください。",
+    "dialogTitle": "レビューのエクスポート",
+    "download": "{format} をダウンロード",
+    "downloadIndexed": "{format} をダウンロード · {index}/{total}",
+    "pdfPreviewNote": "レビュー本文 · ページ分割されたドキュメントは PDF をダウンロードしてください。",
+    "pngAlt": "エクスポートされたジャーナルレビュー",
+    "doneLabel": "[完了]",
+    "error": {
+      "fontLoad": "PDF フォントを読み込めませんでした。",
+      "missingGlyphs": "PDF フォントは次の文字に対応していません：{chars}。これらの文字を取り除いてエクスポートするか、PNG レビューをエクスポートしてください。",
+      "pngUnavailable": "このブラウザーでは画像をエクスポートできません。",
+      "pngFailed": "画像のエクスポートに失敗しました。",
+      "generic": "エクスポートに失敗しました。"
+    }
+  }
+}

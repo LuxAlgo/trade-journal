@@ -1,0 +1,27 @@
+{
+  "playbooks": {
+    "title": "Playbooks",
+    "new": "Nuevo playbook",
+    "empty": "Un playbook es una configuración que operas a propósito: ponle nombre, escribe sus reglas, etiqueta operaciones con él y deja que los informes te digan si de verdad paga.",
+    "tradeCount": "{count, plural, one {# operación} other {# operaciones}}",
+    "deleteConfirm": "¿Eliminar \"{name}\"? Las operaciones conservan sus datos, solo pierden el vínculo.",
+    "deleteAria": "Eliminar playbook {name}",
+    "namePlaceholder": "Nombre (p. ej., ruptura del rango de apertura)",
+    "descriptionPlaceholder": "Descripción en una línea",
+    "rulesPlaceholder": "Una regla por línea:\nSolo configuraciones A+\nRiesgo máximo 1R\nSin entradas después de las 11:30",
+    "create": "Crear",
+    "adherence": {
+      "ruleAdherence": "Adherencia a las reglas",
+      "assessments": "{evaluated}/{possible} evaluaciones de reglas en {total} operaciones cerradas filtradas.",
+      "unassessed": "{count, plural, one {# operación aún necesita evaluación.} other {# operaciones aún necesitan evaluación.}}",
+      "allFollowed": "Todas las reglas seguidas",
+      "oneBroken": "Al menos una incumplida",
+      "tradesWin": "{count, plural, one {# operación} other {# operaciones}} · {win} de acierto",
+      "mixedCurrencies": "P&L oculto por monedas mixtas.",
+      "performanceByRule": "Rendimiento por regla",
+      "ruleRate": "{rate} seguida · {count, plural, one {# evaluación} other {# evaluaciones}}",
+      "ruleFollowedBroken": "Seguida: {followedTrades, plural, one {# operación} other {# operaciones}} / {followedWin} de acierto · Incumplida: {brokenTrades, plural, one {# operación} other {# operaciones}} / {brokenWin} de acierto",
+      "ruleNetPnl": "P&L neto: <followed>{followedValue}</followed> seguida / <broken>{brokenValue}</broken> incumplida {currency}"
+    }
+  }
+}

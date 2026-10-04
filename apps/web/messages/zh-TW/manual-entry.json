@@ -1,0 +1,28 @@
+{
+  "manual-entry": {
+    "addTrade": "新增交易",
+    "addTradeDescription": "選擇帳戶並輸入你的買入與賣出。只儲存一筆進場即記錄為未平倉持倉，加上出場則記錄為一筆已平倉交易。",
+    "symbol": "交易代號",
+    "symbolPlaceholder": "AAPL, ESZ6, BTCUSDT…",
+    "execution": "成交 {number}",
+    "dateTime": "日期與時間",
+    "side": "方向",
+    "buy": "買入",
+    "sell": "賣出",
+    "quantity": "數量",
+    "quantityPlaceholder": "數量",
+    "price": "價格",
+    "pricePlaceholder": "價格",
+    "fee": "手續費",
+    "feePlaceholder": "手續費",
+    "notes": "備註（選填）",
+    "notesPlaceholder": "你的交易設定、進場原因或學到的經驗…",
+    "notesHint": "支援 Markdown。備註會隨交易一起儲存；向未平倉持倉追加成交時，保留原有備註。",
+    "saveFailed": "無法儲存交易。請重試。",
+    "addExecution": "新增成交",
+    "saving": "儲存中…",
+    "save": "儲存交易",
+    "roundTrips": "日期與時間使用裝置所在時區。與{symbol}未平倉持倉相符的成交會自動合併為完整回合（已輸入 {count} 筆）。",
+    "theSymbol": "該交易代號"
+  }
+}

@@ -99,3 +99,56 @@ export const MARKET_PROVIDERS: ProviderInfo[] = [
   },
 ];
 export const providerInfo = (id: string) => MARKET_PROVIDERS.find((item) => item.id === id);
+
+/**
+ * Display-only message keys for the Settings UI (docs/i18n.md §5/§7 pattern):
+ * the English strings in `MARKET_PROVIDERS` stay the data of record because
+ * the server's validation errors (connections.ts) and page group C components
+ * read them verbatim. Settings resolves these keys in the `settings`
+ * namespace (`marketData.providers.*`) instead; anything without an entry
+ * falls back to the original English field label.
+ */
+export interface ProviderDisplayKeys {
+  /** Key for the provider description, under `settings` → `marketData.providers`. */
+  description: string;
+  fieldLabels: Record<string, string>;
+  /** Option labels per credential field key, keyed by option value. */
+  fieldOptionLabels: Record<string, Record<string, string>>;
+}
+
+export const providerDisplayKeys: Record<string, ProviderDisplayKeys> = {
+  "london-strategic-edge": {
+    description: "lseDescription",
+    fieldLabels: { apiKey: "lseApiKey" },
+    fieldOptionLabels: {},
+  },
+  alpaca: {
+    description: "alpacaDescription",
+    fieldLabels: { apiKey: "alpacaKeyId", secretKey: "alpacaSecretKey" },
+    fieldOptionLabels: {},
+  },
+  binance: {
+    description: "binanceDescription",
+    fieldLabels: {},
+    fieldOptionLabels: {},
+  },
+  coinbase: {
+    description: "coinbaseDescription",
+    fieldLabels: {},
+    fieldOptionLabels: {},
+  },
+  oanda: {
+    description: "oandaDescription",
+    fieldLabels: {
+      apiKey: "oandaToken",
+      accountId: "oandaAccountId",
+      environment: "oandaEnvironment",
+    },
+    fieldOptionLabels: { environment: { practice: "oandaPractice", live: "oandaLive" } },
+  },
+  "market-csv": {
+    description: "csvDescription",
+    fieldLabels: {},
+    fieldOptionLabels: {},
+  },
+};

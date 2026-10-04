@@ -1,0 +1,20 @@
+{
+  "export": {
+    "exportPdf": "Export PDF",
+    "exportPng": "Export PNG",
+    "privacyHint": "Turn off privacy mode to export financial figures.",
+    "dialogTitle": "Review export",
+    "download": "Download {format}",
+    "downloadIndexed": "Download {format} · {index}/{total}",
+    "pdfPreviewNote": "Review text · download the PDF for the paginated document.",
+    "pngAlt": "Exported journal review",
+    "doneLabel": "[done]",
+    "error": {
+      "fontLoad": "Could not load the PDF font.",
+      "missingGlyphs": "PDF font does not support these characters: {chars}. Remove them for this export, or export a PNG review.",
+      "pngUnavailable": "Image export is unavailable in this browser.",
+      "pngFailed": "Image export failed.",
+      "generic": "Export failed."
+    }
+  }
+}

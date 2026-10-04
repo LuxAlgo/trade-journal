@@ -1,9 +1,16 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Download, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { exportPdf, exportPng, type ReviewDocument } from "@/lib/export-review";
+import {
+  exportErrorKey,
+  exportPdf,
+  exportPng,
+  ExportError,
+  type ReviewDocument,
+} from "@/lib/export-review";
 import { usePrivacy } from "./privacy";
 interface Preview {
   url: string;
@@ -17,6 +24,8 @@ export function ReviewExport({
   document: ReviewDocument;
   containsFinancialData?: boolean;
 }) {
+  const t = useTranslations("export");
+  const locale = useLocale();
   const privateMode = usePrivacy();
   const concealed = privateMode && containsFinancialData;
   const [busy, setBusy] = useState(false),
@@ -35,7 +44,11 @@ export function ReviewExport({
     setBusy(true);
     setError("");
     try {
-      const result = await (image ? exportPng : exportPdf)(document);
+      const result = await (image ? exportPng : exportPdf)(
+        document,
+        locale as Parameters<typeof exportPdf>[1],
+        t("doneLabel"),
+      );
       urls.current.forEach(URL.revokeObjectURL);
       const next = result.map((f) => ({
         url: URL.createObjectURL(f.blob),
@@ -47,11 +60,20 @@ export function ReviewExport({
       setPreviewDocument(document);
       setOpen(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Export failed.");
+      // Codes covered by the export namespace render localized; anything else
+      // keeps its original message (docs/i18n.md §6 fallback rule).
+      setError(
+        e instanceof ExportError
+          ? t(exportErrorKey(e.code), e.params ?? {})
+          : e instanceof Error
+            ? e.message
+            : t("error.generic"),
+      );
     } finally {
       setBusy(false);
     }
   }
+  const format = (type: string) => (type === "application/pdf" ? "PDF" : "PNG");
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
@@ -63,7 +85,7 @@ export function ReviewExport({
           onClick={() => void run(false)}
         >
           <Download />
-          Export PDF
+          {t("exportPdf")}
         </Button>
         <Button
           type="button"
@@ -73,14 +95,10 @@ export function ReviewExport({
           onClick={() => void run(true)}
         >
           <ImageIcon />
-          Export PNG
+          {t("exportPng")}
         </Button>
       </div>
-      {concealed && (
-        <p className="text-xs text-muted-foreground">
-          Turn off privacy mode to export financial figures.
-        </p>
-      )}
+      {concealed && <p className="text-xs text-muted-foreground">{t("privacyHint")}</p>}
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
@@ -89,21 +107,24 @@ export function ReviewExport({
       <Dialog open={open && !concealed} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Review export</DialogTitle>
+            <DialogTitle>{t("dialogTitle")}</DialogTitle>
           </DialogHeader>
           {files.map((f, i) => (
             <div key={f.url} className="space-y-3">
               <Button asChild size="sm">
                 <a href={f.url} download={f.filename}>
-                  Download {f.type === "application/pdf" ? "PDF" : "PNG"}
-                  {files.length > 1 ? ` · ${i + 1}/${files.length}` : ""}
+                  {files.length > 1
+                    ? t("downloadIndexed", {
+                        format: format(f.type),
+                        index: i + 1,
+                        total: files.length,
+                      })
+                    : t("download", { format: format(f.type) })}
                 </a>
               </Button>
               {f.type === "application/pdf" ? (
                 <div className="rounded border bg-white p-6 text-slate-800">
-                  <p className="mb-4 text-xs text-slate-500">
-                    Review text · download the PDF for the paginated document.
-                  </p>
+                  <p className="mb-4 text-xs text-slate-500">{t("pdfPreviewNote")}</p>
                   <h3 className="mb-2 text-xl font-semibold">{previewDocument?.title}</h3>
                   <p className="mb-6 text-xs text-slate-500">{previewDocument?.subtitle}</p>
                   <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
@@ -111,7 +132,7 @@ export function ReviewExport({
                   </div>
                 </div>
               ) : (
-                <img src={f.url} alt="Exported journal review" className="w-full rounded border" />
+                <img src={f.url} alt={t("pngAlt")} className="w-full rounded border" />
               )}
             </div>
           ))}

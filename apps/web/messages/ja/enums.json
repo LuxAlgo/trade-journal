@@ -1,0 +1,69 @@
+{
+  "enums": {
+    "direction": {
+      "long": "ロング",
+      "short": "ショート"
+    },
+    "status": {
+      "closed": "決済済み",
+      "open": "未決済",
+      "win": "勝ち",
+      "loss": "負け",
+      "breakeven": "損益分岐"
+    },
+    "reviewed": {
+      "yes": "はい",
+      "no": "いいえ"
+    },
+    "assetClass": {
+      "equity": "株式",
+      "futures": "先物",
+      "forex": "外国為替",
+      "option": "オプション",
+      "crypto": "暗号資産",
+      "cfd": "CFD",
+      "other": "その他"
+    },
+    "costBasis": {
+      "fifo": "FIFO（先入先出）",
+      "lifo": "LIFO（後入先出）",
+      "wavg": "加重平均"
+    },
+    "priceBasis": {
+      "raw": "生価格",
+      "split": "分割調整済み",
+      "adjusted": "調整済み",
+      "midpoint": "ミッドポイント",
+      "bid": "ビッド",
+      "ask": "アスク"
+    },
+    "prop": {
+      "values": {
+        "evaluation": "評価",
+        "verification": "検証",
+        "funded": "ファンデッド",
+        "instantFunded": "インスタントファンデッド",
+        "live": "ライブ",
+        "active": "有効",
+        "passed": "合格",
+        "breached": "規約違反",
+        "closed": "解約済み",
+        "requested": "申請済み",
+        "approved": "承認済み",
+        "completed": "完了",
+        "rejected": "却下",
+        "cancelled": "キャンセル済み",
+        "reset": "リセット",
+        "activation": "アクティベーション",
+        "subscription": "サブスクリプション",
+        "platform": "プラットフォーム",
+        "marketData": "マーケットデータ",
+        "transfer": "送金",
+        "other": "その他",
+        "expense": "経費",
+        "refund": "返金",
+        "payout": "ペイアウト"
+      }
+    }
+  }
+}

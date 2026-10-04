@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { FileUp, Landmark, PencilLine } from "lucide-react";
 import { AccountPicker } from "@/components/account-picker";
 import { ManualTradeEntry } from "@/components/manual-trade-entry";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { postJson, useApi } from "@/lib/use-api";
+import { formatApiError } from "@/lib/api-error";
 import { decodeImportFile } from "@/lib/decode-import";
 import { formatTimestamp, isTimeZone } from "@/lib/timezone";
 import { dayKeyOf } from "@luxalgo/journal-core";
@@ -34,6 +36,7 @@ import {
   type AiImportOptions as AiOptions,
 } from "@/lib/ai-import";
 import { Checkbox } from "@/components/ui/checkbox";
+import type { Locale } from "@/i18n/config";
 
 interface BrokerInfo {
   id: string;
@@ -50,6 +53,12 @@ interface PreviewTotals {
   to: string | null;
 }
 
+/** Structured diagnostic paired with a stable code (docs/i18n.md §7). */
+interface PreviewDiagnostic {
+  code: string;
+  params?: Record<string, string | number>;
+}
+
 interface PreviewResponse {
   aiPreviewToken?: string;
   sources?: string[];
@@ -61,6 +70,7 @@ interface PreviewResponse {
   totals?: PreviewTotals;
   warnings?: string[];
   errors?: string[];
+  diagnostics?: PreviewDiagnostic[];
   needsSymbol?: boolean;
   executions?: {
     symbol: string;
@@ -82,24 +92,25 @@ export default function ImportPage() {
 }
 
 function ImportView() {
+  const t = useTranslations("import");
   const router = useRouter();
   return (
     <div>
-      <FilterBar title="Import trades" />
+      <FilterBar title={t("title")} />
       <div className="mx-auto max-w-3xl p-4">
         <Tabs defaultValue="file">
           <TabsList>
             <TabsTrigger value="file" className="max-sm:px-2 max-sm:text-xs">
               <FileUp className="mr-1.5 hidden h-4 w-4 min-[420px]:block" />
-              File upload
+              {t("tabs.file")}
             </TabsTrigger>
             <TabsTrigger value="sync" className="max-sm:px-2 max-sm:text-xs">
               <Landmark className="mr-1.5 hidden h-4 w-4 min-[420px]:block" />
-              Broker sync
+              {t("tabs.sync")}
             </TabsTrigger>
             <TabsTrigger value="manual" className="max-sm:px-2 max-sm:text-xs">
               <PencilLine className="mr-1.5 hidden h-4 w-4 min-[420px]:block" />
-              Manual
+              {t("tabs.manual")}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="file">
@@ -111,7 +122,7 @@ function ImportView() {
           <TabsContent value="manual">
             <Card>
               <CardHeader>
-                <CardTitle>Add executions manually</CardTitle>
+                <CardTitle>{t("manualTitle")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <ManualTradeEntry onSaved={() => router.push("/trades")} />
@@ -125,6 +136,11 @@ function ImportView() {
 }
 
 function FileImport() {
+  const t = useTranslations("import");
+  const tDiag = useTranslations("import-diagnostics");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
+  const locale = useLocale() as Locale;
   const router = useRouter();
   const [accountId, setAccountId] = useState("");
   const [reviewOptions, setReviewOptions] = useState<ImportReviewOptions>({});
@@ -158,7 +174,11 @@ function FileImport() {
   const [encoding, setEncoding] = useState<"text" | "pdf">("text");
   const [aiReviewed, setAiReviewed] = useState(false);
   const { data: formatData } = useApi<{ formats: { id: string; label: string }[] }>("/api/import");
-  const { data: settingsData, error: settingsError } = useApi<
+  const {
+    data: settingsData,
+    error: settingsError,
+    errorInfo: settingsErrorInfo,
+  } = useApi<
     AiSettingsPayload & {
       timeZone: string;
       importTimeZone: string;
@@ -177,6 +197,8 @@ function FileImport() {
     setAiReviewed(false);
     setError(null);
   };
+  const failWith = (cause: unknown, fallback: string) =>
+    setError(cause instanceof Error ? formatApiError(t, cause) : fallback);
 
   const onFile = async (file: File) => {
     if (!validTimeZone) return;
@@ -193,13 +215,10 @@ function FileImport() {
     setBusy(true);
     try {
       const pdf = /\.pdf$/i.test(file.name);
-      if (pdf && !aiEnabled) throw new Error("Enable AI parsing to upload a PDF statement.");
-      if (aiEnabled && file.size > AI_IMPORT_MAX_BYTES)
-        throw new Error("AI uploads must be 8 MB or smaller.");
+      if (pdf && !aiEnabled) throw new Error(t("pdfNeedsAi"));
+      if (aiEnabled && file.size > AI_IMPORT_MAX_BYTES) throw new Error(t("aiTooLarge"));
       if (aiEnabled && !/\.(csv|tsv|txt|html?|xml|pdf)$/i.test(file.name))
-        throw new Error(
-          "Choose a CSV, TSV, HTML, XML, TXT or PDF file. Export spreadsheets as CSV first.",
-        );
+        throw new Error(t("aiBadType"));
       const buffer = await file.arrayBuffer();
       let text: string;
       if (pdf) {
@@ -210,10 +229,7 @@ function FileImport() {
         text = btoa(binary);
       } else {
         text = decodeImportFile(buffer);
-        if (aiEnabled && text.length > AI_IMPORT_MAX_TEXT)
-          throw new Error(
-            "Use a smaller export: AI text parsing supports up to 150,000 characters.",
-          );
+        if (aiEnabled && text.length > AI_IMPORT_MAX_TEXT) throw new Error(t("aiTextTooLarge"));
       }
       setEncoding(pdf ? "pdf" : "text");
       setContent(text);
@@ -230,7 +246,7 @@ function FileImport() {
         }),
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Import preview failed");
+      failWith(cause, t("previewFailed"));
     } finally {
       setBusy(false);
     }
@@ -257,7 +273,7 @@ function FileImport() {
         }),
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Import preview failed");
+      failWith(cause, t("previewFailed"));
     } finally {
       setBusy(false);
     }
@@ -278,7 +294,7 @@ function FileImport() {
       );
       setMappingApplied(true);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Import preview failed");
+      failWith(cause, t("previewFailed"));
     } finally {
       setBusy(false);
     }
@@ -315,14 +331,21 @@ function FileImport() {
       });
       const skippedNote =
         result.skipped && result.skipped > 0
-          ? ` ${result.skipped} invalid rows were skipped: ${(result.warnings ?? []).at(-1) ?? ""}`
+          ? t("commitSkipped", {
+              count: result.skipped,
+              reasons: (result.warnings ?? []).at(-1) ?? "",
+            })
           : "";
       alert(
-        `Imported ${result.inserted} executions (${result.duplicates} duplicates skipped, ${result.corrected ?? 0} fee corrections).${skippedNote}`,
+        t("commitSummary", {
+          inserted: result.inserted,
+          duplicates: result.duplicates,
+          corrected: result.corrected ?? 0,
+        }) + skippedNote,
       );
       router.push(`/?accounts=${encodeURIComponent(accountId)}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Import failed");
+      failWith(cause, t("commitFailed"));
     } finally {
       setBusy(false);
     }
@@ -330,11 +353,19 @@ function FileImport() {
 
   const mappingFields = ["symbol", "side", "quantity", "price", "fee", "timestamp"] as const;
 
+  // docs/i18n.md §7: structured diagnostics localize by code through the
+  // import-diagnostics namespace; entries without a usable code (or whole
+  // responses without diagnostics) keep the English original.
+  const localizedDiagnostics = (preview?.diagnostics ?? []).filter(
+    (diagnostic) => diagnostic.code && tDiag.has(diagnostic.code),
+  );
+  const hasDiagnostics = Boolean(preview?.diagnostics?.length);
+
   return (
     <div className="space-y-3">
       <Card>
         <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-          <CardTitle>Upload a statement or export</CardTitle>
+          <CardTitle>{t("uploadTitle")}</CardTitle>
           <AiImportOptions
             enabled={aiEnabled}
             onEnabledChange={(enabled) => {
@@ -359,11 +390,11 @@ function FileImport() {
               htmlFor="statement-timezone"
               className="mb-1 block text-xs text-muted-foreground"
             >
-              Statement timezone (IANA)
+              {t("statementTimezoneLabel")}
             </Label>
             <TimeZonePicker
               id="statement-timezone"
-              label="Statement timezone"
+              label={t("statementTimezonePicker")}
               value={timeZone}
               disabled={busy || !settingsData}
               describedBy="statement-timezone-help"
@@ -375,36 +406,34 @@ function FileImport() {
               }}
             />
             <p id="statement-timezone-help" className="mt-1 text-xs text-muted-foreground">
-              Choose the timezone used by your broker's statement. Timestamps with an explicit
-              offset keep that offset. Your journal displays times in {displayTimeZone}.
+              {t("statementTimezoneHelp", { displayZone: displayTimeZone })}
             </p>
             {timeZone && !validTimeZone && (
               <p role="alert" className="mt-1 text-xs text-loss">
-                Enter a valid IANA timezone, such as Europe/Helsinki.
+                {t("invalidTimezone")}
               </p>
             )}
             {settingsError && (
               <p role="alert" className="mt-1 text-xs text-loss">
-                {settingsError}
+                {formatApiError(tErrors, settingsErrorInfo ?? settingsError)}
               </p>
             )}
           </div>
           <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center hover:border-ring">
             <FileUp className="h-6 w-6 text-muted-foreground" />
             <span className="text-sm">
-              {fileName ||
-                (aiEnabled
-                  ? "Choose a statement for AI parsing"
-                  : "Choose a CSV / HTML / XML statement")}
+              {fileName || (aiEnabled ? t("dropzoneAi") : t("dropzone"))}
             </span>
             <span className="text-xs text-muted-foreground">
               {aiEnabled ? (
-                "CSV, TSV, HTML, XML, TXT or PDF. Your file stays local until you preview with AI."
+                t("dropzoneAiHint")
               ) : (
                 <>
-                  Auto-detected:{" "}
-                  {formatData?.formats.map((format) => format.label.split(" (")[0]).join(", ")} —
-                  anything else via column mapping.
+                  {t("autoDetect", {
+                    formats:
+                      formatData?.formats.map((format) => format.label.split(" (")[0]).join(", ") ??
+                      "",
+                  })}
                 </>
               )}
             </span>
@@ -430,11 +459,11 @@ function FileImport() {
             >
               {busy
                 ? aiEnabled
-                  ? "AI is reading your statement…"
-                  : "Reading…"
+                  ? t("readingAi")
+                  : t("reading")
                 : aiEnabled
-                  ? "Preview with AI"
-                  : "Preview file"}
+                  ? t("previewWithAi")
+                  : t("previewFile")}
             </Button>
           )}
 
@@ -446,11 +475,11 @@ function FileImport() {
           {preview?.needsSymbol && (
             <div className="flex flex-wrap items-end gap-2">
               <label className="min-w-0 flex-1 text-xs text-muted-foreground">
-                Symbol
+                {t("symbolLabel")}
                 <Input
                   value={symbol}
                   onChange={(event) => setSymbol(event.target.value.toUpperCase())}
-                  placeholder="AAPL, EURUSD…"
+                  placeholder={t("symbolPlaceholder")}
                   className="mt-1"
                 />
               </label>
@@ -460,21 +489,18 @@ function FileImport() {
                 onClick={previewFile}
                 disabled={busy || !symbol.trim()}
               >
-                Preview
+                {t("preview")}
               </Button>
             </div>
           )}
           {preview?.needsMapping && preview.headers && (
             <div className="space-y-2 rounded-md border p-3">
-              <p className="text-sm">
-                Format not recognized — map your columns (nothing is guessed silently):
-              </p>
+              <p className="text-sm">{t("needsMapping")}</p>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 {mappingFields.map((field) => (
                   <div key={field}>
-                    <Label className="mb-1 block text-xs capitalize text-muted-foreground">
-                      {field}
-                      {field === "fee" ? " (optional)" : ""}
+                    <Label className="mb-1 block text-xs text-muted-foreground">
+                      {t(`fields.${field}`)}
                     </Label>
                     <Select
                       value={mapping[field] ?? "none"}
@@ -483,7 +509,7 @@ function FileImport() {
                       }
                     >
                       <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="column" />
+                        <SelectValue placeholder={t("fields.column")} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">—</SelectItem>
@@ -499,24 +525,14 @@ function FileImport() {
               </div>
               <details className="space-y-2 text-xs">
                 <summary className="cursor-pointer text-muted-foreground">
-                  Position identity and ordering (optional)
+                  {t("positionSection")}
                 </summary>
-                <p className="text-muted-foreground">
-                  For Open/Close Long/Short rows, map source position IDs, execution IDs or sequence
-                  numbers when available. Columns named Position ID, Execution ID, Fill ID and
-                  Sequence are recognized automatically. An order ID is not an execution ID.
-                </p>
+                <p className="text-muted-foreground">{t("positionHelp")}</p>
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                   {(["positionId", "executionId", "sequence"] as const).map((field) => (
                     <div key={field}>
-                      <Label className="mb-1 block text-xs capitalize text-muted-foreground">
-                        {
-                          {
-                            positionId: "Position ID",
-                            executionId: "Execution ID",
-                            sequence: "Sequence",
-                          }[field]
-                        }
+                      <Label className="mb-1 block text-xs text-muted-foreground">
+                        {t(`fields.${field}`)}
                       </Label>
                       <Select
                         value={mapping[field] || "none"}
@@ -525,7 +541,7 @@ function FileImport() {
                         }
                       >
                         <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="column" />
+                          <SelectValue placeholder={t("fields.column")} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">—</SelectItem>
@@ -552,7 +568,7 @@ function FileImport() {
                   !mapping.timestamp
                 }
               >
-                Preview with mapping
+                {t("previewWithMapping")}
               </Button>
             </div>
           )}
@@ -561,8 +577,10 @@ function FileImport() {
             <div className="space-y-2 rounded-md border p-3">
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge variant="secondary">{preview.detected}</Badge>
-                <span>{preview.totals.executions} executions</span>
-                <span className="text-muted-foreground">· {preview.totals.symbols} symbols</span>
+                <span>{t("executionsCount", { count: preview.totals.executions })}</span>
+                <span className="text-muted-foreground">
+                  · {t("symbolsCount", { count: preview.totals.symbols })}
+                </span>
                 {preview.totals.from && (
                   <span className="text-muted-foreground">
                     · {dayKeyOf(preview.totals.from, displayTimeZone)} →{" "}
@@ -571,12 +589,15 @@ function FileImport() {
                 )}
                 {preview.totals.skippedRows > 0 && (
                   <span className="text-muted-foreground">
-                    · {preview.totals.skippedRows} rows skipped
+                    · {t("skippedRowsCount", { count: preview.totals.skippedRows })}
                   </span>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Statement timezone: {preview.timeZone}. Preview times: {displayTimeZone}.
+                {t("previewZones", {
+                  statementZone: preview.timeZone,
+                  displayZone: displayTimeZone,
+                })}
               </p>
               {!!preview.executions?.length && (
                 <div className="space-y-1 border-t pt-2 text-xs">
@@ -602,34 +623,46 @@ function FileImport() {
                           </span>
                           {preview.aiPreviewToken && (
                             <span>
-                              {execution.quantity} @ {execution.price} · Fees {execution.fee}
+                              {t("aiExecutionLine", {
+                                quantity: execution.quantity,
+                                price: execution.price,
+                                fee: execution.fee ?? 0,
+                              })}
                             </span>
                           )}
                         </div>
                         {preview.aiPreviewToken && preview.sources?.[index] && (
                           <p className="mt-0.5 text-muted-foreground">
-                            Source: {preview.sources[index]}
+                            {t("sourceLine", { source: preview.sources[index] })}
                           </p>
                         )}
                       </div>
                     ))}
                   </div>
                   {!preview.aiPreviewToken && preview.totals.executions > 5 && (
-                    <p className="text-muted-foreground">Showing the first 5 executions.</p>
+                    <p className="text-muted-foreground">{t("showingFirst5")}</p>
                   )}
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
-                {preview.detected === "ninjatrader"
-                  ? "Recovering an older NinjaTrader import or correcting its timezone? Import the complete history into a new journal account, then compare totals. Keep the original account and its reviews until you have verified the recovery."
-                  : "Correcting a previous import? Remove the affected trades before importing again with a different timezone to avoid duplicates. Back up your data first."}
+                {preview.detected === "ninjatrader" ? t("ninjaHint") : t("correctHint")}
               </p>
-              {preview.warnings?.map((warning, index) => (
-                <p key={index} className="text-xs text-muted-foreground">
-                  ⚠ {warning}
-                </p>
-              ))}
+              {hasDiagnostics
+                ? localizedDiagnostics.map((diagnostic) => (
+                    <p
+                      key={`${diagnostic.code}:${JSON.stringify(diagnostic.params ?? {})}`}
+                      className="text-xs text-muted-foreground"
+                    >
+                      ⚠ {tDiag(diagnostic.code, diagnostic.params)}
+                    </p>
+                  ))
+                : preview.warnings?.map((warning, index) => (
+                    <p key={index} className="text-xs text-muted-foreground">
+                      ⚠ {warning}
+                    </p>
+                  ))}
               {!preview.needsSymbol &&
+                !hasDiagnostics &&
                 preview.errors?.map((message, index) => (
                   <p key={index} role="alert" className="text-xs text-loss">
                     {message}
@@ -668,7 +701,7 @@ function FileImport() {
                   (preview.detected === "ninjatrader" && !preview.reconciliation?.token)
                 }
               >
-                {busy ? "Importing…" : "Import"}
+                {busy ? t("importing") : t("import")}
               </Button>
               {preview.aiPreviewToken && (
                 <label className="flex items-start gap-2 text-xs text-muted-foreground">
@@ -677,8 +710,7 @@ function FileImport() {
                     disabled={busy}
                     onCheckedChange={(checked) => setAiReviewed(checked === true)}
                   />
-                  I compared all extracted executions with my statement, including the account,
-                  quantities, prices, fees and timestamps. Import this preview.
+                  {t("aiReviewLabel")}
                 </label>
               )}
             </div>
@@ -690,6 +722,9 @@ function FileImport() {
 }
 
 function BrokerConnect() {
+  const t = useTranslations("import.broker");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
   const router = useRouter();
   const { data } = useApi<{ brokers: BrokerInfo[] }>("/api/brokers");
   const { data: settingsData, error: settingsError } = useApi<{ importTimeZone: string }>(
@@ -718,12 +753,15 @@ function BrokerConnect() {
       });
       if (created.sync.skipped > 0) {
         alert(
-          `${created.sync.skipped} broker record(s) were skipped: ${created.sync.skippedReasons.join(" ")}`,
+          t("skippedRecords", {
+            count: created.sync.skipped,
+            reasons: created.sync.skippedReasons.join(" "),
+          }),
         );
       }
       router.push(`/?accounts=${encodeURIComponent(created.id)}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Connection failed");
+      setError(cause instanceof Error ? formatApiError(tErrors, cause) : t("connectFailed"));
     } finally {
       setBusy(false);
     }
@@ -732,11 +770,11 @@ function BrokerConnect() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Connect a broker (read-only keys, stored encrypted on YOUR machine)</CardTitle>
+        <CardTitle>{t("title")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
-          <Label className="mb-1 block text-xs text-muted-foreground">Broker / exchange</Label>
+          <Label className="mb-1 block text-xs text-muted-foreground">{t("brokerLabel")}</Label>
           <Select
             value={brokerId}
             onValueChange={(value) => {
@@ -745,7 +783,7 @@ function BrokerConnect() {
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Choose a broker" />
+              <SelectValue placeholder={t("chooseBroker")} />
             </SelectTrigger>
             <SelectContent>
               {data?.brokers.map((b) => (
@@ -764,14 +802,14 @@ function BrokerConnect() {
             {broker.id === "ibkr-flex" && (
               <p className="text-xs text-muted-foreground">
                 {settingsError
-                  ? "Could not load the import timezone. Refresh and try again."
+                  ? t("tzLoadFailed")
                   : settingsData
-                    ? `Statement timezone: ${settingsData.importTimeZone}. Used for Flex timestamps without an offset. Change it in Settings → Journal before connecting.`
-                    : "Loading statement timezone…"}
+                    ? t("tzInfo", { zone: settingsData.importTimeZone })
+                    : t("tzLoading")}
               </p>
             )}
             <div>
-              <Label className="mb-1 block text-xs text-muted-foreground">Account name</Label>
+              <Label className="mb-1 block text-xs text-muted-foreground">{t("accountName")}</Label>
               <Input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -803,7 +841,7 @@ function BrokerConnect() {
                 (broker.id === "ibkr-flex" && !isTimeZone(settingsData?.importTimeZone))
               }
             >
-              {busy ? "Connecting…" : "Connect & sync"}
+              {busy ? t("connecting") : t("connect")}
             </Button>
           </>
         )}

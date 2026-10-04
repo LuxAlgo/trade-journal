@@ -1,15 +1,18 @@
 "use client";
 
 import type { AnalysisFilters, BucketStats } from "@luxalgo/journal-core";
+import { useLocale, useTranslations } from "next-intl";
 import { TimeHeatmap } from "./charts/time-heatmap";
 import { ReviewExport } from "./review-export";
 import { MonetaryValue } from "./privacy";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Skeleton } from "./ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
+import { formatApiError } from "@/lib/api-error";
 import { useApi } from "@/lib/use-api";
 import { fmtMoney, fmtPercent, pnlClass } from "@/lib/utils";
 import { describeFilters } from "@/lib/filter-description";
+import { formatLocale, type Locale } from "@/i18n/config";
 
 interface OverviewData {
   buckets: Record<
@@ -24,29 +27,33 @@ interface OverviewData {
 
 // Keep the original overview's aggregations and ordering alongside the advanced reports.
 const SECTIONS = [
-  { key: "symbol", title: "By symbol" },
-  { key: "direction", title: "Long vs short" },
-  { key: "weekday", title: "By weekday" },
-  { key: "duration", title: "By holding time" },
-  { key: "tag", title: "By tag" },
-  { key: "mistake", title: "By mistake" },
-  { key: "playbook", title: "By playbook" },
+  "symbol",
+  "direction",
+  "weekday",
+  "duration",
+  "tag",
+  "mistake",
+  "playbook",
 ] as const;
 
 export function ReportOverview({ query, filters }: { query: string; filters: AnalysisFilters }) {
-  const { data, error, loading } = useApi<OverviewData>(`/api/stats?${query}`);
+  const t = useTranslations("reports");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
+  const { data, error, errorInfo, loading } = useApi<OverviewData>(`/api/stats?${query}`);
   if (error)
     return (
       <p role="alert" className="text-sm text-destructive">
-        {error}
+        {formatApiError(tErrors, errorInfo ?? error)}
       </p>
     );
   if (loading || !data) return <Skeleton className="h-72" />;
   if (data.currencies.length > 1)
     return (
       <p className="rounded-lg border p-4 text-sm">
-        These accounts use different currencies ({data.currencies.join(", ")}). Select accounts with
-        the same currency in Filters to compare monetary results.
+        {t("multiCurrency", { currencies: data.currencies.join(", ") })}
       </p>
     );
   const currency = data.currencies[0] ?? "USD";
@@ -56,26 +63,36 @@ export function ReportOverview({ query, filters }: { query: string; filters: Ana
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
-          Trading overview · {data.timeZone} · {currency}
+          {t("overview.overviewLine", { timeZone: data.timeZone, currency })}
         </p>
         <ReviewExport
           containsFinancialData
           document={{
-            title: "Trading overview",
-            subtitle: `${data.timeZone} · ${currency}`,
+            title: t("overview.exportTitle"),
+            subtitle: t("exportSubtitle", { timeZone: data.timeZone, currency }),
             lines: [
-              `Filters: ${describeFilters(filters, data.accounts, data.playbooks)}`,
+              t("overview.exportFilters", {
+                filters: describeFilters(filters, data.accounts, data.playbooks),
+              }),
               "",
-              "Trade time performance (opening hour)",
-              ...data.buckets.hour.map(
-                (b) => `${b.key}:00: ${b.trades} trades | Net P&L ${fmtMoney(b.netPnl, currency)}`,
+              t("overview.exportHourHeader"),
+              ...data.buckets.hour.map((b) =>
+                t("overview.exportHourLine", {
+                  hour: b.key,
+                  trades: b.trades,
+                  pnl: fmtMoney(b.netPnl, currency, tag),
+                }),
               ),
               ...SECTIONS.flatMap((section) => [
                 "",
-                section.title,
-                ...data.buckets[section.key].map(
-                  (b) =>
-                    `${label(section.key, b.key)}: ${b.trades} trades | Win ${fmtPercent(b.winRate, 0)} | Net P&L ${fmtMoney(b.netPnl, currency)}`,
+                t(`overview.sections.${section}`),
+                ...data.buckets[section].map((b) =>
+                  t("overview.exportGroupLine", {
+                    label: label(section, b.key),
+                    trades: b.trades,
+                    win: fmtPercent(b.winRate, 0, tag),
+                    pnl: fmtMoney(b.netPnl, currency, tag),
+                  }),
                 ),
               ]),
             ],
@@ -85,48 +102,46 @@ export function ReportOverview({ query, filters }: { query: string; filters: Ana
       <div className="grid gap-3 lg:grid-cols-2">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Trade time performance</CardTitle>
+            <CardTitle>{t("overview.timePerformance")}</CardTitle>
           </CardHeader>
           <CardContent>
             <TimeHeatmap hours={data.buckets.hour} currency={currency} />
           </CardContent>
         </Card>
         {SECTIONS.map((section) => (
-          <Card key={section.key}>
+          <Card key={section}>
             <CardHeader>
-              <CardTitle>{section.title}</CardTitle>
+              <CardTitle>{t(`overview.sections.${section}`)}</CardTitle>
             </CardHeader>
             <CardContent>
-              {data.buckets[section.key].length === 0 ? (
+              {data.buckets[section].length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  {section.key === "tag" || section.key === "mistake" || section.key === "playbook"
-                    ? "Annotate trades to unlock this breakdown."
-                    : "No data yet."}
+                  {section === "tag" || section === "mistake" || section === "playbook"
+                    ? t("overview.annotateEmpty")
+                    : t("overview.noData")}
                 </p>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{section.title.replace("By ", "")}</TableHead>
-                      <TableHead className="text-right">Trades</TableHead>
-                      <TableHead className="text-right">Win %</TableHead>
-                      <TableHead className="text-right">Net P&L</TableHead>
+                      <TableHead>{t(`overview.columns.${section}`)}</TableHead>
+                      <TableHead className="text-right">{t("overview.thTrades")}</TableHead>
+                      <TableHead className="text-right">{t("overview.thWinPct")}</TableHead>
+                      <TableHead className="text-right">{t("overview.thNetPnl")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.buckets[section.key].map((bucket) => (
+                    {data.buckets[section].map((bucket) => (
                       <TableRow key={bucket.key}>
-                        <TableCell className="font-medium">
-                          {label(section.key, bucket.key)}
-                        </TableCell>
+                        <TableCell className="font-medium">{label(section, bucket.key)}</TableCell>
                         <TableCell className="tnum text-right text-muted-foreground">
                           {bucket.trades}
                         </TableCell>
                         <TableCell className="tnum text-right">
-                          {fmtPercent(bucket.winRate, 0)}
+                          {fmtPercent(bucket.winRate, 0, tag)}
                         </TableCell>
                         <TableCell className={`tnum text-right ${pnlClass(bucket.netPnl)}`}>
-                          <MonetaryValue>{fmtMoney(bucket.netPnl, currency)}</MonetaryValue>
+                          <MonetaryValue>{fmtMoney(bucket.netPnl, currency, tag)}</MonetaryValue>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -137,12 +152,7 @@ export function ReportOverview({ query, filters }: { query: string; filters: Ana
           </Card>
         ))}
       </div>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Weekday and hour use trade opening times. Overview trade counts include open positions; win
-        rates use closed trades. Holding time requires a closed trade. Tags and mistakes can
-        overlap. By symbol shows the top 20 by net P&L; Breakdowns includes every symbol and
-        additional metrics for closed trades.
-      </p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t("overview.footnote")}</p>
     </div>
   );
 }

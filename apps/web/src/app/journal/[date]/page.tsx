@@ -2,7 +2,8 @@
 import { AiRecap } from "@/components/ai-recap";
 
 import Link from "next/link";
-import { Suspense, use, useRef, useState } from "react";
+import { Suspense, use, useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import type { IntradayPoint, TradeMetrics } from "@luxalgo/journal-core";
 import { EquityArea } from "@/components/charts/equity-area";
 import { FilterBar, useFilters } from "@/components/filter-bar";
@@ -16,9 +17,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RichEditor, type RichEditorHandle } from "@/components/rich-editor";
 import { Attachments } from "@/components/attachments";
 import { ReviewExport } from "@/components/review-export";
-import { useAutosave } from "@/lib/use-autosave";
+import { formatApiError } from "@/lib/api-error";
+import { formatAutosaveStatus, useAutosave } from "@/lib/use-autosave";
 import { useApi } from "@/lib/use-api";
 import { fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
+import { formatLocale, type Locale } from "@/i18n/config";
 
 interface TradeRowLite {
   key: string;
@@ -50,11 +53,17 @@ export default function JournalDayPage({ params }: { params: Promise<{ date: str
 }
 
 function JournalDay({ date }: { date: string }) {
+  const t = useTranslations("journal");
+  const tEnums = useTranslations("enums");
+  const tControls = useTranslations("controls");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
+  const locale = useLocale();
   const { query, values: filters, timeZone } = useFilters();
-  const { data, error } = useApi<DayPayload>(`/api/journal/${date}?${query}`);
+  const { data, error, errorInfo } = useApi<DayPayload>(`/api/journal/${date}?${query}`);
   const [note, setNote] = useState<string | null>(null);
   const noteEditor = useRef<RichEditorHandle>(null);
-  const { save, status: saving, flush } = useAutosave(`/api/journal/${date}`, "PUT");
+  const { save, status: saving, saveState, flush } = useAutosave(`/api/journal/${date}`, "PUT");
   const noteValue = note ?? data?.note ?? "";
   const latestNote = useRef(noteValue);
   latestNote.current = noteValue;
@@ -64,42 +73,66 @@ function JournalDay({ date }: { date: string }) {
     save({ note: value });
   };
 
+  // The route parameter and stored key stay YYYY-MM-DD; only the rendered
+  // title follows the interface language.
+  const longDate = useMemo(
+    () =>
+      new Intl.DateTimeFormat(formatLocale(locale as Locale), {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: "UTC",
+      }).format(new Date(`${date}T00:00:00Z`)),
+    [locale, date],
+  );
+
   const m = data?.metrics;
   return (
     <div>
-      <FilterBar title={`Journal · ${date}`} />
+      <FilterBar title={t("dayTitle", { date: longDate })} />
       <div className="grid gap-3 p-4 xl:grid-cols-3">
         <div className="min-w-0 space-y-3 xl:col-span-2">
           {m && m.closedTrades > 0 ? (
             <Card>
               <CardHeader>
-                <CardTitle>Day stats</CardTitle>
+                <CardTitle>{t("dayStats")}</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 2xl:grid-cols-5">
-                <Stat label="Net P&L">
+                <Stat label={t("statNetPnl")}>
                   <Pnl value={m.netPnl} className="font-semibold" />
                 </Stat>
-                <Stat label="Trades">{m.closedTrades}</Stat>
-                <Stat label="Winrate">{fmtPercent(m.winRate)}</Stat>
-                <Stat label="Winners">{m.wins}</Stat>
-                <Stat label="Losers">{m.losses}</Stat>
-                <Stat label="Gross">
-                  <MonetaryValue>{fmtMoney(m.grossPnl)}</MonetaryValue>
+                <Stat label={t("statTrades")}>{m.closedTrades}</Stat>
+                <Stat label={t("statWinrate")}>
+                  {fmtPercent(m.winRate, 1, formatLocale(locale as Locale))}
                 </Stat>
-                <Stat label="Fees">
-                  <MonetaryValue>{fmtMoney(m.fees)}</MonetaryValue>
+                <Stat label={t("statWinners")}>{m.wins}</Stat>
+                <Stat label={t("statLosers")}>{m.losses}</Stat>
+                <Stat label={t("statGross")}>
+                  <MonetaryValue>
+                    {fmtMoney(m.grossPnl, "USD", formatLocale(locale as Locale))}
+                  </MonetaryValue>
                 </Stat>
-                <Stat label="Volume">{fmtNumber(m.totalVolume, 0)}</Stat>
-                <Stat label="Profit factor">
+                <Stat label={t("statFees")}>
+                  <MonetaryValue>
+                    {fmtMoney(m.fees, "USD", formatLocale(locale as Locale))}
+                  </MonetaryValue>
+                </Stat>
+                <Stat label={t("statVolume")}>
+                  {fmtNumber(m.totalVolume, 0, formatLocale(locale as Locale))}
+                </Stat>
+                <Stat label={t("statProfitFactor")}>
                   {m.profitFactorIsInfinite
                     ? "∞"
                     : m.profitFactor === null
                       ? "–"
-                      : fmtNumber(m.profitFactor)}
+                      : fmtNumber(m.profitFactor, 2, formatLocale(locale as Locale))}
                 </Stat>
-                <Stat label="Expectancy">
+                <Stat label={t("statExpectancy")}>
                   <MonetaryValue>
-                    {m.expectancy === null ? "–" : fmtMoney(m.expectancy)}
+                    {m.expectancy === null
+                      ? "–"
+                      : fmtMoney(m.expectancy, "USD", formatLocale(locale as Locale))}
                   </MonetaryValue>
                 </Stat>
               </CardContent>
@@ -108,7 +141,7 @@ function JournalDay({ date }: { date: string }) {
             m && (
               <Card>
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                  No closed trades this day.
+                  {t("noClosedTrades")}
                 </CardContent>
               </Card>
             )
@@ -117,7 +150,7 @@ function JournalDay({ date }: { date: string }) {
           {data && data.intraday.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Intraday cumulative net P&L</CardTitle>
+                <CardTitle>{t("intradayTitle")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <EquityArea
@@ -134,7 +167,7 @@ function JournalDay({ date }: { date: string }) {
           {data && data.trades.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Trades</CardTitle>
+                <CardTitle>{t("trades")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-1">
                 {data.trades.map((trade) => (
@@ -153,19 +186,30 @@ function JournalDay({ date }: { date: string }) {
                               : "secondary"
                         }
                       >
-                        {trade.status.toUpperCase()}
+                        {tEnums.has(`status.${trade.status}`)
+                          ? tEnums(`status.${trade.status}`)
+                          : trade.status.toUpperCase()}
                       </Badge>
                       <span className="font-medium">{trade.symbol}</span>
-                      <span className="text-xs text-muted-foreground">{trade.direction}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {tEnums.has(`direction.${trade.direction}`)
+                          ? tEnums(`direction.${trade.direction}`)
+                          : trade.direction}
+                      </span>
                     </span>
                     <span className="ml-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
                       <span className="tnum text-xs text-muted-foreground">
-                        {fmtNumber(trade.quantity, 4)} @{" "}
-                        <MonetaryValue>{fmtNumber(trade.avgEntry)}</MonetaryValue>
+                        {fmtNumber(trade.quantity, 4, formatLocale(locale as Locale))} @{" "}
+                        <MonetaryValue>
+                          {fmtNumber(trade.avgEntry, 2, formatLocale(locale as Locale))}
+                        </MonetaryValue>
                         {trade.avgExit !== null && (
                           <>
                             {" "}
-                            → <MonetaryValue>{fmtNumber(trade.avgExit)}</MonetaryValue>
+                            →{" "}
+                            <MonetaryValue>
+                              {fmtNumber(trade.avgExit, 2, formatLocale(locale as Locale))}
+                            </MonetaryValue>
                           </>
                         )}
                       </span>
@@ -181,7 +225,7 @@ function JournalDay({ date }: { date: string }) {
 
         <Card className="h-fit">
           <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
-            <CardTitle>Day note</CardTitle>
+            <CardTitle>{t("dayNote")}</CardTitle>
             <div className="flex items-center gap-2">
               <VoiceNote
                 onPrepare={() => noteEditor.current?.focus()}
@@ -194,10 +238,7 @@ function JournalDay({ date }: { date: string }) {
             </div>
           </CardHeader>
           <CardContent>
-            <p className="mb-3 text-xs text-muted-foreground">
-              This note is shared across accounts. AI recaps use the selected filters and append a
-              labeled section. Shared notes are excluded from filtered AI context.
-            </p>
+            <p className="mb-3 text-xs text-muted-foreground">{t("sharedNoteHint")}</p>
             <div className="mb-3">
               <AiRecap
                 key={`${date}:${timeZone}:${query}`}
@@ -218,22 +259,26 @@ function JournalDay({ date }: { date: string }) {
               <RichEditor editorRef={noteEditor} value={noteValue} onChange={scheduleSave} />
             ) : error ? (
               <p role="alert" className="text-sm text-destructive">
-                {error}
+                {formatApiError(tErrors, errorInfo ?? error)}
               </p>
             ) : (
               <Skeleton className="h-48" />
             )}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span role="status">{saving}</span>
+              <span role="status">
+                {formatAutosaveStatus(tControls, tErrors, saveState, saving)}
+              </span>
               <Button variant="ghost" size="sm" onClick={() => void flush()}>
-                Save now
+                {t("saveNow")}
               </Button>
             </div>
             <ReviewExport
               containsFinancialData
               document={{
-                title: `Daily review · ${date}`,
-                subtitle: query ? `Filters: ${query}` : "All accounts",
+                title: t("reviewTitle", { date }),
+                subtitle: query
+                  ? t("reviewSubtitleFilters", { filters: query })
+                  : t("reviewSubtitleAllAccounts"),
                 lines: [
                   `Closed trades: ${m?.closedTrades ?? 0} | Net P&L: ${m?.netPnl.toFixed(2) ?? "0.00"}`,
                   "",

@@ -1,5 +1,5 @@
 import { hasHeaders, parseCsv, pick, toRecords } from "../csv";
-import type { ImportFormat, ImportedExecution } from "../types";
+import type { ImportDiagnostic, ImportFormat, ImportedExecution } from "../types";
 import { rowsToFills, type FillsColumnMap } from "./fills";
 import { parseMoney } from "../numbers";
 
@@ -30,6 +30,9 @@ export const ninjatrader: ImportFormat = {
     const sourceAccounts = new Set<string>();
     const futures = new Set<string>();
     const errors = new Set<string>();
+    const diagnostics = new Set<string>();
+    const note = (code: string, params?: Record<string, string | number>) =>
+      diagnostics.add(JSON.stringify([code, params]));
     let skippedRows = 0;
     let withoutId = false;
     let withoutAccount = false;
@@ -44,6 +47,7 @@ export const ninjatrader: ImportFormat = {
         errors.add(
           "An execution has an invalid commission. Correct the value or leave an unavailable commission blank; it will not be treated as zero.",
         );
+        note("execution_invalid_commission");
         skippedRows++;
         continue;
       }
@@ -68,14 +72,18 @@ export const ninjatrader: ImportFormat = {
             : ["reverse", "entry/exit", "exit/entry"].includes(effectText ?? "")
               ? "reverse"
               : undefined;
-      if (effectText && !effect)
+      if (effectText && !effect) {
         errors.add(
           "Unrecognized NinjaTrader entry/exit value. Export Entry, Exit or Reverse values.",
         );
+        note("execution_invalid_effect");
+      }
       const sequenceText = pick(row, ["sequence", "executionsequence"]);
       const sequence = sequenceText === undefined ? undefined : Number(sequenceText);
-      if (sequence !== undefined && (!Number.isSafeInteger(sequence) || sequence < 0))
+      if (sequence !== undefined && (!Number.isSafeInteger(sequence) || sequence < 0)) {
         errors.add("Execution sequence must be a non-negative integer.");
+        note("execution_invalid_sequence");
+      }
       if (account) sourceAccounts.add(account);
       else withoutAccount = true;
       // Keep full contracts separate even when their displayed root is identical.
@@ -99,6 +107,7 @@ export const ninjatrader: ImportFormat = {
           errors.add(
             "One NinjaTrader execution ID describes different fills. Export a consistent execution history before importing.",
           );
+        note("execution_id_conflict");
         identities.set(key, signature);
       }
       if (
@@ -127,22 +136,40 @@ export const ninjatrader: ImportFormat = {
       executions.push(fill);
     }
     const warnings: string[] = [];
-    if (sourceAccounts.size > 1)
+    if (sourceAccounts.size > 1) {
       warnings.push(
         `${sourceAccounts.size} source accounts found. Their positions stay separate within the selected journal account.`,
       );
-    if (withoutAccount)
+      note("multiple_source_accounts", { count: sourceAccounts.size });
+    }
+    if (withoutAccount) {
       warnings.push(
         "Some rows have no source account. Import only one source account into this journal account, and keep the account and connection columns consistent on re-export.",
       );
-    if (withoutId)
+      note("missing_source_account");
+    }
+    if (withoutId) {
       warnings.push(
         "No execution ID is available for some fills. Repeated rows are preserved and the same or reordered export imports once. Overlapping exports that split identical fills cannot be reliably reconciled; use complete exports covering those fills, or include execution IDs consistently.",
       );
-    if (futures.size)
+      note("no_execution_id");
+    }
+    if (futures.size) {
       warnings.push(
         `Futures P&L requires the correct contract multiplier in Settings for each imported symbol: ${[...futures].join(", ")}.`,
       );
-    return { format: "ninjatrader", executions, skippedRows, warnings, errors: [...errors] };
+      note("futures_multiplier_required", { symbols: [...futures].join(", ") });
+    }
+    return {
+      format: "ninjatrader",
+      executions,
+      skippedRows,
+      warnings,
+      errors: [...errors],
+      diagnostics: [...diagnostics].map((entry) => {
+        const [code, params] = JSON.parse(entry) as [string, Record<string, string> | undefined];
+        return { code, ...(params ? { params } : {}) };
+      }),
+    };
   },
 };

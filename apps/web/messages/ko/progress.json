@@ -1,0 +1,33 @@
+{
+  "progress": {
+    "title": "진행 상황",
+    "addRoutine": "루틴 추가",
+    "addRoutineTitle": "매일 루틴 추가",
+    "intro": "반복 가능한 매매 하루를 만드세요. 루틴은 매매 필터와 손익과 독립적으로 기록됩니다.",
+    "dailyCompletion": "오늘 완료율",
+    "completedOf": "예정된 루틴 {total, plural, other {#개}} 중 {completed}개 완료",
+    "reviewDate": "확인할 날짜",
+    "progressDate": "진행 날짜",
+    "exportTitle": "루틴 확인 · {date}",
+    "exportCompleted": "완료: {completed}/{total}",
+    "exportDone": "[완료]",
+    "exportPending": "[ ]",
+    "exportRoutineLine": "{marker} {stage}: {title}",
+    "stage": {
+      "before": "매매 전",
+      "during": "매매 중",
+      "after": "매매 후"
+    },
+    "archive": "보관",
+    "archiveConfirm": "\"{title}\"을(를) 보관하시겠습니까? 이전 날짜는 그대로 유지됩니다.",
+    "noRoutines": "예정된 루틴이 없습니다.",
+    "recentWeeks": "최근 13주",
+    "dayHint": "루틴 {total, plural, other {#개}} 중 {completed}개 완료",
+    "dayAria": "{date}: {completed}/{total} 완료",
+    "heatmapLegend": "밝은 칸일수록 완료율이 높습니다. 회색은 예정된 루틴이 없는 날입니다. 날짜를 클릭하면 그날을 확인할 수 있습니다. 새 루틴은 오늘부터 시작됩니다.",
+    "routineLabel": "루틴",
+    "routinePlaceholder": "경제 캘린더 검토",
+    "whenLabel": "시간대",
+    "saveFailed": "저장하지 못했습니다."
+  }
+}

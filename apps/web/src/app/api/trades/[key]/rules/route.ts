@@ -5,7 +5,7 @@ import { handler, ok, requireValue } from "@/server/api";
 type Context = { params: Promise<{ key: string }> };
 function source(key: string) {
   const trade = getTradeByKey(key);
-  requireValue(trade, "Trade not found.");
+  requireValue(trade, "Trade not found.", "trade_not_found");
   const book = trade.playbookId
     ? db.select().from(playbooks).where(eq(playbooks.id, trade.playbookId)).get()
     : null;

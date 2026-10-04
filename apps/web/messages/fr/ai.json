@@ -1,0 +1,85 @@
+{
+  "ai": {
+    "scope": {
+      "allAccounts": "Tous les comptes"
+    },
+    "recapInstruction": "Rédige un récapitulatif de session pour {date} à la première personne (« je »), de 120 à 200 mots, en markdown, avec une courte liste « **À conserver** » et « **À corriger** » à la fin.",
+    "recap": {
+      "button": "Récapitulatif IA",
+      "writing": "Rédaction…"
+    },
+    "ask": {
+      "title": "Interrogez votre journal",
+      "hint": "Utilisez les comptes et les filtres du journal sélectionnés. Changer les filtres efface la réponse.",
+      "inputAriaLabel": "Posez une question à votre journal",
+      "placeholder": "Pourquoi mes ventes à découvert du lundi échouent-elles\u00a0?",
+      "thinking": "Réflexion…",
+      "submit": "Demander",
+      "suggestionMistake": "Quelle est mon erreur la plus coûteuse\u00a0?",
+      "suggestionWeekday": "Quel jour de la semaine devrais-je arrêter de trader\u00a0?",
+      "suggestionDirection": "Suis-je meilleur à la hausse ou à la baisse\u00a0?"
+    },
+    "tryAgain": "Réessayer",
+    "dismiss": "Fermer l'avis IA",
+    "action": {
+      "setUp": "Configurer l'IA",
+      "reviewSettings": "Vérifier les réglages IA",
+      "importTrades": "Importer les transactions",
+      "signIn": "Se connecter"
+    },
+    "feedback": {
+      "noMatchingTrades": {
+        "title": "Aucune transaction correspondante",
+        "description": "Aucune transaction à analyser dans cette sélection. Ajustez les comptes, les dates ou d'autres filtres du journal."
+      },
+      "checkFilters": {
+        "title": "Vérifiez les filtres du journal",
+        "description": "La portée sélectionnée n'est plus valide. Mettez à jour les comptes et les filtres avant de réessayer."
+      },
+      "refreshJournal": {
+        "title": "Actualisez votre journal",
+        "description": "Le fuseau horaire du journal a changé. Actualisez cette page pour que les dates affichées et l'analyse IA concordent."
+      },
+      "setUpAi": {
+        "title": "Configurez l'IA pour continuer",
+        "description": "Connectez une clé API Anthropic ou OpenAI dans les réglages pour poser des questions, générer des récapitulatifs et analyser vos transactions."
+      },
+      "checkConnection": {
+        "title": "Vérifiez votre connexion IA",
+        "description": "Votre fournisseur d'IA n'a pas pu vérifier votre clé ou vos permissions. Vérifiez-les dans les réglages, puis réessayez."
+      },
+      "billing": {
+        "title": "Votre compte IA demande votre attention",
+        "description": "Vérifiez la facturation, le solde de crédit ou le quota de votre compte fournisseur d'IA, puis réessayez."
+      },
+      "checkModel": {
+        "title": "Vérifiez votre modèle IA",
+        "description": "Vérifiez l'identifiant du modèle et l'accès de votre compte fournisseur dans les réglages."
+      },
+      "rateLimit": {
+        "title": "L'IA est momentanément occupée",
+        "description": "Attendez un instant avant de réessayer. Les données de votre journal n'ont pas changé."
+      },
+      "emptyJournal": {
+        "title": "Ajoutez des transactions pour commencer",
+        "description": "Les analyses IA s'appuient sur l'historique de votre journal. Importez vos transactions, puis reposez votre question."
+      },
+      "noRecap": {
+        "title": "Pas encore de transactions à récapituler",
+        "description": "Un récapitulatif exige au moins une transaction clôturée ce jour-là. Vous pouvez toujours rédiger votre propre note du jour."
+      },
+      "signIn": {
+        "title": "Reconnectez-vous",
+        "description": "Votre session a peut-être expiré. Connectez-vous pour continuer à utiliser votre journal."
+      },
+      "connection": {
+        "title": "Impossible de se connecter à l'IA",
+        "description": "Vérifiez votre connexion et réessayez. Les données de votre journal n'ont pas changé."
+      },
+      "fallback": {
+        "title": "Impossible de terminer la requête IA",
+        "description": "Réessayez dans un instant. Si cela persiste, vérifiez vos réglages IA."
+      }
+    }
+  }
+}

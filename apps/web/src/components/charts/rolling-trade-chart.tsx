@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   CartesianGrid,
   Line,
@@ -10,7 +11,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useLocale, useTranslations } from "next-intl";
 import type { PerformanceTrends } from "@/lib/performance-trends";
+import { formatLocale, type Locale } from "@/i18n/config";
 import { fmtMoney, fmtPercent } from "@/lib/utils";
 import { usePrivacy } from "../privacy";
 import { ChartFrame } from "./chart-frame";
@@ -29,11 +32,19 @@ export function RollingTradeChart({
   currency: string;
   timeZone: string;
 }) {
+  const t = useTranslations("charts");
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
   const tokens = useVizTokens();
   const privacy = usePrivacy();
   const rate = metric === "winRate";
   const format = (value: number) =>
-    rate ? fmtPercent(value, 0) : privacy ? "••••" : fmtMoney(value, currency);
+    rate ? fmtPercent(value, 0, tag) : privacy ? "••••" : fmtMoney(value, currency, tag);
+  const closeLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat(tag, { timeZone, month: "short", day: "numeric", year: "numeric" }),
+    [tag, timeZone],
+  );
   if (!tokens) return <div className="h-60" />;
   return (
     <ChartFrame height={240}>
@@ -41,7 +52,7 @@ export function RollingTradeChart({
         <LineChart
           data={data}
           margin={{ top: 12, right: 14, bottom: 4, left: 0 }}
-          aria-label={`${rate ? "Win rate" : "Average net P&L"} over 20-trade windows. Exact values and links follow below.`}
+          aria-label={rate ? t("rollingAriaWinRate") : t("rollingAriaAvgPnl")}
         >
           <CartesianGrid stroke={tokens.gridline} vertical={false} />
           <XAxis
@@ -76,9 +87,9 @@ export function RollingTradeChart({
             contentStyle={tooltipStyle(tokens)}
             labelFormatter={(label) => {
               const point = data.find((point) => point.sequence === Number(label));
-              return `Trade #${label}${point ? ` · ${new Intl.DateTimeFormat("en", { timeZone, month: "short", day: "numeric", year: "numeric" }).format(new Date(point.closedAt))}` : ""}`;
+              return `${t("rollingTradeNumber", { number: Number(label) })}${point ? ` · ${closeLabel.format(new Date(point.closedAt))}` : ""}`;
             }}
-            formatter={(value) => [format(Number(value)), "Last 20 trades"]}
+            formatter={(value) => [format(Number(value)), t("rollingSeries")]}
           />
           <Line
             dataKey={metric}

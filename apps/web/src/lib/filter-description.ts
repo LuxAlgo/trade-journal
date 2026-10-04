@@ -1,5 +1,7 @@
 import type { AnalysisFilters } from "@luxalgo/journal-core";
-const names: Record<string, string> = {
+
+/** English baseline (also the fallback when no translator is passed, e.g. AI prompts). */
+const NAMES: Record<string, string> = {
   accounts: "Accounts",
   from: "From",
   to: "To",
@@ -34,12 +36,25 @@ const names: Record<string, string> = {
   exitAfter: "Exit after",
   exitBefore: "Exit before",
 };
+const DESCRIBE_KEYS = new Set(Object.keys(NAMES));
+const EN_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Translator shape satisfied by next-intl's `t` from `useTranslations("filters")`. */
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
 export function describeFilters(
   filters: AnalysisFilters,
   accounts: { id: string; name: string }[] = [],
   playbooks: { id: string; name: string }[] = [],
   privateMode = false,
+  translate?: Translate,
 ) {
+  const field = (k: string) =>
+    translate && DESCRIBE_KEYS.has(k) ? translate(`describe.${k}`) : (NAMES[k] ?? k);
+  const weekday = (d: string) =>
+    translate && /^[0-6]$/.test(d) ? translate(`weekdayShort.${d}`) : (EN_WEEKDAYS[Number(d)] ?? d);
+  const line = (name: string, value: string) =>
+    translate ? translate("entry", { field: name, value }) : `${name}: ${value}`;
   return (
     Object.entries(filters)
       .filter(([, v]) => v)
@@ -48,18 +63,20 @@ export function describeFilters(
         if (k === "accounts")
           value = v
             .split(",")
-            .map((id) => accounts.find((a) => a.id === id)?.name ?? "Selected account")
+            .map(
+              (id) =>
+                accounts.find((a) => a.id === id)?.name ??
+                (translate ? translate("selectedAccount") : "Selected account"),
+            )
             .join(", ");
         if (k === "playbookId")
-          value = playbooks.find((p) => p.id === v)?.name ?? "Selected strategy";
-        if (k === "weekdays")
-          value = v
-            .split(",")
-            .map((d) => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][Number(d)] ?? d)
-            .join(", ");
+          value =
+            playbooks.find((p) => p.id === v)?.name ??
+            (translate ? translate("selectedStrategy") : "Selected strategy");
+        if (k === "weekdays") value = v.split(",").map(weekday).join(", ");
         if (privateMode && /^(entry|exit|pnl)(Min|Max)$/.test(k)) value = "••••";
-        return `${names[k] ?? k}: ${value}`;
+        return line(field(k), value);
       })
-      .join(" · ") || "All trades"
+      .join(" · ") || (translate ? translate("allTrades") : "All trades")
   );
 }

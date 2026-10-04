@@ -1,12 +1,17 @@
 "use client";
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useLocale, useTranslations } from "next-intl";
 import type { RelativeDrawdownPoint } from "@luxalgo/journal-core";
+import { formatLocale, type Locale } from "@/i18n/config";
 import { fmtPercent } from "@/lib/utils";
 import { tooltipStyle, useVizTokens } from "./tokens";
 import { ChartFrame } from "./chart-frame";
 
 export function RelativeDrawdownBars({ data }: { data: RelativeDrawdownPoint[] }) {
+  const t = useTranslations("charts");
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
   const tokens = useVizTokens();
   const chartData = data.map((point) => ({
     t: point.t,
@@ -22,14 +27,16 @@ export function RelativeDrawdownBars({ data }: { data: RelativeDrawdownPoint[] }
   return (
     <div className="mt-2 border-t pt-3">
       <div className="mb-1 flex items-center justify-between gap-3 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-        <span>Relative drawdown</span>
+        <span>{t("relativeDrawdown")}</span>
         <span className="tnum text-loss">
-          {available.length === 0 ? "Initial balance required" : `Max −${fmtPercent(maxDrawdown)}`}
+          {available.length === 0
+            ? t("initialBalanceRequired")
+            : t("maxDrawdown", { percent: fmtPercent(maxDrawdown, 1, tag) })}
         </span>
       </div>
       {available.length === 0 ? (
         <div className="flex h-20 items-center justify-center text-xs text-muted-foreground">
-          Set an initial balance to chart relative drawdown.
+          {t("initialBalanceHint")}
         </div>
       ) : (
         <ChartFrame height={96}>
@@ -53,13 +60,16 @@ export function RelativeDrawdownBars({ data }: { data: RelativeDrawdownPoint[] }
                 axisLine={false}
                 width={70}
                 domain={[-Math.max(maxDrawdown, 0.01), 0]}
-                tickFormatter={(value: number) => fmtPercent(Math.abs(value), 0)}
+                tickFormatter={(value: number) => fmtPercent(Math.abs(value), 0, tag)}
                 tickCount={3}
               />
               <Tooltip
                 contentStyle={tooltipStyle(tokens)}
                 labelFormatter={(value) => String(value).slice(0, 10)}
-                formatter={(value) => [fmtPercent(Math.abs(Number(value)), 2), "Relative drawdown"]}
+                formatter={(value) => [
+                  fmtPercent(Math.abs(Number(value)), 2, tag),
+                  t("relativeDrawdown"),
+                ]}
                 cursor={{ fill: tokens.loss, fillOpacity: 0.08 }}
               />
               <Bar

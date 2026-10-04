@@ -42,21 +42,36 @@ interface ImportBody {
  */
 export const POST = handler(async (request: Request) => {
   const body = (await request.json()) as ImportBody;
-  if (typeof body.content !== "string" || !body.content) return bad("content is required");
-  if (!["preview", "commit"].includes(body.mode)) return bad("mode must be preview or commit");
+  if (typeof body.content !== "string" || !body.content)
+    return bad("content is required", 400, "content_required");
+  if (!["preview", "commit"].includes(body.mode))
+    return bad("mode must be preview or commit", 400, "invalid_mode");
   if (body.symbol !== undefined && (typeof body.symbol !== "string" || body.symbol.length > 100))
-    return bad("Invalid symbol");
+    return bad("Invalid symbol", 400, "invalid_symbol");
   if (body.fileName !== undefined && typeof body.fileName !== "string")
-    return bad("Invalid filename");
+    return bad("Invalid filename", 400, "invalid_filename");
   if (body.timeZone !== undefined)
-    requireValue(isTimeZone(body.timeZone), "Enter a valid IANA statement timezone.");
+    requireValue(
+      isTimeZone(body.timeZone),
+      "Enter a valid IANA statement timezone.",
+      "invalid_timezone",
+    );
   const timeZone = body.timeZone ?? getImportTimeZone();
   requireValue(
     body.encoding === undefined || body.encoding === "text" || body.encoding === "pdf",
     "Unsupported file encoding.",
+    "invalid_encoding",
   );
-  requireValue(body.encoding !== "pdf" || body.ai, "Enable AI parsing to upload PDF statements.");
-  requireValue(!body.ai || !body.mapping, "Choose AI parsing or column mapping, not both.");
+  requireValue(
+    body.encoding !== "pdf" || body.ai,
+    "Enable AI parsing to upload PDF statements.",
+    "ai_required_for_pdf",
+  );
+  requireValue(
+    !body.ai || !body.mapping,
+    "Choose AI parsing or column mapping, not both.",
+    "conflicting_parse_mode",
+  );
   const statement = {
     content: body.content,
     fileName: body.fileName,
@@ -67,6 +82,7 @@ export const POST = handler(async (request: Request) => {
     requireValue(
       body.aiReviewed === true && body.aiPreviewToken,
       "Review the AI preview before importing.",
+      "ai_review_required",
     );
 
   const parsed = body.ai
@@ -114,6 +130,7 @@ export const POST = handler(async (request: Request) => {
       },
       warnings: parsed.warnings,
       errors: parsed.errors,
+      diagnostics: parsed.diagnostics,
       needsSymbol: parsed.needsSymbol,
       reconciliation:
         parsed.format === "ninjatrader" && body.accountId
@@ -122,9 +139,10 @@ export const POST = handler(async (request: Request) => {
     });
   }
 
-  if (!body.accountId) return bad("accountId is required to commit");
-  if (parsed.errors?.length) return bad(parsed.errors.join(" "));
-  if (parsed.executions.length === 0) return bad("No executions to import");
+  if (!body.accountId) return bad("accountId is required to commit", 400, "account_id_required");
+  if (parsed.errors?.length) return bad(parsed.errors.join(" "), 400, "import_validation_failed");
+  if (parsed.executions.length === 0)
+    return bad("No executions to import", 400, "no_executions_to_import");
   const result =
     parsed.format === "ninjatrader"
       ? commitNinjaTraderImport(body.accountId, parsed, body.content, timeZone, body.review)
@@ -144,7 +162,13 @@ export const POST = handler(async (request: Request) => {
         ]
       : []),
   ];
-  return ok({ detected: parsed.format, ...result, warnings });
+  const diagnostics = [
+    ...(parsed.diagnostics ?? []),
+    ...(result.skipped > 0
+      ? [{ code: "rows_skipped_journaled", params: { count: result.skipped } }]
+      : []),
+  ];
+  return ok({ detected: parsed.format, ...result, warnings, diagnostics });
 });
 
 /** The import page lists what auto-detection understands. */

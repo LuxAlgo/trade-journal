@@ -1,0 +1,20 @@
+{
+  "export": {
+    "exportPdf": "导出 PDF",
+    "exportPng": "导出 PNG",
+    "privacyHint": "关闭隐私模式后才能导出财务数字。",
+    "dialogTitle": "复盘导出",
+    "download": "下载 {format}",
+    "downloadIndexed": "下载 {format} · {index}/{total}",
+    "pdfPreviewNote": "复盘文本 · 分页文档请下载 PDF 查看。",
+    "pngAlt": "已导出的交易日志复盘",
+    "doneLabel": "[已完成]",
+    "error": {
+      "fontLoad": "无法加载 PDF 字体。",
+      "missingGlyphs": "PDF 字体不支持这些字符：{chars}。请移除这些字符后重新导出，或改为导出 PNG 复盘。",
+      "pngUnavailable": "此浏览器无法导出图片。",
+      "pngFailed": "图片导出失败。",
+      "generic": "导出失败。"
+    }
+  }
+}

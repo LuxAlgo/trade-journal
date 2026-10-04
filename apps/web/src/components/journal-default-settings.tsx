@@ -3,7 +3,9 @@ import { OptionSelect } from "@/components/ui/option-select";
 
 import { MonetaryField } from "./privacy";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useApi, postJson } from "@/lib/use-api";
+import { formatApiError } from "@/lib/api-error";
 import {
   EMPTY_DEFAULTS,
   type JournalDefaults,
@@ -14,7 +16,10 @@ import { Field, fieldClass } from "@/components/filter-fields";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 export function JournalDefaultSettings() {
-  const { data, error } = useApi<JournalDefaults>("/api/workspace/defaults"),
+  const t = useTranslations("settings.defaults");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
+  const { data, error, errorInfo } = useApi<JournalDefaults>("/api/workspace/defaults"),
     { data: accounts } = useApi<{ accounts: { id: string; name: string }[] }>("/api/accounts");
   const [draft, setDraft] = useState(EMPTY_DEFAULTS),
     [status, setStatus] = useState("");
@@ -23,13 +28,13 @@ export function JournalDefaultSettings() {
   }, [data]);
   const matchFields = (r: FeeRule | RiskRule, update: (r: FeeRule | RiskRule) => void) => (
     <>
-      <Field label="Account">
+      <Field label={t("account")}>
         <OptionSelect
           className={fieldClass}
           value={r.accountId}
           onValueChange={(next) => update({ ...r, accountId: next })}
         >
-          <option value="">All accounts</option>
+          <option value="">{t("allAccounts")}</option>
           {accounts?.accounts.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
@@ -37,11 +42,11 @@ export function JournalDefaultSettings() {
           ))}
         </OptionSelect>
       </Field>
-      <Field label="Symbol (blank = all)">
+      <Field label={t("symbol")}>
         <input
           className={fieldClass}
           value={r.symbol}
-          placeholder="e.g. ES"
+          placeholder={t("symbolPlaceholder")}
           onChange={(e) => update({ ...r, symbol: e.target.value.toUpperCase() })}
         />
       </Field>
@@ -50,16 +55,16 @@ export function JournalDefaultSettings() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Breakeven, fees and risk defaults</CardTitle>
+        <CardTitle>{t("title")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
         {error && (
           <p role="alert" className="text-destructive">
-            {error}
+            {formatApiError(tErrors, errorInfo ?? error)}
           </p>
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Breakeven range (±)">
+          <Field label={t("breakevenRange")}>
             <MonetaryField sensitive={draft.breakevenMode === "money"}>
               <input
                 type="number"
@@ -71,7 +76,7 @@ export function JournalDefaultSettings() {
               />
             </MonetaryField>
           </Field>
-          <Field label="Range unit">
+          <Field label={t("rangeUnit")}>
             <OptionSelect
               className={fieldClass}
               value={draft.breakevenMode}
@@ -79,22 +84,15 @@ export function JournalDefaultSettings() {
                 setDraft({ ...draft, breakevenMode: next as "money" | "percent" })
               }
             >
-              <option value="money">Account currency</option>
-              <option value="percent">% of entry notional</option>
+              <option value="money">{t("unitMoney")}</option>
+              <option value="percent">{t("unitPercent")}</option>
             </OptionSelect>
           </Field>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Closed trades within this net P&L range count as breakeven. Actual P&L is unchanged.
-          Percentage mode uses entry price × total entry quantity × contract multiplier; configure
-          multipliers for derivatives first.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("breakevenHelp")}</p>
         <div className="space-y-3">
-          <h3 className="text-sm font-medium">Default fees</h3>
-          <p className="text-xs text-muted-foreground">
-            Applied to new fills with a zero fee, including explicit zeroes. Nonzero imported fees
-            and existing fills are kept. The first matching rule wins.
-          </p>
+          <h3 className="text-sm font-medium">{t("feesTitle")}</h3>
+          <p className="text-xs text-muted-foreground">{t("feesHelp")}</p>
           {draft.feeRules.map((r, i) => {
             const update = (next: FeeRule | RiskRule) =>
               setDraft({
@@ -105,7 +103,7 @@ export function JournalDefaultSettings() {
               <div key={r.id} className="space-y-2 rounded-md border p-3">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {matchFields(r, update)}
-                  <Field label="Fee amount">
+                  <Field label={t("feeAmount")}>
                     <MonetaryField>
                       <input
                         type="number"
@@ -117,14 +115,14 @@ export function JournalDefaultSettings() {
                       />
                     </MonetaryField>
                   </Field>
-                  <Field label="Charge per">
+                  <Field label={t("chargePer")}>
                     <OptionSelect
                       className={fieldClass}
                       value={r.mode}
                       onValueChange={(next) => update({ ...r, mode: next as FeeRule["mode"] })}
                     >
-                      <option value="execution">Execution</option>
-                      <option value="unit">Unit / contract</option>
+                      <option value="execution">{t("perExecution")}</option>
+                      <option value="unit">{t("perUnit")}</option>
                     </OptionSelect>
                   </Field>
                 </div>
@@ -135,7 +133,7 @@ export function JournalDefaultSettings() {
                     setDraft({ ...draft, feeRules: draft.feeRules.filter((x) => x.id !== r.id) })
                   }
                 >
-                  Remove fee rule
+                  {t("removeFeeRule")}
                 </Button>
               </div>
             );
@@ -159,15 +157,12 @@ export function JournalDefaultSettings() {
               })
             }
           >
-            Add fee rule
+            {t("addFeeRule")}
           </Button>
         </div>
         <div className="space-y-3">
-          <h3 className="text-sm font-medium">Stop and target defaults</h3>
-          <p className="text-xs text-muted-foreground">
-            Distances from weighted entry, adjusted for long or short direction. Applied only when a
-            new trade is first created. The first matching rule wins.
-          </p>
+          <h3 className="text-sm font-medium">{t("riskTitle")}</h3>
+          <p className="text-xs text-muted-foreground">{t("riskHelp")}</p>
           {draft.riskRules.map((r, i) => {
             const update = (next: FeeRule | RiskRule) =>
               setDraft({
@@ -178,7 +173,7 @@ export function JournalDefaultSettings() {
               <div key={r.id} className="space-y-2 rounded-md border p-3">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {matchFields(r, update)}
-                  <Field label="Stop distance">
+                  <Field label={t("stopDistance")}>
                     <MonetaryField sensitive={r.mode === "price"}>
                       <input
                         type="number"
@@ -190,7 +185,7 @@ export function JournalDefaultSettings() {
                       />
                     </MonetaryField>
                   </Field>
-                  <Field label="Target distance">
+                  <Field label={t("targetDistance")}>
                     <MonetaryField sensitive={r.mode === "price"}>
                       <input
                         type="number"
@@ -202,14 +197,14 @@ export function JournalDefaultSettings() {
                       />
                     </MonetaryField>
                   </Field>
-                  <Field label="Distance unit">
+                  <Field label={t("distanceUnit")}>
                     <OptionSelect
                       className={fieldClass}
                       value={r.mode}
                       onValueChange={(next) => update({ ...r, mode: next as RiskRule["mode"] })}
                     >
-                      <option value="price">Price points</option>
-                      <option value="percent">% of entry price</option>
+                      <option value="price">{t("unitPrice")}</option>
+                      <option value="percent">{t("unitPercentEntry")}</option>
                     </OptionSelect>
                   </Field>
                 </div>
@@ -220,7 +215,7 @@ export function JournalDefaultSettings() {
                     setDraft({ ...draft, riskRules: draft.riskRules.filter((x) => x.id !== r.id) })
                   }
                 >
-                  Remove risk rule
+                  {t("removeRiskRule")}
                 </Button>
               </div>
             );
@@ -245,7 +240,7 @@ export function JournalDefaultSettings() {
               })
             }
           >
-            Add risk rule
+            {t("addRiskRule")}
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -253,15 +248,15 @@ export function JournalDefaultSettings() {
             disabled={!data}
             onClick={async () => {
               try {
-                setStatus("Saving…");
+                setStatus(t("saving"));
                 await postJson("/api/workspace/defaults", draft);
-                setStatus("Defaults saved");
+                setStatus(t("saved"));
               } catch (e) {
-                setStatus(e instanceof Error ? e.message : "Save failed.");
+                setStatus(e instanceof Error ? formatApiError(t, e) : t("saveFailed"));
               }
             }}
           >
-            Save defaults
+            {t("save")}
           </Button>
           <span role="status" className="text-xs">
             {status}

@@ -1,14 +1,15 @@
 import { bad, handler, ok } from "@/server/api";
-import { runAi } from "@/server/ai";
+import { languageDirective, requestLocale, runAi } from "@/server/ai";
 import { listExecutions } from "@/server/executions";
 import { getTradeByKey, rowToTrade } from "@/server/trades-query";
 
 /** Critique one trade: entries, exits, sizing, and the trader's own annotations. */
 export const POST = handler(async (request: Request) => {
+  const locale = await requestLocale();
   const { key } = (await request.json()) as { key?: string };
   if (!key) return bad("key is required");
   const row = getTradeByKey(key);
-  if (!row) return bad("Trade not found", 404);
+  if (!row) return bad("Trade not found", 404, "trade_not_found");
   const trade = rowToTrade(row);
   const fills = listExecutions(row.accountId, trade.executionIds).sort((a, b) =>
     a.executedAt.localeCompare(b.executedAt),
@@ -28,7 +29,9 @@ Rating: ${row.rating ?? "unrated"} | tags: ${(trade.annotations?.tags ?? []).joi
 Notes: ${row.notes ?? "none"}
 
 Fills:
-${fills.map((fill) => `${fill.executedAt} ${fill.side} ${fill.quantity} @ ${fill.price}${fill.fee ? ` fee ${fill.fee}` : ""}`).join("\n")}`,
+${fills.map((fill) => `${fill.executedAt} ${fill.side} ${fill.quantity} @ ${fill.price}${fill.fee ? ` fee ${fill.fee}` : ""}`).join("\n")}
+
+${languageDirective(locale)}`,
   );
 
   return ok({ critique });

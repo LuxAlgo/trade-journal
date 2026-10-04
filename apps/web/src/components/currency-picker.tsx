@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useLocale } from "next-intl";
+import { formatLocale, type Locale } from "@/i18n/config";
 import { currencyCodes, currencyName } from "@/lib/currencies";
 
 export function CurrencyPicker({
@@ -19,6 +21,9 @@ export function CurrencyPicker({
   // Keep the first render identical, then populate the browser's catalogue.
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
+  // Currency display names follow the interface language; codes stay ISO.
+  const uiLocale = useLocale();
+  const names = (code: string) => currencyName(code, formatLocale(uiLocale as Locale));
   const codes = [...new Set([...(ready ? currencyCodes : []), ...extraCodes, value])].sort();
   return (
     <select
@@ -30,7 +35,7 @@ export function CurrencyPicker({
     >
       {codes.map((code) => (
         <option key={code} value={code}>
-          {ready ? currencyName(code) : code}
+          {ready ? names(code) : code}
         </option>
       ))}
     </select>

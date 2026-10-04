@@ -1,0 +1,28 @@
+{
+  "manual-entry": {
+    "addTrade": "Add trade",
+    "addTradeDescription": "Choose an account and enter your buys and sells. Save an entry alone for an open position, or include the exit to record a closed trade.",
+    "symbol": "Symbol",
+    "symbolPlaceholder": "AAPL, ESZ6, BTCUSDT…",
+    "execution": "Execution {number}",
+    "dateTime": "Date & time",
+    "side": "Side",
+    "buy": "Buy",
+    "sell": "Sell",
+    "quantity": "Quantity",
+    "quantityPlaceholder": "qty",
+    "price": "Price",
+    "pricePlaceholder": "price",
+    "fee": "Fee",
+    "feePlaceholder": "fee",
+    "notes": "Notes (optional)",
+    "notesPlaceholder": "Your setup, why you took the trade, or what you learned…",
+    "notesHint": "Markdown supported. Notes are saved with the trade; existing notes are kept when adding to an open position.",
+    "saveFailed": "Couldn’t save the trade. Try again.",
+    "addExecution": "Add execution",
+    "saving": "Saving…",
+    "save": "Save trade",
+    "roundTrips": "Dates and times use your device’s timezone. Executions matching an open position on {symbol} are stitched into round trips automatically ({count} legs so far).",
+    "theSymbol": "the symbol"
+  }
+}

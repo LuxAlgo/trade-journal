@@ -1,0 +1,32 @@
+{
+  "shell": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "calendar": "Calendar",
+      "dailyJournal": "Daily journal",
+      "trades": "Trades",
+      "reports": "Reports",
+      "propFirms": "Prop firms",
+      "notebook": "Notebook",
+      "playbooks": "Playbooks",
+      "progress": "Progress",
+      "missedTrades": "Missed trades",
+      "import": "Import",
+      "accounts": "Accounts",
+      "settings": "Settings"
+    },
+    "navigationLabel": "Journal navigation",
+    "openNavigation": "Open navigation",
+    "closeNavigation": "Close navigation",
+    "sidebar": {
+      "expand": "Expand sidebar",
+      "collapse": "Collapse sidebar",
+      "expandTitle": "Expand sidebar (⌘B)",
+      "collapseTitle": "Collapse sidebar (⌘B)"
+    },
+    "footer": {
+      "openSource": "Open source",
+      "notInvestmentAdvice": "Not investment advice."
+    }
+  }
+}

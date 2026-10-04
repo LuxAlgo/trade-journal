@@ -1,0 +1,111 @@
+{
+  "controls": {
+    "close": "閉じる",
+    "about": "{heading}について",
+    "clear": "クリア",
+    "today": "今日",
+    "loadingCalendar": "カレンダーを読み込み中",
+    "chooseDate": "{field}日を選択",
+    "calendarFor": "{field}カレンダー",
+    "dateError": {
+      "invalid": "有効な日付（YYYY-MM-DD）を入力してください。",
+      "max": "有効な日付（YYYY-MM-DD）を入力してください（{max}以前）。",
+      "min": "有効な日付（YYYY-MM-DD）を入力してください（{min}以降）。",
+      "minMax": "有効な日付（YYYY-MM-DD）を入力してください（{min}以降〜{max}以前）。"
+    },
+    "theme": {
+      "toLight": "ライトモードに切り替える",
+      "toDark": "ダークモードに切り替える",
+      "light": "ライトモード",
+      "dark": "ダークモード",
+      "storageError": "外観は変更されましたが、次回のためにブラウザーに保存できませんでした。"
+    },
+    "privacy": {
+      "title": "プライバシーモード",
+      "short": "プライバシー",
+      "on": "オン",
+      "off": "オフ",
+      "ariaOn": "プライバシーモードはオン",
+      "ariaOff": "プライバシーモードはオフ",
+      "hideHint": "ジャーナル全体で残高・損益・トレード価格を非表示にします",
+      "readError": "プライバシー設定を読み込めませんでした。",
+      "saveError": "このページのプライバシーは変更されましたが、このブラウザーには保存できませんでした。",
+      "hiddenValue": "金額は非表示",
+      "editHint": "この値を編集するにはプライバシーモードをオフにしてください"
+    },
+    "timezone": {
+      "choose": "タイムゾーンを選択",
+      "triggerAria": "{label}：{value}",
+      "optionsAria": "{label}の選択肢",
+      "search": "タイムゾーンを検索",
+      "searchPlaceholder": "都市またはタイムゾーンで検索…",
+      "list": "タイムゾーン一覧",
+      "count": "{count, plural, other {# 件のタイムゾーン}}",
+      "noMatch": "一致するタイムゾーンがありません。都市名またはタイムゾーン名でお試しください。"
+    },
+    "currency": {
+      "select": "通貨を選択"
+    },
+    "notice": {
+      "converted": "トレード損益は{currency}表示 · 保存済みの基準換算レートを使用。",
+      "editRates": "レートを編集",
+      "setupTitle": "換算を設定して統合ダッシュボードを表示",
+      "missing": "報告通貨を使用するには{currencies}の換算レートを保存してください。以下の金額は元の通貨のまま表示されます。",
+      "sources": "これらのアカウントは{currencies}を使用しています。換算レートを設定すると成績を統合できます。",
+      "setupCta": "通貨換算を設定"
+    },
+    "attachments": {
+      "add": "添付ファイルを追加",
+      "uploading": "アップロード中…",
+      "hint": "画像またはPDF · 1件あたり最大8 MB",
+      "uploadAria": "添付ファイルをアップロード",
+      "failed": "アップロードに失敗しました。",
+      "remove": "{name}を削除",
+      "removeConfirm": "{name}を削除しますか？"
+    },
+    "editor": {
+      "edit": "編集",
+      "preview": "プレビュー",
+      "bold": "太字",
+      "italic": "斜体",
+      "heading": "見出し",
+      "bulletList": "箇条書き",
+      "list": "リスト",
+      "checklist": "チェックリスト",
+      "checklistShort": "リスト",
+      "linkTrade": "トレードをリンク",
+      "insertTemplate": "テンプレートを挿入…",
+      "insertTemplateAria": "ノートテンプレートを挿入",
+      "templatesAria": "ノートテンプレート",
+      "saveTemplate": "テンプレートを保存",
+      "namePrompt": "このノートテンプレートに名前を付けてください",
+      "placeholder": "レビューを書いてください…",
+      "findAria": "ティッカー・日付・アカウントでトレードを検索",
+      "findPlaceholder": "ティッカー・日付・アカウントを検索",
+      "loadingTrades": "トレードを読み込み中…",
+      "noMatches": "一致するトレードがありません。",
+      "showingLatest": "直近の50件を表示しています。それより前のトレードは日付またはアカウントで検索してください。",
+      "empty": "まだ何も書かれていません。",
+      "notesAria": "レビューノート",
+      "templates": {
+        "pre": "寄り前プラン",
+        "preContent": "## 市場環境\n\n## 注目のセットアップ\n\n## リスク上限\n- [ ] 日次リスク上限を確認\n- [ ] 予定されているイベントを確認\n\n## 今日の意図\n",
+        "review": "トレードレビュー",
+        "reviewContent": "## セットアップとシナリオ\n\n## 執行\n\n## うまくいったこと\n\n## 次に変えること\n",
+        "weekly": "週次レビュー",
+        "weeklyContent": "## 今週の勝ち\n\n## 繰り返したミス\n\n## 守れたルール\n\n## 来週のひとつの改善\n"
+      }
+    },
+    "duration": {
+      "belowMinute": "1分未満",
+      "minutes": "{count}分",
+      "hoursMinutes": "{hours}時間{minutes}分",
+      "daysHours": "{days}日{hours}時間"
+    },
+    "autosave": {
+      "saving": "保存中…",
+      "saved": "保存しました",
+      "notSaved": "保存されていません：{message}"
+    }
+  }
+}

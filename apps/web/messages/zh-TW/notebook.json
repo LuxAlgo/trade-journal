@@ -1,0 +1,31 @@
+{
+  "notebook": {
+    "title": "筆記本",
+    "newNote": "新增筆記",
+    "allNotes": "所有筆記",
+    "newFolder": "新增資料夾",
+    "noteFolder": "筆記資料夾",
+    "searchPlaceholder": "搜尋筆記",
+    "emptyNotes": "這裡還沒有筆記。",
+    "untitled": "無標題",
+    "emptyContent": "空",
+    "selectOrCreate": "選擇或建立一則筆記。",
+    "backToNotes": "返回筆記",
+    "titlePlaceholder": "標題",
+    "edit": "編輯",
+    "preview": "預覽",
+    "delete": "刪除",
+    "deleteConfirm": "確定要刪除這則筆記嗎？",
+    "saveNow": "立即儲存",
+    "folderDialog": {
+      "title": "新增資料夾",
+      "description": "將筆記整理到命名的資料夾中。",
+      "nameLabel": "資料夾名稱",
+      "cancel": "取消",
+      "create": "建立資料夾",
+      "creating": "建立中…",
+      "failed": "無法建立資料夾，請重試。"
+    },
+    "reviewTitle": "日誌筆記"
+  }
+}

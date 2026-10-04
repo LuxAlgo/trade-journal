@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { AdherenceReport } from "@/components/adherence-report";
 import { FilterBar } from "@/components/filter-bar";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { formatApiError } from "@/lib/api-error";
 import { postJson, useApi } from "@/lib/use-api";
 
 interface Playbook {
@@ -28,44 +30,68 @@ export default function PlaybooksPage() {
 }
 
 function Playbooks() {
-  const { data, refresh } = useApi<{ playbooks: Playbook[] }>("/api/playbooks");
+  const t = useTranslations("playbooks");
+  const tCommon = useTranslations("common");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
+  const { data, error, errorInfo, loading, refresh } = useApi<{ playbooks: Playbook[] }>(
+    "/api/playbooks",
+  );
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [rules, setRules] = useState("");
+  const [failure, setFailure] = useState("");
 
   const create = async () => {
-    await postJson("/api/playbooks", {
-      name,
-      description,
-      rules: rules
-        .split("\n")
-        .map((rule) => rule.trim())
-        .filter(Boolean),
-    });
-    setOpen(false);
-    setName("");
-    setDescription("");
-    setRules("");
-    refresh();
+    try {
+      await postJson("/api/playbooks", {
+        name,
+        description,
+        rules: rules
+          .split("\n")
+          .map((rule) => rule.trim())
+          .filter(Boolean),
+      });
+      setOpen(false);
+      setName("");
+      setDescription("");
+      setRules("");
+      setFailure("");
+      refresh();
+    } catch (e) {
+      setFailure(formatApiError(t, e));
+    }
   };
 
   return (
     <div>
       <FilterBar
-        title="Playbooks"
+        title={t("title")}
         actions={
           <Button size="sm" onClick={() => setOpen(true)}>
             <Plus />
-            New playbook
+            {t("new")}
           </Button>
         }
       />
       <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
+        {(error || failure) && (
+          <p role="alert" className="col-span-full text-sm text-destructive">
+            {error ? formatApiError(tErrors, errorInfo ?? error) : failure}
+          </p>
+        )}
+        {loading && !data && (
+          <p
+            role="status"
+            className="col-span-full py-16 text-center text-sm text-muted-foreground"
+          >
+            {tCommon("loading.page")}
+          </p>
+        )}
         {data?.playbooks.length === 0 && (
           <p className="col-span-full py-16 text-center text-sm text-muted-foreground">
-            A playbook is a setup you trade on purpose — name it, write its rules, then tag trades
-            with it and let Reports tell you if it actually pays.
+            {t("empty")}
           </p>
         )}
         {data?.playbooks.map((playbook) => (
@@ -75,19 +101,24 @@ function Playbooks() {
                 {playbook.name}
               </CardTitle>
               <div className="ml-auto flex shrink-0 items-center gap-2">
-                <span className="text-xs text-muted-foreground">{playbook.tradeCount} trades</span>
+                <span className="text-xs text-muted-foreground">
+                  {t("tradeCount", { count: playbook.tradeCount })}
+                </span>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  aria-label={t("deleteAria", { name: playbook.name })}
                   onClick={async () => {
-                    if (
-                      confirm(
-                        `Delete "${playbook.name}"? Trades keep their data, just lose the link.`,
-                      )
-                    ) {
-                      await postJson(`/api/playbooks/${playbook.id}`, undefined, "DELETE");
-                      refresh();
+                    // User-written playbook names stay verbatim as a message parameter.
+                    if (confirm(t("deleteConfirm", { name: playbook.name }))) {
+                      try {
+                        await postJson(`/api/playbooks/${playbook.id}`, undefined, "DELETE");
+                        setFailure("");
+                        refresh();
+                      } catch (e) {
+                        setFailure(formatApiError(t, e));
+                      }
                     }
                   }}
                 >
@@ -118,29 +149,32 @@ function Playbooks() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New playbook</DialogTitle>
+            <DialogTitle>{t("new")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Name (e.g. Opening range breakout)"
+              placeholder={t("namePlaceholder")}
             />
             <Input
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="One-line description"
+              placeholder={t("descriptionPlaceholder")}
             />
             <Textarea
               value={rules}
               onChange={(event) => setRules(event.target.value)}
-              placeholder={
-                "One rule per line:\nOnly A+ setups\nRisk max 1R\nNo entries after 11:30"
-              }
+              placeholder={t("rulesPlaceholder")}
               className="min-h-32"
             />
+            {failure && (
+              <p role="alert" className="text-xs text-destructive">
+                {failure}
+              </p>
+            )}
             <Button onClick={create} disabled={!name}>
-              Create
+              {t("create")}
             </Button>
           </div>
         </DialogContent>

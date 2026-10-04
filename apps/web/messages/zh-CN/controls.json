@@ -1,0 +1,111 @@
+{
+  "controls": {
+    "close": "关闭",
+    "about": "关于{heading}",
+    "clear": "清除",
+    "today": "今天",
+    "loadingCalendar": "日历加载中",
+    "chooseDate": "选择{field}日期",
+    "calendarFor": "{field}日历",
+    "dateError": {
+      "invalid": "请输入有效日期（YYYY-MM-DD）。",
+      "max": "请输入有效日期（YYYY-MM-DD），不晚于 {max}。",
+      "min": "请输入有效日期（YYYY-MM-DD），不早于 {min}。",
+      "minMax": "请输入有效日期（YYYY-MM-DD），不早于 {min} 且不晚于 {max}。"
+    },
+    "theme": {
+      "toLight": "切换到浅色模式",
+      "toDark": "切换到深色模式",
+      "light": "浅色模式",
+      "dark": "深色模式",
+      "storageError": "外观已更改，但浏览器无法在下次保存。"
+    },
+    "privacy": {
+      "title": "隐私模式",
+      "short": "隐私",
+      "on": "开",
+      "off": "关",
+      "ariaOn": "隐私模式已开启",
+      "ariaOff": "隐私模式已关闭",
+      "hideHint": "在整个日志中隐藏余额、盈亏和交易价格",
+      "readError": "无法读取隐私偏好。",
+      "saveError": "本页隐私已更改，但无法保存在此浏览器中。",
+      "hiddenValue": "金额已隐藏",
+      "editHint": "关闭隐私模式以编辑此值"
+    },
+    "timezone": {
+      "choose": "选择时区",
+      "triggerAria": "{label}：{value}",
+      "optionsAria": "{label}选项",
+      "search": "搜索时区",
+      "searchPlaceholder": "搜索城市或时区…",
+      "list": "时区列表",
+      "count": "{count, plural, other {# 个时区}}",
+      "noMatch": "没有匹配的时区。请尝试城市或完整时区名。"
+    },
+    "currency": {
+      "select": "选择货币"
+    },
+    "notice": {
+      "converted": "交易盈亏以 {currency} 显示 · 使用已保存的基准换算率。",
+      "editRates": "编辑汇率",
+      "setupTitle": "设置换算以查看合并仪表盘",
+      "missing": "保存 {currencies} 的换算率以使用报告货币。下方金额仍保持原币种。",
+      "sources": "这些账户使用 {currencies}。设置换算率以合并其表现。",
+      "setupCta": "设置货币换算"
+    },
+    "attachments": {
+      "add": "添加附件",
+      "uploading": "上传中…",
+      "hint": "图片或 PDF · 每个最大 8 MB",
+      "uploadAria": "上传附件",
+      "failed": "上传失败。",
+      "remove": "移除 {name}",
+      "removeConfirm": "确定移除 {name}？"
+    },
+    "editor": {
+      "edit": "编辑",
+      "preview": "预览",
+      "bold": "粗体",
+      "italic": "斜体",
+      "heading": "标题",
+      "bulletList": "无序列表",
+      "list": "列表",
+      "checklist": "清单",
+      "checklistShort": "清单",
+      "linkTrade": "关联交易",
+      "insertTemplate": "插入模板…",
+      "insertTemplateAria": "插入笔记模板",
+      "templatesAria": "笔记模板",
+      "saveTemplate": "保存模板",
+      "namePrompt": "为此笔记模板命名",
+      "placeholder": "写下你的复盘…",
+      "findAria": "按代码、日期或账户查找交易",
+      "findPlaceholder": "搜索代码、日期或账户",
+      "loadingTrades": "正在加载交易…",
+      "noMatches": "没有匹配的交易。",
+      "showingLatest": "显示最近的 50 条匹配。可按日期或账户搜索更早的交易。",
+      "empty": "暂无内容。",
+      "notesAria": "复盘笔记",
+      "templates": {
+        "pre": "盘前计划",
+        "preContent": "## 市场环境\n\n## 关注的形态\n\n## 风险上限\n- [ ] 确认当日风险上限\n- [ ] 查看日程事件\n\n## 我的意图\n",
+        "review": "交易复盘",
+        "reviewContent": "## 形态与思路\n\n## 执行\n\n## 做得好的\n\n## 我将改进的\n",
+        "weekly": "每周复盘",
+        "weeklyContent": "## 本周亮点\n\n## 重复出现的错误\n\n## 我遵守的规则\n\n## 下周的一个改进\n"
+      }
+    },
+    "duration": {
+      "belowMinute": "< 1 分钟",
+      "minutes": "{count} 分钟",
+      "hoursMinutes": "{hours} 小时 {minutes} 分",
+      "daysHours": "{days} 天 {hours} 小时"
+    },
+    "autosave": {
+      "saving": "保存中…",
+      "saved": "已保存",
+      "notSaved": "未保存：{message}"
+    }
+  }
+}

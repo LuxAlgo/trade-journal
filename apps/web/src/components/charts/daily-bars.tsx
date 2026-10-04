@@ -11,6 +11,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useLocale, useTranslations } from "next-intl";
+import { formatLocale, type Locale } from "@/i18n/config";
 import { fmtMoney } from "@/lib/utils";
 import { usePrivacy } from "../privacy";
 import { tooltipStyle, useVizTokens } from "./tokens";
@@ -34,9 +36,12 @@ export function DailyBars({
   height?: number | `${number}%`;
   currency?: string;
 }) {
-  const t = useVizTokens();
+  const t = useTranslations("charts");
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
+  const viz = useVizTokens();
   const privateMode = usePrivacy();
-  if (!t) return <div style={{ height }} />;
+  if (!viz) return <div style={{ height }} />;
   return (
     <ChartFrame height={height}>
       <ResponsiveContainer width="100%" height="100%">
@@ -46,37 +51,37 @@ export function DailyBars({
           margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
           barCategoryGap="20%"
         >
-          <CartesianGrid stroke={t.gridline} strokeWidth={1} vertical={false} />
+          <CartesianGrid stroke={viz.gridline} strokeWidth={1} vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ fill: t.inkMuted, fontSize: 11 }}
+            tick={{ fill: viz.inkMuted, fontSize: 11 }}
             tickLine={false}
-            axisLine={{ stroke: t.baseline }}
+            axisLine={{ stroke: viz.baseline }}
             minTickGap={48}
           />
           <YAxis
-            tick={{ fill: t.inkMuted, fontSize: 11 }}
+            tick={{ fill: viz.inkMuted, fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             width={70}
             tickFormatter={(value: number) =>
-              privateMode ? "••••" : fmtMoney(value, currency).replace(/\.00$/, "")
+              privateMode ? "••••" : fmtMoney(value, currency, tag).replace(/\.00$/, "")
             }
           />
-          <ReferenceLine y={0} stroke={t.baseline} />
+          <ReferenceLine y={0} stroke={viz.baseline} />
           <Tooltip
-            contentStyle={tooltipStyle(t)}
+            contentStyle={tooltipStyle(viz)}
             formatter={(value) => [
-              privateMode ? "Hidden" : fmtMoney(Number(value), currency),
-              "Net P&L",
+              privateMode ? t("hidden") : fmtMoney(Number(value), currency, tag),
+              t("seriesNetPnl"),
             ]}
-            cursor={{ fill: t.gridline, opacity: 0.4 }}
+            cursor={{ fill: viz.gridline, opacity: 0.4 }}
           />
           <Bar dataKey="netPnl" isAnimationActive={false} maxBarSize={28}>
             {data.map((entry) => (
               <Cell
                 key={entry.date}
-                fill={entry.netPnl >= 0 ? t.profitFill : t.loss}
+                fill={entry.netPnl >= 0 ? viz.profitFill : viz.loss}
                 radius={(entry.netPnl >= 0 ? [4, 4, 0, 0] : [0, 0, 4, 4]) as unknown as number}
               />
             ))}

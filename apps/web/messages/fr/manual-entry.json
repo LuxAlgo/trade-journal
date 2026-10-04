@@ -1,0 +1,28 @@
+{
+  "manual-entry": {
+    "addTrade": "Ajouter un trade",
+    "addTradeDescription": "Choisissez un compte et saisissez vos achats et ventes. Enregistrez une entrée seule pour une position ouverte, ou incluez la sortie pour créer un trade clôturé.",
+    "symbol": "Symbole",
+    "symbolPlaceholder": "AAPL, ESZ6, BTCUSDT…",
+    "execution": "Exécution {number}",
+    "dateTime": "Date et heure",
+    "side": "Sens",
+    "buy": "Achat",
+    "sell": "Vente",
+    "quantity": "Quantité",
+    "quantityPlaceholder": "quantité",
+    "price": "Prix",
+    "pricePlaceholder": "prix",
+    "fee": "Frais",
+    "feePlaceholder": "frais",
+    "notes": "Notes (facultatif)",
+    "notesPlaceholder": "Votre setup, la raison de votre entrée ou ce que vous avez appris…",
+    "notesHint": "Markdown pris en charge. Les notes sont enregistrées avec le trade\u00a0; les notes existantes sont conservées lors de l'ajout à une position ouverte.",
+    "saveFailed": "Impossible d'enregistrer le trade. Réessayez.",
+    "addExecution": "Ajouter une exécution",
+    "saving": "Enregistrement…",
+    "save": "Enregistrer le trade",
+    "roundTrips": "Les dates et heures utilisent le fuseau horaire de votre appareil. Les exécutions correspondant à une position ouverte sur {symbol} sont assemblées automatiquement en allers-retours ({count} branches pour l'instant).",
+    "theSymbol": "le symbole"
+  }
+}

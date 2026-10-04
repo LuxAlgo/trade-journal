@@ -1,0 +1,32 @@
+{
+  "shell": {
+    "nav": {
+      "dashboard": "Panel de control",
+      "calendar": "Calendario",
+      "dailyJournal": "Diario del día",
+      "trades": "Operaciones",
+      "reports": "Informes",
+      "propFirms": "Prop firms",
+      "notebook": "Cuaderno",
+      "playbooks": "Playbooks",
+      "progress": "Progreso",
+      "missedTrades": "Operaciones perdidas",
+      "import": "Importar",
+      "accounts": "Cuentas",
+      "settings": "Ajustes"
+    },
+    "navigationLabel": "Navegación del diario",
+    "openNavigation": "Abrir navegación",
+    "closeNavigation": "Cerrar navegación",
+    "sidebar": {
+      "expand": "Expandir barra lateral",
+      "collapse": "Contraer barra lateral",
+      "expandTitle": "Expandir barra lateral (⌘B)",
+      "collapseTitle": "Contraer barra lateral (⌘B)"
+    },
+    "footer": {
+      "openSource": "Código abierto",
+      "notInvestmentAdvice": "No es asesoramiento de inversión."
+    }
+  }
+}

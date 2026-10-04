@@ -5,7 +5,19 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { FILTER_KEYS } from "@luxalgo/journal-core";
 
-vi.mock("@/server/ai", () => ({ runAi: vi.fn(async () => "Controlled AI response") }));
+vi.mock("@/server/ai", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/ai")>()),
+  runAi: vi.fn(async () => "Controlled AI response"),
+}));
+// T32: routes read the validated NEXT_LOCALE cookie for prompt language
+// instructions; the jar stands in for next/headers (undefined → en baseline).
+const cookieJar = vi.hoisted(() => ({ locale: undefined as string | undefined }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "NEXT_LOCALE" && cookieJar.locale ? { name, value: cookieJar.locale } : undefined,
+  }),
+}));
 const originalDir = process.env.JOURNAL_DATA_DIR;
 const scratch = mkdtempSync(join(tmpdir(), "journal-ai-scope-"));
 process.env.JOURNAL_DATA_DIR = scratch;
@@ -44,6 +56,7 @@ const fills = (symbol: string, exit: number, date = "2026-09-15") => [
 const prompt = () => vi.mocked(runAi).mock.calls.at(-1)![0];
 beforeEach(() => {
   vi.stubEnv("JOURNAL_PASSWORD", "");
+  cookieJar.locale = undefined;
   db.delete(trades).run();
   db.delete(executions).run();
   db.delete(accounts).run();
@@ -319,6 +332,15 @@ it("rejects invalid request bodies, dates and legacy account fields instead of s
   for (const date of ["2026-02-30", "no", 42])
     expect((await recap(request({ date, filters: {} }))).status).toBe(400);
   expect(runAi).not.toHaveBeenCalled();
+});
+
+it("localizes the UI scope label while the prompt context keeps its English data labels", async () => {
+  cookieJar.locale = "zh-CN";
+  const response = await recap(request({ date: "2026-09-15", filters: {} }));
+  expect(response.status).toBe(200);
+  expect((await response.json()).scope.label).toContain("全部账户");
+  expect(prompt()).toContain("Journal scope: 2026-09-15 · All accounts · All trades · UTC");
+  expect(prompt()).not.toContain("全部");
 });
 
 it("keeps single-trade critique scoped to its key", async () => {

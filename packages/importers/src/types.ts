@@ -42,6 +42,16 @@ export interface ImportedTrade {
   assetClass?: AssetClass;
 }
 
+/**
+ * Structured counterpart of one `warnings`/`errors` entry: a stable snake_case
+ * code the UI can localize (the `import-diagnostics` namespace), plus optional
+ * interpolation params. The English strings stay the diagnostic source of truth.
+ */
+export interface ImportDiagnostic {
+  code: string;
+  params?: Record<string, string | number>;
+}
+
 export interface ParsedImport {
   format: string;
   executions: ImportedExecution[];
@@ -50,6 +60,8 @@ export interface ParsedImport {
   warnings: string[];
   /** Missing source facts or malformed/truncated input block a commit. */
   errors?: string[];
+  /** Optional structured mirror of warnings/errors; order follows the strings. */
+  diagnostics?: ImportDiagnostic[];
   needsSymbol?: boolean;
 }
 

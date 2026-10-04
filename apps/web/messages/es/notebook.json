@@ -1,0 +1,31 @@
+{
+  "notebook": {
+    "title": "Cuaderno",
+    "newNote": "Nueva nota",
+    "allNotes": "Todas las notas",
+    "newFolder": "Nueva carpeta",
+    "noteFolder": "Carpeta de notas",
+    "searchPlaceholder": "Buscar notas",
+    "emptyNotes": "Aún no hay notas aquí.",
+    "untitled": "Sin título",
+    "emptyContent": "vacío",
+    "selectOrCreate": "Selecciona o crea una nota.",
+    "backToNotes": "Volver a las notas",
+    "titlePlaceholder": "Título",
+    "edit": "Editar",
+    "preview": "Vista previa",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar esta nota?",
+    "saveNow": "Guardar ahora",
+    "folderDialog": {
+      "title": "Nueva carpeta",
+      "description": "Organiza tus notas en una carpeta con nombre.",
+      "nameLabel": "Nombre de la carpeta",
+      "cancel": "Cancelar",
+      "create": "Crear carpeta",
+      "creating": "Creando…",
+      "failed": "No se pudo crear la carpeta. Inténtalo de nuevo."
+    },
+    "reviewTitle": "Nota del diario"
+  }
+}

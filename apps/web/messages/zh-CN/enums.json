@@ -1,0 +1,69 @@
+{
+  "enums": {
+    "direction": {
+      "long": "多头",
+      "short": "空头"
+    },
+    "status": {
+      "closed": "已平仓",
+      "open": "未平仓",
+      "win": "盈利",
+      "loss": "亏损",
+      "breakeven": "保本"
+    },
+    "reviewed": {
+      "yes": "是",
+      "no": "否"
+    },
+    "assetClass": {
+      "equity": "股票",
+      "futures": "期货",
+      "forex": "外汇",
+      "option": "期权",
+      "crypto": "加密货币",
+      "cfd": "CFD",
+      "other": "其他"
+    },
+    "costBasis": {
+      "fifo": "先进先出（FIFO）",
+      "lifo": "后进先出（LIFO）",
+      "wavg": "加权平均"
+    },
+    "priceBasis": {
+      "raw": "原始价",
+      "split": "拆股调整价",
+      "adjusted": "复权价",
+      "midpoint": "中间价",
+      "bid": "买价",
+      "ask": "卖价"
+    },
+    "prop": {
+      "values": {
+        "evaluation": "考核",
+        "verification": "验证",
+        "funded": "已注资",
+        "instantFunded": "即时注资",
+        "live": "实盘",
+        "active": "活跃",
+        "passed": "已通过",
+        "breached": "已违规",
+        "closed": "已关闭",
+        "requested": "已申请",
+        "approved": "已批准",
+        "completed": "已完成",
+        "rejected": "已拒绝",
+        "cancelled": "已取消",
+        "reset": "重置",
+        "activation": "激活",
+        "subscription": "订阅",
+        "platform": "平台",
+        "marketData": "行情数据",
+        "transfer": "转账",
+        "other": "其他",
+        "expense": "费用",
+        "refund": "退款",
+        "payout": "出金分成"
+      }
+    }
+  }
+}

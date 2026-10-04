@@ -1,0 +1,184 @@
+{
+  "dashboard": {
+    "title": "仪表盘",
+    "loadFailed": "无法加载仪表盘。",
+    "tryAgain": "重试",
+    "allAccounts": "所有账户",
+    "closedWinRate": "{count, plural, other {# 笔已平仓交易 · 交易胜率 {percent}}}",
+    "currencyAccounts": "{currency} 账户",
+    "noFilterMatches": "没有符合这些筛选条件的交易。清除或调整筛选以查看更多结果。",
+    "about": "关于{title}",
+    "vsPrior7d": "对比前 7 天",
+    "closedFees": "{count, plural, other {# 笔已平仓交易 · 手续费 <fees>{feesText}</fees>}}",
+    "netPnl": {
+      "label": "净盈亏",
+      "hint": "所选范围内扣除手续费后的已实现盈亏。"
+    },
+    "tradeWin": {
+      "label": "交易胜率",
+      "hint": "盈利交易数除以全部已平仓交易，包含保本交易。",
+      "gaugeLabel": "交易胜率",
+      "wins": "{count} 胜",
+      "breakevens": "{count} 平",
+      "losses": "{count} 负"
+    },
+    "profitFactor": {
+      "label": "盈利因子",
+      "hint": "毛利 ÷ 毛损。高于 1 表示盈利超过亏损。",
+      "formula": "毛利 ÷ 毛损"
+    },
+    "dayWin": {
+      "label": "日胜率",
+      "hint": "绿盘交易日数 ÷ 所选范围内的全部交易日。",
+      "gaugeLabel": "日胜率",
+      "days": "{count, plural, other {# 天}}"
+    },
+    "avgWinLoss": {
+      "label": "平均盈利 / 亏损",
+      "hint": "平均盈利交易 ÷ 平均亏损交易。长条按比例显示两者。",
+      "barLabel": "平均盈利与平均亏损（按比例）",
+      "footnote": "<win>{winText}</win> 平均盈利 · <loss>{lossText}</loss> 平均亏损"
+    },
+    "edgeScore": {
+      "label": "优势评分",
+      "help": "综合胜率、盈利因子、平均盈亏、回撤、修复能力与一致性的 0–100 评分。至少需要 5 笔已平仓交易。",
+      "outOf": "/100",
+      "empty": "至少需要 5 笔已平仓交易。计算公式公开——<a>查看详情</a>。"
+    },
+    "cumulative": {
+      "label": "累计盈亏",
+      "title": "每日净累计盈亏",
+      "help": "所选期间内净盈亏的累计总额。下方的回撤长条显示相对权益峰值的回落。"
+    },
+    "dailyPnl": {
+      "label": "每日盈亏",
+      "title": "每日净盈亏",
+      "help": "每个交易日的净盈亏。零轴以上的长条为盈利，以下为亏损。"
+    },
+    "calendar": {
+      "label": "日历",
+      "fullCalendar": "完整日历"
+    },
+    "activity": {
+      "label": "动态",
+      "recent": "最近交易",
+      "open": "当前持仓",
+      "noClosed": "暂无已平仓交易",
+      "flat": "空仓——没有未平仓持仓"
+    },
+    "maxDrawdown": {
+      "label": "最大回撤",
+      "hint": "累计盈亏曲线从峰值到谷底的最大跌幅。",
+      "needsBalance": "设置期初资金后显示百分比",
+      "withRecovery": "{percent} · 修复系数 {value}x"
+    },
+    "streaks": {
+      "label": "连胜 / 连亏",
+      "hint": "当前连续盈利（W）或亏损（L）的次数，以及最好和最差的记录。",
+      "bestWorst": "最好 {wins}W · 最差 {losses}L"
+    },
+    "expectancy": {
+      "label": "每笔期望值",
+      "hint": "每笔已平仓交易的平均净盈亏：按你的数据，多交易一笔的价值。",
+      "avgR": "{count} 笔标记风险的交易，平均 {value}R",
+      "needsRisk": "标记止损以解锁 R 倍数"
+    },
+    "avgDuration": {
+      "label": "平均时长",
+      "hint": "从首次入场成交到最终离场的平均时间。",
+      "reportsHint": "胜负持仓时长对比见报表"
+    },
+    "bestWorstDay": {
+      "label": "最好 / 最差交易日",
+      "hint": "所选范围内单日净盈亏的最高值和最低值。"
+    },
+    "timePerformance": {
+      "label": "交易时段表现",
+      "help": "按开盘小时分组的交易。上图显示净盈亏，下图显示交易笔数。"
+    },
+    "empty": {
+      "title": "你的交易日志还是空的",
+      "body": "连接券商自动同步、上传来自 10+ 平台的对账单（包括你的 TradeZella 导出），或手动添加交易。",
+      "import": "导入你的第一批交易",
+      "loadDemo": "加载演示数据",
+      "loadingDemo": "加载中…",
+      "demoNote": "演示数据会存入独立账户，可随时在「账户」中删除。"
+    },
+    "customizer": {
+      "trigger": "自定义",
+      "title": "仪表盘卡片",
+      "visibleCount": "{count} 张可见",
+      "close": "关闭自定义",
+      "searchLabel": "查找仪表盘卡片",
+      "searchPlaceholder": "查找卡片…",
+      "clearSearch": "清除卡片搜索",
+      "showCard": "显示{card}",
+      "noMatches": "没有匹配的卡片",
+      "clearSearchAction": "清除搜索",
+      "reset": "重置布局",
+      "resetAria": "恢复默认布局",
+      "showAll": "显示所有卡片",
+      "srStatus": "{count, plural, other {找到 # 张卡片。}}{visible} / {total} 张可见。"
+    },
+    "savedLayouts": {
+      "trigger": "布局",
+      "triggerAria": "仪表盘布局",
+      "title": "仪表盘布局",
+      "savedCount": "{count} 个已保存",
+      "close": "关闭仪表盘布局",
+      "searchLabel": "查找布局",
+      "searchPlaceholder": "查找布局…",
+      "presetsHeading": "预设",
+      "presetsHint": "选择一个侧重点，再通过「自定义」改成你的布局。",
+      "applyPreset": "应用预设「{name}」",
+      "cardsCount": "{count, plural, other {# 张卡片}}",
+      "cardsCountCurrent": "{count, plural, other {# 张卡片 · 当前布局}}",
+      "defaultBadge": "默认",
+      "yourLayouts": "你保存的布局",
+      "loadLayout": "加载「{name}」",
+      "noMatches": "没有匹配的布局",
+      "saveLabel": "保存当前布局",
+      "nameAria": "布局名称",
+      "namePlaceholder": "例如：每周复盘",
+      "save": "保存",
+      "savedStatus": "已保存「{name}」",
+      "presetNames": {
+        "overview": "总览",
+        "tradingDay": "交易日",
+        "performance": "业绩",
+        "riskReview": "风险复盘"
+      },
+      "presetDescriptions": {
+        "overview": "按原始顺序显示所有卡片。",
+        "tradingDay": "日历和最近交易优先，然后是每日结果。",
+        "performance": "收益、胜率、权益曲线和你的交易优势。",
+        "riskReview": "回撤、连胜连亏、期望值和每日波动。"
+      }
+    },
+    "layout": {
+      "loading": "正在加载仪表盘布局…",
+      "cardsVisible": "显示 {visible} / {total} 张卡片",
+      "card": "卡片",
+      "saved": "布局已保存",
+      "movedSaved": "{card}已移动。布局已保存。",
+      "allShownSaved": "所有卡片已显示。布局已保存。",
+      "restoredSaved": "已恢复原始卡片顺序。所有卡片已显示。",
+      "nameLoaded": "已加载「{name}」",
+      "nameSaved": "已保存「{name}」",
+      "saveFailed": "布局已更改，但无法在此浏览器中保存。",
+      "readFailed": "无法读取已保存的仪表盘偏好。已显示所有卡片。",
+      "hiddenBanner": "{count, plural, other {当前布局隐藏了 # 张卡片。}}",
+      "showAll": "显示所有卡片",
+      "allHidden": "所有卡片均已隐藏。选择「显示所有卡片」以恢复。",
+      "dragInstructions": "按空格键或回车键拾起卡片。用方向键移动，再按空格键或回车键放下。按 Esc 取消。",
+      "pickedUp": "已拾起{card}。",
+      "draggingOver": "{card}位于{other}上方。",
+      "outsideCards": "在卡片区域外。在此放下将取消。",
+      "placedAt": "{card}已放到 {count} 张中的第 {position} 位。",
+      "moveCancelled": "已取消移动。",
+      "moveCancelledUnchanged": "已取消移动。布局未更改。",
+      "rearrange": "重排{card}",
+      "rearrangeHint": "拖动以重排{card}"
+    }
+  }
+}

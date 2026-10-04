@@ -15,7 +15,7 @@ interface PatchNoteBody {
 export const PATCH = handler(async (request: Request, { params }: Params) => {
   const { id } = await params;
   const existing = db.select().from(notes).where(eq(notes.id, id)).get();
-  if (!existing) return bad("Note not found", 404);
+  if (!existing) return bad("Note not found", 404, "note_not_found");
   const body = (await request.json()) as PatchNoteBody;
   db.update(notes)
     .set({

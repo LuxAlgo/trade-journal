@@ -1,0 +1,33 @@
+{
+  "progress": {
+    "title": "Progreso",
+    "addRoutine": "Añadir rutina",
+    "addRoutineTitle": "Añadir una rutina diaria",
+    "intro": "Construye un día de trading repetible. Las rutinas se registran de forma independiente de los filtros de operaciones y del beneficio.",
+    "dailyCompletion": "Finalización diaria",
+    "completedOf": "{completed} de {total, plural, one {# rutina programada} other {# rutinas programadas}}",
+    "reviewDate": "Fecha de revisión",
+    "progressDate": "Fecha de progreso",
+    "exportTitle": "Revisión de rutinas · {date}",
+    "exportCompleted": "Completadas: {completed}/{total}",
+    "exportDone": "[hecha]",
+    "exportPending": "[ ]",
+    "exportRoutineLine": "{marker} {stage}: {title}",
+    "stage": {
+      "before": "Antes de operar",
+      "during": "Durante la operación",
+      "after": "Después de operar"
+    },
+    "archive": "Archivar",
+    "archiveConfirm": "¿Archivar \"{title}\"? Los días anteriores se conservan.",
+    "noRoutines": "No hay rutinas programadas.",
+    "recentWeeks": "Últimas 13 semanas",
+    "dayHint": "{completed, plural, one {# rutina completada} other {# rutinas completadas}} de {total}",
+    "dayAria": "{date}: {completed}/{total} completadas",
+    "heatmapLegend": "Los cuadrados más brillantes indican una tasa de finalización más alta. Gris significa que no hay rutinas programadas. Haz clic en un día para revisarlo. Las rutinas nuevas empiezan hoy.",
+    "routineLabel": "Rutina",
+    "routinePlaceholder": "Revisar el calendario económico",
+    "whenLabel": "Cuándo",
+    "saveFailed": "No se pudo guardar."
+  }
+}

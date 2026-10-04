@@ -1,0 +1,27 @@
+{
+  "playbooks": {
+    "title": "플레이북",
+    "new": "새 플레이북",
+    "empty": "플레이북은 의도적으로 매매하는 셋업입니다. 이름을 붙이고 규칙을 적은 뒤 매매에 태그를 달면, 리포트가 실제로 수익이 되는지 알려줍니다.",
+    "tradeCount": "{count, plural, other {#건의 매매}}",
+    "deleteConfirm": "\"{name}\"을(를) 삭제하시겠습니까? 매매 데이터는 그대로 유지되고 연결만 해제됩니다.",
+    "deleteAria": "플레이북 {name} 삭제",
+    "namePlaceholder": "이름(예: 오프닝 레인지 브레이크아웃)",
+    "descriptionPlaceholder": "한 줄 설명",
+    "rulesPlaceholder": "한 줄에 규칙 하나:\nA+ 셋업만\n리스크 최대 1R\n11:30 이후 진입 금지",
+    "create": "생성",
+    "adherence": {
+      "ruleAdherence": "규칙 준수율",
+      "assessments": "필터링된 청산된 매매 {total}건에 대한 규칙 평가 {evaluated}/{possible}건.",
+      "unassessed": "{count, plural, other {#건의 매매가 아직 평가되지 않았습니다.}}",
+      "allFollowed": "모든 규칙 준수",
+      "oneBroken": "하나 이상 위반",
+      "tradesWin": "{count, plural, other {#건의 매매}} · 승률 {win}",
+      "mixedCurrencies": "통화가 혼합되어 있어 손익이 숨겨집니다.",
+      "performanceByRule": "규칙별 성과",
+      "ruleRate": "준수율 {rate} · 평가 {count, plural, other {#건}}",
+      "ruleFollowedBroken": "준수: {followedTrades, plural, other {#건}} / 승률 {followedWin} · 위반: {brokenTrades, plural, other {#건}} / 승률 {brokenWin}",
+      "ruleNetPnl": "순손익: 준수 <followed>{followedValue}</followed> / 위반 <broken>{brokenValue}</broken> {currency}"
+    }
+  }
+}

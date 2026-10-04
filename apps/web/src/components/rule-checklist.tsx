@@ -2,7 +2,9 @@
 import { OptionSelect } from "@/components/ui/option-select";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useApi, postJson } from "@/lib/use-api";
+import { formatApiError } from "@/lib/api-error";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { fieldClass } from "@/components/filter-fields";
 export function RuleChecklist({
@@ -12,6 +14,9 @@ export function RuleChecklist({
   tradeKey: string;
   playbookId: string | null;
 }) {
+  const t = useTranslations("trade-detail");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
   const url = `/api/trades/${encodeURIComponent(tradeKey)}/rules`;
   const { data, error, refresh } = useApi<{
       name: string | null;
@@ -23,7 +28,7 @@ export function RuleChecklist({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Strategy rule review</CardTitle>
+        <CardTitle>{t("rules.title")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {data?.name ? (
@@ -31,14 +36,18 @@ export function RuleChecklist({
             <p className="text-sm font-medium">{data.name}</p>
             <p className="text-xs text-muted-foreground">
               {evaluated.length
-                ? `${Math.round((followed / evaluated.length) * 100)}% followed · `
-                : ""}
-              {evaluated.length}/{data.rules.length} rules assessed
+                ? t("rules.summary", {
+                    percent: Math.round((followed / evaluated.length) * 100),
+                    assessed: evaluated.length,
+                    total: data.rules.length,
+                  })
+                : t("rules.summaryPending", {
+                    assessed: evaluated.length,
+                    total: data.rules.length,
+                  })}
             </p>
             {data.rules.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                Add rules to this playbook to review adherence.
-              </p>
+              <p className="text-xs text-muted-foreground">{t("rules.addHint")}</p>
             )}
             {data.rules.map((r) => (
               <label
@@ -59,21 +68,19 @@ export function RuleChecklist({
                       refresh();
                       setFailure("");
                     } catch (e) {
-                      setFailure(String(e));
+                      setFailure(formatApiError(tErrors, e));
                     }
                   }}
                 >
-                  <option value="unreviewed">Not assessed</option>
-                  <option value="true">Followed</option>
-                  <option value="false">Broken</option>
+                  <option value="unreviewed">{t("rules.notAssessed")}</option>
+                  <option value="true">{t("rules.followed")}</option>
+                  <option value="false">{t("rules.broken")}</option>
                 </OptionSelect>
               </label>
             ))}
           </>
         ) : (
-          <p className="text-xs text-muted-foreground">
-            Assign a playbook to check its rules for this trade.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("rules.assignHint")}</p>
         )}
         {(error || failure) && (
           <p role="alert" className="text-xs text-destructive">

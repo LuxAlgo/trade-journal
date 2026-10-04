@@ -1,0 +1,20 @@
+{
+  "export": {
+    "exportPdf": "匯出 PDF",
+    "exportPng": "匯出 PNG",
+    "privacyHint": "關閉隱私模式後才能匯出財務數字。",
+    "dialogTitle": "複盤匯出",
+    "download": "下載 {format}",
+    "downloadIndexed": "下載 {format} · {index}/{total}",
+    "pdfPreviewNote": "複盤文字 · 分頁文件請下載 PDF 查看。",
+    "pngAlt": "已匯出的交易日誌複盤",
+    "doneLabel": "[已完成]",
+    "error": {
+      "fontLoad": "無法載入 PDF 字型。",
+      "missingGlyphs": "PDF 字型不支援這些字元：{chars}。請移除這些字元後重新匯出，或改為匯出 PNG 複盤。",
+      "pngUnavailable": "此瀏覽器無法匯出圖片。",
+      "pngFailed": "圖片匯出失敗。",
+      "generic": "匯出失敗。"
+    }
+  }
+}

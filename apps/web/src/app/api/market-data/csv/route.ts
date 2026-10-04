@@ -14,7 +14,7 @@ export const POST = handler(async (request: Request) => {
     size += value.byteLength;
     if (size > MAX_CSV_BYTES * 2) {
       await reader.cancel();
-      return bad("Use a CSV smaller than 5 MB.", 413);
+      return bad("Use a CSV smaller than 5 MB.", 413, "csv_too_large");
     }
     parts.push(value);
   }
@@ -62,6 +62,11 @@ export const POST = handler(async (request: Request) => {
       sample: bars.slice(0, 3),
     });
   } catch (error) {
-    return bad(error instanceof Error ? error.message : "Invalid candle CSV.");
+    // Third-party/parse failures: sanitized message plus a stable generic code.
+    return bad(
+      error instanceof Error ? error.message : "Invalid candle CSV.",
+      400,
+      "invalid_market_csv",
+    );
   }
 });

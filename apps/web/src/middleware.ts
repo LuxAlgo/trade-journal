@@ -9,11 +9,12 @@ import { NextResponse, type NextRequest } from "next/server";
 export const middleware = (request: NextRequest) => {
   if (!process.env.JOURNAL_PASSWORD) return NextResponse.next();
   const { pathname } = request.nextUrl;
-  if (pathname === "/login" || pathname === "/api/auth") return NextResponse.next();
+  if (pathname === "/login" || pathname === "/api/auth" || pathname === "/api/locale")
+    return NextResponse.next();
   const cookie = request.cookies.get("journal_session")?.value;
   if (!cookie) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "unauthorized" }, { status: 401 });
     }
     return NextResponse.redirect(new URL("/login", request.url));
   }

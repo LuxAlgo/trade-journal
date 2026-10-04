@@ -1,0 +1,184 @@
+{
+  "dashboard": {
+    "title": "ダッシュボード",
+    "loadFailed": "ダッシュボードを読み込めませんでした。",
+    "tryAgain": "再試行",
+    "allAccounts": "すべてのアカウント",
+    "closedWinRate": "{count, plural, other {# 件の決済済みトレード · 勝率 {percent}}}",
+    "currencyAccounts": "{currency} アカウント",
+    "noFilterMatches": "このフィルターに一致するトレードはありません。フィルターを解除または調整すると、より多くの結果が表示されます。",
+    "about": "{title}について",
+    "vsPrior7d": "前の7日間との比較",
+    "closedFees": "{count, plural, other {# 件の決済済みトレード · 手数料 <fees>{feesText}</fees>}}",
+    "netPnl": {
+      "label": "純損益",
+      "hint": "選択した範囲の手数料控除後の実現損益です。"
+    },
+    "tradeWin": {
+      "label": "トレード勝率",
+      "hint": "勝ちトレードをすべての決済済みトレードで割った値です（損益分岐を含む）。",
+      "gaugeLabel": "トレード勝率",
+      "wins": "{count}勝",
+      "breakevens": "{count}分",
+      "losses": "{count}負"
+    },
+    "profitFactor": {
+      "label": "プロフィットファクター",
+      "hint": "総利益 ÷ 総損失。1 を超えると利益が損失を上回ります。",
+      "formula": "総利益 ÷ 総損失"
+    },
+    "dayWin": {
+      "label": "日次勝率",
+      "hint": "選択した範囲でプラスの交易日 ÷ すべての交易日。",
+      "gaugeLabel": "日次勝率",
+      "days": "{count, plural, other {# 日}}"
+    },
+    "avgWinLoss": {
+      "label": "平均勝ち / 負け",
+      "hint": "平均勝ちトレード ÷ 平均負けトレード。2 つの割合をバーで表示します。",
+      "barLabel": "平均勝ちと平均負けの比率バー",
+      "footnote": "<win>{winText}</win> 平均勝ち · <loss>{lossText}</loss> 平均負け"
+    },
+    "edgeScore": {
+      "label": "エッジスコア",
+      "help": "勝率・プロフィットファクター・平均損益・ドローダウン・回復力・一貫性を組み合わせた 0～100 のスコアです。決済済みトレードが 5 件以上必要です。",
+      "outOf": "/100",
+      "empty": "決済済みトレードが 5 件以上必要です。計算式は公開されています — <a>こちら</a>。"
+    },
+    "cumulative": {
+      "label": "累計損益",
+      "title": "日次純累計損益",
+      "help": "選択した期間の純損益の累計です。下のドローダウンバーは、資産曲線の最高値からの下落を示します。"
+    },
+    "dailyPnl": {
+      "label": "日次損益",
+      "title": "日次純損益",
+      "help": "各交易日の純損益です。ゼロより上のバーは利益、下のバーは損失です。"
+    },
+    "calendar": {
+      "label": "カレンダー",
+      "fullCalendar": "カレンダー全体"
+    },
+    "activity": {
+      "label": "アクティビティ",
+      "recent": "最近のトレード",
+      "open": "未決済ポジション",
+      "noClosed": "決済済みトレードはまだありません",
+      "flat": "ノーポジション — 未決済ポジションはありません"
+    },
+    "maxDrawdown": {
+      "label": "最大ドローダウン",
+      "hint": "累計損益曲線のピークから谷までの最大下落幅です。",
+      "needsBalance": "パーセント表示には初期資金の設定が必要です",
+      "withRecovery": "{percent} · 回復係数 {value}x"
+    },
+    "streaks": {
+      "label": "連勝 / 連敗",
+      "hint": "現在の連勝（W）・連敗（L）の記録と、最良・最悪の記録です。",
+      "bestWorst": "最高 {wins}W · 最低 {losses}L"
+    },
+    "expectancy": {
+      "label": "1トレードあたりの期待値",
+      "hint": "決済済みトレード 1 件あたりの平均純損益：あなたの数値で、次の 1 トレードの価値を示します。",
+      "avgR": "リスク付きトレード {count} 件の平均 {value}R",
+      "needsRisk": "ストップロスを記録するとR倍数を表示できます"
+    },
+    "avgDuration": {
+      "label": "平均保有時間",
+      "hint": "最初のエントリー約定から最後の決済までの平均時間です。",
+      "reportsHint": "勝ちと負けの比較はレポートで"
+    },
+    "bestWorstDay": {
+      "label": "最高 / 最低日",
+      "hint": "選択した範囲での 1 日の純損益の最高値と最低値です。"
+    },
+    "timePerformance": {
+      "label": "時間帯別パフォーマンス",
+      "help": "トレードを開始時間帯ごとにグループ化したものです。上のチャートは純損益、下のチャートはトレード数です。"
+    },
+    "empty": {
+      "title": "ジャーナルは空です",
+      "body": "ブローカーを接続して自動同期するか、10 以上のプラットフォーム（TradeZella のエクスポートを含む）から明細をアップロードするか、手動でトレードを追加できます。",
+      "import": "最初のトレードをインポート",
+      "loadDemo": "デモデータを読み込む",
+      "loadingDemo": "読み込み中…",
+      "demoNote": "デモデータは専用のアカウントに保存されます。「アカウント」からいつでも削除できます。"
+    },
+    "customizer": {
+      "trigger": "カスタマイズ",
+      "title": "ダッシュボードカード",
+      "visibleCount": "{count} 枚表示中",
+      "close": "カスタマイズを閉じる",
+      "searchLabel": "ダッシュボードカードを検索",
+      "searchPlaceholder": "カードを検索…",
+      "clearSearch": "カード検索をクリア",
+      "showCard": "{card}を表示",
+      "noMatches": "一致するカードはありません",
+      "clearSearchAction": "検索をクリア",
+      "reset": "レイアウトをリセット",
+      "resetAria": "デフォルトのレイアウトに戻す",
+      "showAll": "すべてのカードを表示",
+      "srStatus": "{count, plural, other {# 枚のカードが見つかりました。}}{total} 枚中 {visible} 枚を表示中。"
+    },
+    "savedLayouts": {
+      "trigger": "レイアウト",
+      "triggerAria": "ダッシュボードレイアウト",
+      "title": "ダッシュボードレイアウト",
+      "savedCount": "{count} 件保存済み",
+      "close": "ダッシュボードレイアウトを閉じる",
+      "searchLabel": "レイアウトを検索",
+      "searchPlaceholder": "レイアウトを検索…",
+      "presetsHeading": "プリセット",
+      "presetsHint": "目的に合うプリセットを選び、「カスタマイズ」で自分好みに調整できます。",
+      "applyPreset": "{name}プリセットを適用",
+      "cardsCount": "{count, plural, other {# 枚のカード}}",
+      "cardsCountCurrent": "{count, plural, other {# 枚のカード · 現在のレイアウト}}",
+      "defaultBadge": "デフォルト",
+      "yourLayouts": "保存したレイアウト",
+      "loadLayout": "{name}を読み込む",
+      "noMatches": "一致するレイアウトはありません",
+      "saveLabel": "現在のレイアウトを保存",
+      "nameAria": "レイアウト名",
+      "namePlaceholder": "例：週次レビュー",
+      "save": "保存",
+      "savedStatus": "{name}を保存しました",
+      "presetNames": {
+        "overview": "オーバービュー",
+        "tradingDay": "トレード日",
+        "performance": "パフォーマンス",
+        "riskReview": "リスクレビュー"
+      },
+      "presetDescriptions": {
+        "overview": "すべてのカードを元の順序で表示します。",
+        "tradingDay": "カレンダーと最近のトレードを先に、次に日次結果を表示します。",
+        "performance": "収益・勝率・資産曲線・あなたのエッジを表示します。",
+        "riskReview": "ドローダウン・連勝連敗・期待値・日次変動を表示します。"
+      }
+    },
+    "layout": {
+      "loading": "ダッシュボードのレイアウトを読み込み中…",
+      "cardsVisible": "{total} 枚中 {visible} 枚のカードを表示",
+      "card": "カード",
+      "saved": "レイアウトを保存しました",
+      "movedSaved": "{card}を移動しました。レイアウトを保存しました。",
+      "allShownSaved": "すべてのカードを表示しました。レイアウトを保存しました。",
+      "restoredSaved": "元のカード順序を復元しました。すべてのカードを表示しています。",
+      "nameLoaded": "{name}を読み込みました",
+      "nameSaved": "{name}を保存しました",
+      "saveFailed": "レイアウトは変更されましたが、このブラウザーには保存できませんでした。",
+      "readFailed": "保存されたダッシュボード設定を読み取れませんでした。すべてのカードを表示しています。",
+      "hiddenBanner": "{count, plural, other {このレイアウトでは # 枚のカードが非表示です。}}",
+      "showAll": "すべてのカードを表示",
+      "allHidden": "すべてのカードが非表示です。「すべてのカードを表示」で復元できます。",
+      "dragInstructions": "スペースキーまたは Enter キーでカードを持ち上げます。矢印キーで移動し、スペースキーまたは Enter キーで置きます。Escape キーでキャンセルします。",
+      "pickedUp": "{card}を持ち上げました。",
+      "draggingOver": "{card}が{other}の上にあります。",
+      "outsideCards": "カードの外側です。ここでドロップするとキャンセルされます。",
+      "placedAt": "{card}を {count} 枚中 {position} 番目に置きました。",
+      "moveCancelled": "移動をキャンセルしました。",
+      "moveCancelledUnchanged": "移動をキャンセルしました。レイアウトは変更されていません。",
+      "rearrange": "{card}を並べ替える",
+      "rearrangeHint": "ドラッグで{card}を並べ替えます"
+    }
+  }
+}

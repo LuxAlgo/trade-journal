@@ -1,0 +1,33 @@
+{
+  "progress": {
+    "title": "进度",
+    "addRoutine": "添加例行事项",
+    "addRoutineTitle": "添加每日例行事项",
+    "intro": "建立可重复的交易日。例行事项的统计独立于交易筛选和盈亏。",
+    "dailyCompletion": "今日完成度",
+    "completedOf": "{completed} / {total, plural, other {# 个计划例行事项}}",
+    "reviewDate": "复查日期",
+    "progressDate": "进度日期",
+    "exportTitle": "例行复查 · {date}",
+    "exportCompleted": "已完成：{completed}/{total}",
+    "exportDone": "[已完成]",
+    "exportPending": "[ ]",
+    "exportRoutineLine": "{marker} {stage}：{title}",
+    "stage": {
+      "before": "盘前",
+      "during": "盘中",
+      "after": "盘后"
+    },
+    "archive": "归档",
+    "archiveConfirm": "归档「{title}」？之前的日子会保留。",
+    "noRoutines": "没有已排期的例行事项。",
+    "recentWeeks": "最近 13 周",
+    "dayHint": "已完成 {completed} / {total, plural, other {# 个例行事项}}",
+    "dayAria": "{date}：{completed}/{total} 已完成",
+    "heatmapLegend": "方块越亮表示完成率越高；灰色表示当天没有已排期的例行事项。点击某天即可复查该日。新例行事项从今天开始。",
+    "routineLabel": "例行事项",
+    "routinePlaceholder": "复查经济日历",
+    "whenLabel": "时间段",
+    "saveFailed": "保存失败。"
+  }
+}

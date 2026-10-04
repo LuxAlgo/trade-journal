@@ -6,8 +6,47 @@ import {
 } from "@luxalgo/journal-core";
 import { db, accounts, playbooks } from "@/db";
 import { describeFilters } from "@/lib/filter-description";
+import { defaultLocale, type Locale } from "@/i18n/config";
+import { loadLocaleMessages } from "@/i18n/request";
 import { requireValue } from "./api";
 import { getTimeZone } from "./settings";
+
+/**
+ * Server-side translator for the plain `{param}` messages these endpoints need
+ * (the `filters` scope labels and the `ai` namespace). Route handlers run
+ * outside React render, so next-intl's request-bound `getTranslations` is not
+ * usable here; these keys are simple strings by contract (guarded by
+ * scripts/check-messages.mjs), so a bounded dot-path lookup with `{param}`
+ * substitution stays in parity with the client. Falls back to `en`, then to
+ * the key itself.
+ */
+export type ServerTranslate = (key: string, values?: Record<string, string | number>) => string;
+
+const resolveMessage = (node: unknown, key: string): unknown =>
+  key
+    .split(".")
+    .reduce<unknown>(
+      (current, part) =>
+        current && typeof current === "object"
+          ? (current as Record<string, unknown>)[part]
+          : undefined,
+      node,
+    );
+
+export const serverTranslator = (locale: Locale, namespace: string): ServerTranslate => {
+  const messages = loadLocaleMessages(locale);
+  const fallback = locale === defaultLocale ? undefined : loadLocaleMessages(defaultLocale);
+  return (key, values) => {
+    const message =
+      resolveMessage(messages[namespace], key) ??
+      (fallback ? resolveMessage(fallback[namespace], key) : undefined);
+    return typeof message === "string"
+      ? message.replace(/\{(\w+)\}/g, (raw, param: string) =>
+          values && param in values ? String(values[param]) : raw,
+        )
+      : key;
+  };
+};
 
 export function isDay(value: unknown): value is string {
   return (
@@ -19,7 +58,11 @@ export function isDay(value: unknown): value is string {
 }
 
 /** Require an explicit filter snapshot; malformed scopes must never fall back to all trades. */
-export function readAiRequest(value: unknown, field: "question" | "date") {
+export function readAiRequest(
+  value: unknown,
+  field: "question" | "date",
+  locale: Locale = defaultLocale,
+) {
   requireValue(value && typeof value === "object" && !Array.isArray(value), "Invalid AI request");
   const body = value as Record<string, unknown>;
   requireValue(
@@ -84,6 +127,7 @@ export function readAiRequest(value: unknown, field: "question" | "date") {
   requireValue(
     body.timeZone === undefined || body.timeZone === timeZone,
     "Journal timezone changed. Refresh and try again.",
+    "journal_timezone_changed",
   );
   const allAccounts = db
     .select({ id: accounts.id, name: accounts.name, currency: accounts.currency })
@@ -106,23 +150,27 @@ export function readAiRequest(value: unknown, field: "question" | "date") {
         body.question.length <= 10000,
       "question is required (maximum 10000 characters)",
     );
-  const label = (privateMode: boolean) =>
-    [
-      date,
-      !ids ? "All accounts" : "",
-      describeFilters(filters, selectedAccounts, strategies, privateMode),
-      timeZone,
-    ]
+  // The scope label is user-visible (answer header, journal note sections) and
+  // follows the interface language; the prompt context keeps the English data
+  // labels the model reasons over.
+  const describe = (privateMode: boolean, translate?: ServerTranslate) =>
+    describeFilters(filters, selectedAccounts, strategies, privateMode, translate);
+  const tf = serverTranslator(locale, "filters");
+  const ta = serverTranslator(locale, "ai");
+  const scopeLabel = (privateMode: boolean) =>
+    [date, !ids ? ta("scope.allAccounts") : "", describe(privateMode, tf), timeZone]
       .filter(Boolean)
       .join(" · ");
+  const promptScope = (privateMode: boolean) =>
+    [date, !ids ? "All accounts" : "", describe(privateMode), timeZone].filter(Boolean).join(" · ");
   return {
     filters,
     timeZone,
     accounts: selectedAccounts,
     question: typeof body.question === "string" ? body.question.trim() : "",
     date: date as string | undefined,
-    scope: { label: label(true), timeZone },
-    context: `Journal scope: ${label(false)}. Only the filtered data below is available. Do not infer results for excluded accounts or dates.`,
+    scope: { label: scopeLabel(true), timeZone },
+    context: `Journal scope: ${promptScope(false)}. Only the filtered data below is available. Do not infer results for excluded accounts or dates.`,
   };
 }
 

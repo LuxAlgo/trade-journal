@@ -1,0 +1,28 @@
+{
+  "manual-entry": {
+    "addTrade": "添加交易",
+    "addTradeDescription": "选择账户并输入你的买入和卖出。只保存一笔入场即记录为未平仓持仓，加上平仓则记录为一笔已平仓交易。",
+    "symbol": "交易代码",
+    "symbolPlaceholder": "AAPL, ESZ6, BTCUSDT…",
+    "execution": "成交 {number}",
+    "dateTime": "日期和时间",
+    "side": "方向",
+    "buy": "买入",
+    "sell": "卖出",
+    "quantity": "数量",
+    "quantityPlaceholder": "数量",
+    "price": "价格",
+    "pricePlaceholder": "价格",
+    "fee": "手续费",
+    "feePlaceholder": "手续费",
+    "notes": "备注（可选）",
+    "notesPlaceholder": "你的交易 setup、入场原因或学到的经验…",
+    "notesHint": "支持 Markdown。备注会随交易一起保存；向未平仓持仓追加成交时，保留原有备注。",
+    "saveFailed": "无法保存交易。请重试。",
+    "addExecution": "添加成交",
+    "saving": "保存中…",
+    "save": "保存交易",
+    "roundTrips": "日期和时间使用设备所在时区。与{symbol}未平仓持仓匹配的成交会自动拼接为完整回合（已输入 {count} 笔）。",
+    "theSymbol": "该交易代码"
+  }
+}

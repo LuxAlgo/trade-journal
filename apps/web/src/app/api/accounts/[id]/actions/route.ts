@@ -17,7 +17,7 @@ interface ActionBody {
 export const POST = handler(async (request: Request, { params }: Params) => {
   const { id } = await params;
   const account = db.select().from(accounts).where(eq(accounts.id, id)).get();
-  if (!account) return bad("Account not found", 404);
+  if (!account) return bad("Account not found", 404, "account_not_found");
   const body = (await request.json()) as ActionBody;
 
   switch (body.action) {
@@ -41,7 +41,7 @@ export const POST = handler(async (request: Request, { params }: Params) => {
       const destinationId = body.toAccountId;
       requireValue(destinationId !== id, "Choose a different destination account.");
       const destination = db.select().from(accounts).where(eq(accounts.id, destinationId)).get();
-      if (!destination) return bad("Destination account not found", 404);
+      if (!destination) return bad("Destination account not found", 404, "account_not_found");
 
       // Remember annotations before the move; trade keys are account-prefixed,
       // so after the rebuild they re-anchor under the destination's prefix.
@@ -54,7 +54,11 @@ export const POST = handler(async (request: Request, { params }: Params) => {
             .from(accounts)
             .where(eq(accounts.id, destinationId))
             .get();
-          requireValue(currentSource && currentDestination, "Account not found.");
+          requireValue(
+            currentSource && currentDestination,
+            "Account not found.",
+            "account_not_found",
+          );
           const timeZone = ibkrTransferTimeZone(currentSource, currentDestination);
           if (timeZone !== undefined) {
             tx.update(accounts)

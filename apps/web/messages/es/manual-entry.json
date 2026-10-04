@@ -1,0 +1,28 @@
+{
+  "manual-entry": {
+    "addTrade": "Añadir operación",
+    "addTradeDescription": "Elige una cuenta e introduce tus compras y ventas. Guarda una entrada sola para una posición abierta, o incluye la salida para registrar una operación cerrada.",
+    "symbol": "Símbolo",
+    "symbolPlaceholder": "AAPL, ESZ6, BTCUSDT…",
+    "execution": "Ejecución {number}",
+    "dateTime": "Fecha y hora",
+    "side": "Dirección",
+    "buy": "Compra",
+    "sell": "Venta",
+    "quantity": "Cantidad",
+    "quantityPlaceholder": "cantidad",
+    "price": "Precio",
+    "pricePlaceholder": "precio",
+    "fee": "Comisión",
+    "feePlaceholder": "comisión",
+    "notes": "Notas (opcional)",
+    "notesPlaceholder": "Tu estrategia, por qué tomaste la operación o qué aprendiste…",
+    "notesHint": "Se admite Markdown. Las notas se guardan con la operación; las notas existentes se conservan al añadir a una posición abierta.",
+    "saveFailed": "No se pudo guardar la operación. Inténtalo de nuevo.",
+    "addExecution": "Añadir ejecución",
+    "saving": "Guardando…",
+    "save": "Guardar operación",
+    "roundTrips": "Las fechas y horas usan la zona horaria de tu dispositivo. Las ejecuciones que coincidan con una posición abierta en {symbol} se agrupan automáticamente en operaciones completas ({count} tramos hasta ahora).",
+    "theSymbol": "el símbolo"
+  }
+}

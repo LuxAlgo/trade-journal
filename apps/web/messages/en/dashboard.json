@@ -1,0 +1,184 @@
+{
+  "dashboard": {
+    "title": "Dashboard",
+    "loadFailed": "Could not load the dashboard.",
+    "tryAgain": "Try again",
+    "allAccounts": "All accounts",
+    "closedWinRate": "{count, plural, one {# closed trade · {percent} trade win rate} other {# closed trades · {percent} trade win rate}}",
+    "currencyAccounts": "{currency} accounts",
+    "noFilterMatches": "No trades match these filters. Clear or adjust Filters to see more results.",
+    "about": "About {title}",
+    "vsPrior7d": "vs prior 7d",
+    "closedFees": "{count, plural, one {# closed trade · <fees>{feesText}</fees> fees} other {# closed trades · <fees>{feesText}</fees> fees}}",
+    "netPnl": {
+      "label": "Net P&L",
+      "hint": "Realized profit and loss net of fees, over the selected range."
+    },
+    "tradeWin": {
+      "label": "Trade win %",
+      "hint": "Winning trades divided by all closed trades, including breakevens.",
+      "gaugeLabel": "Trade win rate",
+      "wins": "{count} W",
+      "breakevens": "{count} BE",
+      "losses": "{count} L"
+    },
+    "profitFactor": {
+      "label": "Profit factor",
+      "hint": "Gross profit ÷ gross loss. Above 1 means the wins outweigh the losses.",
+      "formula": "gross profit ÷ gross loss"
+    },
+    "dayWin": {
+      "label": "Day win %",
+      "hint": "Green trading days ÷ all trading days in the selected range.",
+      "gaugeLabel": "Day win rate",
+      "days": "{count, plural, one {# day} other {# days}}"
+    },
+    "avgWinLoss": {
+      "label": "Avg win / loss",
+      "hint": "Average winning trade ÷ average losing trade. The bar shows the two to scale.",
+      "barLabel": "Average win vs average loss, to scale",
+      "footnote": "<win>{winText}</win> avg win · <loss>{lossText}</loss> avg loss"
+    },
+    "edgeScore": {
+      "label": "Edge Score",
+      "help": "A 0–100 score combining win rate, profit factor, average win/loss, drawdown, recovery, and consistency. Requires at least five closed trades.",
+      "outOf": "/100",
+      "empty": "Needs 5+ closed trades. The formula is open — <a>read it</a>."
+    },
+    "cumulative": {
+      "label": "Cumulative P&L",
+      "title": "Daily net cumulative P&L",
+      "help": "Running total of net profit and loss over the selected period. The drawdown bars below show declines from the running equity peak."
+    },
+    "dailyPnl": {
+      "label": "Daily P&L",
+      "title": "Net daily P&L",
+      "help": "Net profit or loss for each trading day. Bars above zero are profitable; bars below zero are losses."
+    },
+    "calendar": {
+      "label": "Calendar",
+      "fullCalendar": "Full calendar"
+    },
+    "activity": {
+      "label": "Activity",
+      "recent": "Recent trades",
+      "open": "Open positions",
+      "noClosed": "No closed trades yet",
+      "flat": "Flat — no open positions"
+    },
+    "maxDrawdown": {
+      "label": "Max drawdown",
+      "hint": "Largest peak-to-trough drop of the cumulative P&L curve.",
+      "needsBalance": "set an initial balance for %",
+      "withRecovery": "{percent} · recovery {value}x"
+    },
+    "streaks": {
+      "label": "Streaks",
+      "hint": "Current run of consecutive wins (W) or losses (L), with the best and worst runs.",
+      "bestWorst": "best {wins}W · worst {losses}L"
+    },
+    "expectancy": {
+      "label": "Expectancy / trade",
+      "hint": "Average net P&L per closed trade: what one more trade is worth on your numbers.",
+      "avgR": "avg {value}R over {count} risk-tagged trades",
+      "needsRisk": "tag stop-losses to unlock R multiples"
+    },
+    "avgDuration": {
+      "label": "Avg duration",
+      "hint": "Average time from first entry fill to final exit.",
+      "reportsHint": "winners vs losers in Reports"
+    },
+    "bestWorstDay": {
+      "label": "Best / worst day",
+      "hint": "Highest and lowest single-day net P&L in the selected range."
+    },
+    "timePerformance": {
+      "label": "Trade time performance",
+      "help": "Trades grouped by their opening hour. The upper chart shows net P&L; the lower chart shows trade count."
+    },
+    "empty": {
+      "title": "Your journal is empty",
+      "body": "Connect a broker for automatic sync, upload a statement from 10+ platforms (including your TradeZella export), or add trades manually.",
+      "import": "Import your first trades",
+      "loadDemo": "Load demo data",
+      "loadingDemo": "Loading…",
+      "demoNote": "Demo data lands in its own account; delete it anytime under Accounts."
+    },
+    "customizer": {
+      "trigger": "Customize",
+      "title": "Dashboard cards",
+      "visibleCount": "{count} visible",
+      "close": "Close customization",
+      "searchLabel": "Find dashboard cards",
+      "searchPlaceholder": "Find a card…",
+      "clearSearch": "Clear card search",
+      "showCard": "Show {card}",
+      "noMatches": "No matching cards",
+      "clearSearchAction": "Clear search",
+      "reset": "Reset layout",
+      "resetAria": "Restore default layout",
+      "showAll": "Show all cards",
+      "srStatus": "{count, plural, one {# card found.} other {# cards found.}} {visible} of {total} visible."
+    },
+    "savedLayouts": {
+      "trigger": "Layouts",
+      "triggerAria": "Dashboard layouts",
+      "title": "Dashboard layouts",
+      "savedCount": "{count} saved",
+      "close": "Close dashboard layouts",
+      "searchLabel": "Find a layout",
+      "searchPlaceholder": "Find a layout…",
+      "presetsHeading": "Presets",
+      "presetsHint": "Choose a focus, then make it yours with Customize.",
+      "applyPreset": "Apply {name} preset",
+      "cardsCount": "{count, plural, one {# card} other {# cards}}",
+      "cardsCountCurrent": "{count, plural, one {# card · Current layout} other {# cards · Current layout}}",
+      "defaultBadge": "Default",
+      "yourLayouts": "Your saved layouts",
+      "loadLayout": "Load {name}",
+      "noMatches": "No matching layouts",
+      "saveLabel": "Save current layout",
+      "nameAria": "Layout name",
+      "namePlaceholder": "e.g. Weekly review",
+      "save": "Save",
+      "savedStatus": "{name} saved",
+      "presetNames": {
+        "overview": "Overview",
+        "tradingDay": "Trading day",
+        "performance": "Performance",
+        "riskReview": "Risk review"
+      },
+      "presetDescriptions": {
+        "overview": "All cards in the original order.",
+        "tradingDay": "Calendar and recent trades first, then daily results.",
+        "performance": "Returns, win rate, equity, and your trading edge.",
+        "riskReview": "Drawdown, streaks, expectancy, and daily swings."
+      }
+    },
+    "layout": {
+      "loading": "Loading dashboard layout…",
+      "cardsVisible": "{visible} of {total} cards",
+      "card": "Card",
+      "saved": "Layout saved",
+      "movedSaved": "{card} moved. Layout saved.",
+      "allShownSaved": "All cards are shown. Layout saved.",
+      "restoredSaved": "Original card order restored. All cards are shown.",
+      "nameLoaded": "{name} loaded",
+      "nameSaved": "{name} saved",
+      "saveFailed": "Your layout changed, but could not be saved in this browser.",
+      "readFailed": "Saved dashboard preferences could not be read. All cards are shown.",
+      "hiddenBanner": "{count, plural, one {# card is hidden in this layout.} other {# cards are hidden in this layout.}}",
+      "showAll": "Show all cards",
+      "allHidden": "All cards are hidden. Choose Show all cards to restore them.",
+      "dragInstructions": "Press Space or Enter to pick up a card. Use the arrow keys to move, then Space or Enter to drop. Press Escape to cancel.",
+      "pickedUp": "Picked up {card}.",
+      "draggingOver": "{card} is over {other}.",
+      "outsideCards": "Outside the cards. Drop here to cancel.",
+      "placedAt": "{card} placed at position {position} of {count}.",
+      "moveCancelled": "Move cancelled.",
+      "moveCancelledUnchanged": "Move cancelled. Layout unchanged.",
+      "rearrange": "Rearrange {card}",
+      "rearrangeHint": "Drag to rearrange {card}"
+    }
+  }
+}

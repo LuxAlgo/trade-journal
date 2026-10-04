@@ -37,7 +37,7 @@ export const POST = handler(async (request: Request) => {
   try {
     return ok(mutateProp(body));
   } catch (error) {
-    if (error instanceof PropConflict) return bad(error.message, 409);
+    if (error instanceof PropConflict) return bad(error.message, 409, "prop_conflict");
     throw error;
   }
 });

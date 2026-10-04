@@ -1,0 +1,69 @@
+{
+  "enums": {
+    "direction": {
+      "long": "롱",
+      "short": "숏"
+    },
+    "status": {
+      "closed": "청산됨",
+      "open": "미청산",
+      "win": "승",
+      "loss": "패",
+      "breakeven": "본전"
+    },
+    "reviewed": {
+      "yes": "예",
+      "no": "아니요"
+    },
+    "assetClass": {
+      "equity": "주식",
+      "futures": "선물",
+      "forex": "외환",
+      "option": "옵션",
+      "crypto": "암호화폐",
+      "cfd": "CFD",
+      "other": "기타"
+    },
+    "costBasis": {
+      "fifo": "FIFO(선입선출)",
+      "lifo": "LIFO(후입선출)",
+      "wavg": "가중 평균"
+    },
+    "priceBasis": {
+      "raw": "원시 가격",
+      "split": "분할 조정",
+      "adjusted": "조정됨",
+      "midpoint": "중간값",
+      "bid": "매수호가",
+      "ask": "매도호가"
+    },
+    "prop": {
+      "values": {
+        "evaluation": "평가",
+        "verification": "검증",
+        "funded": "파운디드",
+        "instantFunded": "즉시 파운디드",
+        "live": "라이브",
+        "active": "활성",
+        "passed": "통과",
+        "breached": "규정 위반",
+        "closed": "종료",
+        "requested": "요청됨",
+        "approved": "승인됨",
+        "completed": "완료됨",
+        "rejected": "거부됨",
+        "cancelled": "취소됨",
+        "reset": "리셋",
+        "activation": "활성화",
+        "subscription": "구독",
+        "platform": "플랫폼",
+        "marketData": "시세 데이터",
+        "transfer": "이체",
+        "other": "기타",
+        "expense": "비용",
+        "refund": "환불",
+        "payout": "페이아웃"
+      }
+    }
+  }
+}

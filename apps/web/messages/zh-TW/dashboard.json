@@ -1,0 +1,184 @@
+{
+  "dashboard": {
+    "title": "儀表板",
+    "loadFailed": "無法載入儀表板。",
+    "tryAgain": "重試",
+    "allAccounts": "所有帳戶",
+    "closedWinRate": "{count, plural, other {# 筆已平倉交易 · 交易勝率 {percent}}}",
+    "currencyAccounts": "{currency} 帳戶",
+    "noFilterMatches": "沒有符合這些篩選條件的交易。清除或調整篩選以查看更多結果。",
+    "about": "關於{title}",
+    "vsPrior7d": "與前 7 天比較",
+    "closedFees": "{count, plural, other {# 筆已平倉交易 · 手續費 <fees>{feesText}</fees>}}",
+    "netPnl": {
+      "label": "淨損益",
+      "hint": "所選範圍內扣除手續費後的已實現損益。"
+    },
+    "tradeWin": {
+      "label": "交易勝率",
+      "hint": "獲利交易數除以全部已平倉交易，包含損益兩平交易。",
+      "gaugeLabel": "交易勝率",
+      "wins": "{count} 勝",
+      "breakevens": "{count} 平",
+      "losses": "{count} 負"
+    },
+    "profitFactor": {
+      "label": "獲利因子",
+      "hint": "毛利 ÷ 毛損。高於 1 表示獲利超過虧損。",
+      "formula": "毛利 ÷ 毛損"
+    },
+    "dayWin": {
+      "label": "日勝率",
+      "hint": "綠盤交易日數 ÷ 所選範圍內的全部交易日。",
+      "gaugeLabel": "日勝率",
+      "days": "{count, plural, other {# 天}}"
+    },
+    "avgWinLoss": {
+      "label": "平均獲利 / 虧損",
+      "hint": "平均獲利交易 ÷ 平均虧損交易。長條會依比例顯示兩者。",
+      "barLabel": "平均獲利與平均虧損（依比例）",
+      "footnote": "<win>{winText}</win> 平均獲利 · <loss>{lossText}</loss> 平均虧損"
+    },
+    "edgeScore": {
+      "label": "優勢評分",
+      "help": "綜合勝率、獲利因子、平均損益、回檔、修復能力與一致性的 0–100 評分。至少需要 5 筆已平倉交易。",
+      "outOf": "/100",
+      "empty": "至少需要 5 筆已平倉交易。計算公式公開——<a>查看說明</a>。"
+    },
+    "cumulative": {
+      "label": "累計損益",
+      "title": "每日淨累計損益",
+      "help": "所選期間內淨損益的累計總額。下方的回檔長條顯示相對權益曲線峰值的回落。"
+    },
+    "dailyPnl": {
+      "label": "每日損益",
+      "title": "每日淨損益",
+      "help": "每個交易日的淨損益。零軸以上的長條為獲利，以下為虧損。"
+    },
+    "calendar": {
+      "label": "日曆",
+      "fullCalendar": "完整日曆"
+    },
+    "activity": {
+      "label": "動態",
+      "recent": "最近交易",
+      "open": "目前持倉",
+      "noClosed": "尚無已平倉交易",
+      "flat": "空手——沒有未平倉持倉"
+    },
+    "maxDrawdown": {
+      "label": "最大回檔",
+      "hint": "累計損益曲線從峰值到谷底的最大跌幅。",
+      "needsBalance": "設定期初資金後顯示百分比",
+      "withRecovery": "{percent} · 修復倍率 {value}x"
+    },
+    "streaks": {
+      "label": "連勝 / 連虧",
+      "hint": "目前連續獲利（W）或虧損（L）的次數，以及最佳與最差的紀錄。",
+      "bestWorst": "最佳 {wins}W · 最差 {losses}L"
+    },
+    "expectancy": {
+      "label": "每筆期望值",
+      "hint": "每筆已平倉交易的平均淨損益：依你的資料，多交易一筆的價值。",
+      "avgR": "{count} 筆標記風險的交易，平均 {value}R",
+      "needsRisk": "標記停損以解鎖 R 倍數"
+    },
+    "avgDuration": {
+      "label": "平均持倉時間",
+      "hint": "從首次進場成交到最後出場的平均時間。",
+      "reportsHint": "勝負持倉時間比較請見報告"
+    },
+    "bestWorstDay": {
+      "label": "最佳 / 最差交易日",
+      "hint": "所選範圍內單日淨損益的最高值與最低值。"
+    },
+    "timePerformance": {
+      "label": "交易時段表現",
+      "help": "依進場小時分組的交易。上圖顯示淨損益，下圖顯示交易筆數。"
+    },
+    "empty": {
+      "title": "你的交易日誌還是空的",
+      "body": "連結券商自動同步、上傳來自 10+ 平台的對帳單（包括你的 TradeZella 匯出），或手動新增交易。",
+      "import": "匯入你的第一批交易",
+      "loadDemo": "載入示範資料",
+      "loadingDemo": "載入中…",
+      "demoNote": "示範資料會存入獨立帳戶，可隨時在「帳戶」中刪除。"
+    },
+    "customizer": {
+      "trigger": "自訂",
+      "title": "儀表板卡片",
+      "visibleCount": "{count} 張可見",
+      "close": "關閉自訂",
+      "searchLabel": "尋找儀表板卡片",
+      "searchPlaceholder": "尋找卡片…",
+      "clearSearch": "清除卡片搜尋",
+      "showCard": "顯示{card}",
+      "noMatches": "沒有符合的卡片",
+      "clearSearchAction": "清除搜尋",
+      "reset": "重設版面",
+      "resetAria": "還原預設版面",
+      "showAll": "顯示所有卡片",
+      "srStatus": "{count, plural, other {找到 # 張卡片。}}{visible} / {total} 張可見。"
+    },
+    "savedLayouts": {
+      "trigger": "版面",
+      "triggerAria": "儀表板版面",
+      "title": "儀表板版面",
+      "savedCount": "{count} 個已儲存",
+      "close": "關閉儀表板版面",
+      "searchLabel": "尋找版面",
+      "searchPlaceholder": "尋找版面…",
+      "presetsHeading": "預設集",
+      "presetsHint": "選擇一個重點，再透過「自訂」調整成你的版面。",
+      "applyPreset": "套用預設集「{name}」",
+      "cardsCount": "{count, plural, other {# 張卡片}}",
+      "cardsCountCurrent": "{count, plural, other {# 張卡片 · 目前版面}}",
+      "defaultBadge": "預設",
+      "yourLayouts": "你儲存的版面",
+      "loadLayout": "載入「{name}」",
+      "noMatches": "沒有符合的版面",
+      "saveLabel": "儲存目前版面",
+      "nameAria": "版面名稱",
+      "namePlaceholder": "例如：每週回顧",
+      "save": "儲存",
+      "savedStatus": "已儲存「{name}」",
+      "presetNames": {
+        "overview": "總覽",
+        "tradingDay": "交易日",
+        "performance": "績效",
+        "riskReview": "風險回顧"
+      },
+      "presetDescriptions": {
+        "overview": "依原始順序顯示所有卡片。",
+        "tradingDay": "日曆與最近交易優先，接著是每日結果。",
+        "performance": "報酬、勝率、權益曲線與你的交易優勢。",
+        "riskReview": "回檔、連勝連虧、期望值與每日波動。"
+      }
+    },
+    "layout": {
+      "loading": "正在載入儀表板版面…",
+      "cardsVisible": "顯示 {visible} / {total} 張卡片",
+      "card": "卡片",
+      "saved": "版面已儲存",
+      "movedSaved": "{card}已移動。版面已儲存。",
+      "allShownSaved": "所有卡片已顯示。版面已儲存。",
+      "restoredSaved": "已還原原始卡片順序。所有卡片已顯示。",
+      "nameLoaded": "已載入「{name}」",
+      "nameSaved": "已儲存「{name}」",
+      "saveFailed": "版面已變更，但無法在此瀏覽器中儲存。",
+      "readFailed": "無法讀取已儲存的儀表板偏好設定。所有卡片已顯示。",
+      "hiddenBanner": "{count, plural, other {此版面隱藏了 # 張卡片。}}",
+      "showAll": "顯示所有卡片",
+      "allHidden": "所有卡片均已隱藏。選擇「顯示所有卡片」以還原。",
+      "dragInstructions": "按空格鍵或 Enter 鍵拾起卡片。使用方向鍵移動，再按空格鍵或 Enter 鍵放下。按 Escape 取消。",
+      "pickedUp": "已拾起{card}。",
+      "draggingOver": "{card}位於{other}上方。",
+      "outsideCards": "在卡片區域外。在此放下將取消。",
+      "placedAt": "{card}已放到 {count} 張中的第 {position} 位。",
+      "moveCancelled": "已取消移動。",
+      "moveCancelledUnchanged": "已取消移動。版面未變更。",
+      "rearrange": "重排{card}",
+      "rearrangeHint": "拖曳以重排{card}"
+    }
+  }
+}

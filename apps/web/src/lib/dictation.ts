@@ -16,22 +16,81 @@ export interface SpeechRecognizer {
   onerror: ((event: { error: string }) => void) | null;
 }
 
-export const dictationError = (code: string) => {
-  switch (code) {
+/**
+ * Closed set of dictation failure keys (docs/i18n.md §10, T33). Each code has
+ * a `voice.error.<camelCase>` message key per locale; `fallback` keeps the
+ * original English copy for rendering when a code has no localized message.
+ */
+export const dictationErrorCodes = [
+  "not-allowed",
+  "audio-capture",
+  "no-speech",
+  "network",
+  "language-not-supported",
+  "timeout",
+  "start",
+  "unsupported",
+] as const;
+
+export type DictationErrorCode = (typeof dictationErrorCodes)[number];
+
+export interface DictationError {
+  /** Stable code; localizes via the `voice` namespace when covered there. */
+  code: DictationErrorCode;
+  /** Original English copy (semantic baseline), shown as the fallback. */
+  fallback: string;
+}
+
+/** code → original English copy, preserved verbatim from the pre-T33 UI. */
+const dictationErrorFallbacks: Record<DictationErrorCode, string> = {
+  "not-allowed":
+    "Microphone or speech access was blocked. Allow microphone access in your browser and system settings, then try again.",
+  "audio-capture": "No microphone is available. Connect or enable a microphone, then try again.",
+  "no-speech": "No speech was detected. Try again and speak after the button says Listening.",
+  network:
+    "This browser could not reach its speech recognition service. Try Chrome with an internet connection, or use keyboard dictation below.",
+  "language-not-supported":
+    "This browser does not support dictation in your current language. Use keyboard dictation below.",
+  // The timeout path has always surfaced the generic start-failure copy.
+  timeout:
+    "Speech recognition could not start in this browser. Try Chrome, or use keyboard dictation below.",
+  start:
+    "Speech recognition could not start in this browser. Try Chrome, or use keyboard dictation below.",
+  unsupported:
+    "This browser does not support speech recognition. Open the journal in Chrome, or use keyboard dictation below.",
+};
+
+/**
+ * Normalize a raw recognizer/browser error code onto the closed set.
+ * `service-not-allowed` merges into `not-allowed` (same remediation copy);
+ * anything unrecognized keeps the generic start failure.
+ */
+export const dictationErrorCode = (raw: string): DictationErrorCode => {
+  switch (raw) {
     case "not-allowed":
     case "service-not-allowed":
-      return "Microphone or speech access was blocked. Allow microphone access in your browser and system settings, then try again.";
+      return "not-allowed";
     case "audio-capture":
-      return "No microphone is available. Connect or enable a microphone, then try again.";
     case "no-speech":
-      return "No speech was detected. Try again and speak after the button says Listening.";
     case "network":
-      return "This browser could not reach its speech recognition service. Try Chrome with an internet connection, or use keyboard dictation below.";
     case "language-not-supported":
-      return "This browser does not support dictation in your current language. Use keyboard dictation below.";
+    case "timeout":
+      return raw;
     default:
-      return "Speech recognition could not start in this browser. Try Chrome, or use keyboard dictation below.";
+      return "start";
   }
+};
+
+/** Structured dictation error: localization key plus English fallback copy. */
+export const dictationError = (code: string): DictationError => {
+  const normalized = dictationErrorCode(code);
+  return { code: normalized, fallback: dictationErrorFallbacks[normalized] };
+};
+
+/** Raised by the control itself when the browser exposes no recognition API. */
+export const unsupportedDictationError: DictationError = {
+  code: "unsupported",
+  fallback: dictationErrorFallbacks.unsupported,
 };
 
 /** One recognition session. Final results are batched; handlers are detached on disposal. */
@@ -40,7 +99,7 @@ export function createDictationSession(
   callbacks: {
     onText(text: string): void;
     onState(state: "starting" | "listening" | "idle"): void;
-    onError(message: string): void;
+    onError(error: DictationError): void;
   },
   language: string,
 ) {
@@ -54,14 +113,14 @@ export function createDictationSession(
     active = false;
     recognizer.onstart = recognizer.onresult = recognizer.onend = recognizer.onerror = null;
   };
-  const fail = (message: string) => {
+  const fail = (failure: DictationError) => {
     if (!active) return;
     detach();
     try {
       recognizer.abort();
     } catch {}
     callbacks.onState("idle");
-    callbacks.onError(message);
+    callbacks.onError(failure);
   };
   recognizer.lang = language;
   recognizer.continuous = true;

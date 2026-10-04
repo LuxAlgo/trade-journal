@@ -1,3 +1,5 @@
+import { ApiError } from "./api-error";
+
 interface PendingRequest {
   controller: AbortController;
   promise: Promise<unknown>;
@@ -14,8 +16,17 @@ export function acquireJson<T>(url: string): { promise: Promise<T>; release: () 
     const next: PendingRequest = { controller, users: 0, promise: Promise.resolve() };
     next.promise = fetch(url, { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
+        const body = (await response.json()) as {
+          error?: string;
+          code?: string;
+          params?: Record<string, string | number>;
+        };
+        if (!response.ok)
+          throw new ApiError(
+            body.error ?? `Request failed (${response.status})`,
+            body.code,
+            body.params,
+          );
         return body;
       })
       .finally(() => {

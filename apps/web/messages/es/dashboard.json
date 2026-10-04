@@ -1,0 +1,184 @@
+{
+  "dashboard": {
+    "title": "Panel",
+    "loadFailed": "No se pudo cargar el panel.",
+    "tryAgain": "Reintentar",
+    "allAccounts": "Todas las cuentas",
+    "closedWinRate": "{count, plural, one {# operación cerrada · tasa de acierto {percent}} other {# operaciones cerradas · tasa de acierto {percent}}}",
+    "currencyAccounts": "Cuentas en {currency}",
+    "noFilterMatches": "Ninguna operación coincide con estos filtros. Borra o ajusta los filtros para ver más resultados.",
+    "about": "Acerca de {title}",
+    "vsPrior7d": "frente a los 7 días anteriores",
+    "closedFees": "{count, plural, one {# operación cerrada · <fees>{feesText}</fees> en comisiones} other {# operaciones cerradas · <fees>{feesText}</fees> en comisiones}}",
+    "netPnl": {
+      "label": "P&L neto",
+      "hint": "Beneficio y pérdida realizados, netos de comisiones, en el rango seleccionado."
+    },
+    "tradeWin": {
+      "label": "% de acierto (operaciones)",
+      "hint": "Operaciones ganadoras divididas por todas las operaciones cerradas, incluidas las de punto de equilibrio.",
+      "gaugeLabel": "Tasa de acierto",
+      "wins": "{count} G",
+      "breakevens": "{count} BE",
+      "losses": "{count} P"
+    },
+    "profitFactor": {
+      "label": "Factor de beneficio",
+      "hint": "Beneficio bruto ÷ pérdida bruta. Por encima de 1, las ganancias superan a las pérdidas.",
+      "formula": "beneficio bruto ÷ pérdida bruta"
+    },
+    "dayWin": {
+      "label": "% de días ganadores",
+      "hint": "Días de trading en verde ÷ todos los días de trading del rango seleccionado.",
+      "gaugeLabel": "Tasa de días ganadores",
+      "days": "{count, plural, one {# día} other {# días}}"
+    },
+    "avgWinLoss": {
+      "label": "Ganancia media / pérdida",
+      "hint": "Ganancia media por operación ÷ pérdida media por operación. La barra muestra ambos a escala.",
+      "barLabel": "Ganancia media frente a pérdida media, a escala",
+      "footnote": "<win>{winText}</win> de ganancia media · <loss>{lossText}</loss> de pérdida media"
+    },
+    "edgeScore": {
+      "label": "Puntuación de ventaja",
+      "help": "Una puntuación de 0 a 100 que combina tasa de acierto, factor de beneficio, ganancia/pérdida media, drawdown, recuperación y consistencia. Requiere al menos cinco operaciones cerradas.",
+      "outOf": "/100",
+      "empty": "Se necesitan 5 o más operaciones cerradas. La fórmula es abierta: <a>consúltala</a>."
+    },
+    "cumulative": {
+      "label": "P&L acumulado",
+      "title": "P&L neto acumulado diario",
+      "help": "Total acumulado del beneficio y la pérdida netos durante el período seleccionado. Las barras de drawdown inferiores muestran las caídas desde el máximo de la curva de capital."
+    },
+    "dailyPnl": {
+      "label": "P&L diario",
+      "title": "P&L neto diario",
+      "help": "Beneficio o pérdida neta de cada día de trading. Las barras sobre cero son beneficios; las barras bajo cero, pérdidas."
+    },
+    "calendar": {
+      "label": "Calendario",
+      "fullCalendar": "Calendario completo"
+    },
+    "activity": {
+      "label": "Actividad",
+      "recent": "Operaciones recientes",
+      "open": "Posiciones abiertas",
+      "noClosed": "Aún no hay operaciones cerradas",
+      "flat": "Sin posiciones — no hay posiciones abiertas"
+    },
+    "maxDrawdown": {
+      "label": "Drawdown máximo",
+      "hint": "Mayor caída del pico al valle de la curva de P&L acumulado.",
+      "needsBalance": "configura un saldo inicial para el %",
+      "withRecovery": "{percent} · recuperación {value}x"
+    },
+    "streaks": {
+      "label": "Rachas",
+      "hint": "Racha actual de ganancias (G) o pérdidas (P) consecutivas, con la mejor y la peor racha.",
+      "bestWorst": "mejor {wins}G · peor {losses}P"
+    },
+    "expectancy": {
+      "label": "Esperanza por operación",
+      "hint": "P&L neto medio por operación cerrada: cuánto vale una operación más con tus números.",
+      "avgR": "{value}R de media en {count} operaciones con riesgo etiquetado",
+      "needsRisk": "etiqueta los stop-loss para desbloquear los múltiplos de R"
+    },
+    "avgDuration": {
+      "label": "Duración media",
+      "hint": "Tiempo medio desde la primera entrada hasta la salida final.",
+      "reportsHint": "ganadoras frente a perdedoras en Informes"
+    },
+    "bestWorstDay": {
+      "label": "Mejor / peor día",
+      "hint": "P&L neto máximo y mínimo en un solo día del rango seleccionado."
+    },
+    "timePerformance": {
+      "label": "Rendimiento por hora de trading",
+      "help": "Operaciones agrupadas por su hora de apertura. El gráfico superior muestra el P&L neto; el inferior, el número de operaciones."
+    },
+    "empty": {
+      "title": "Tu diario está vacío",
+      "body": "Conecta un bróker para la sincronización automática, sube un extracto de más de 10 plataformas (incluida tu exportación de TradeZella) o añade operaciones manualmente.",
+      "import": "Importa tus primeras operaciones",
+      "loadDemo": "Cargar datos de demostración",
+      "loadingDemo": "Cargando…",
+      "demoNote": "Los datos de demostración se guardan en su propia cuenta; bórralos cuando quieras en Cuentas."
+    },
+    "customizer": {
+      "trigger": "Personalizar",
+      "title": "Tarjetas del panel",
+      "visibleCount": "{count} visibles",
+      "close": "Cerrar personalización",
+      "searchLabel": "Buscar tarjetas del panel",
+      "searchPlaceholder": "Buscar una tarjeta…",
+      "clearSearch": "Borrar búsqueda de tarjetas",
+      "showCard": "Mostrar {card}",
+      "noMatches": "No hay tarjetas coincidentes",
+      "clearSearchAction": "Borrar búsqueda",
+      "reset": "Restablecer diseño",
+      "resetAria": "Restaurar diseño predeterminado",
+      "showAll": "Mostrar todas las tarjetas",
+      "srStatus": "{count, plural, one {# tarjeta encontrada.} other {# tarjetas encontradas.}} {visible} de {total} visibles."
+    },
+    "savedLayouts": {
+      "trigger": "Diseños",
+      "triggerAria": "Diseños del panel",
+      "title": "Diseños del panel",
+      "savedCount": "{count} guardados",
+      "close": "Cerrar diseños del panel",
+      "searchLabel": "Buscar un diseño",
+      "searchPlaceholder": "Buscar un diseño…",
+      "presetsHeading": "Predefinidos",
+      "presetsHint": "Elige un enfoque y luego hazlo tuyo con Personalizar.",
+      "applyPreset": "Aplicar el predefinido {name}",
+      "cardsCount": "{count, plural, one {# tarjeta} other {# tarjetas}}",
+      "cardsCountCurrent": "{count, plural, one {# tarjeta · Diseño actual} other {# tarjetas · Diseño actual}}",
+      "defaultBadge": "Predeterminado",
+      "yourLayouts": "Tus diseños guardados",
+      "loadLayout": "Cargar {name}",
+      "noMatches": "No hay diseños coincidentes",
+      "saveLabel": "Guardar diseño actual",
+      "nameAria": "Nombre del diseño",
+      "namePlaceholder": "p. ej. Revisión semanal",
+      "save": "Guardar",
+      "savedStatus": "{name} guardado",
+      "presetNames": {
+        "overview": "Vista general",
+        "tradingDay": "Día de trading",
+        "performance": "Rendimiento",
+        "riskReview": "Revisión de riesgo"
+      },
+      "presetDescriptions": {
+        "overview": "Todas las tarjetas en el orden original.",
+        "tradingDay": "Primero el calendario y las operaciones recientes, luego los resultados diarios.",
+        "performance": "Rentabilidad, tasa de acierto, curva de capital y tu ventaja de trading.",
+        "riskReview": "Drawdown, rachas, esperanza y oscilaciones diarias."
+      }
+    },
+    "layout": {
+      "loading": "Cargando el diseño del panel…",
+      "cardsVisible": "{visible} de {total} tarjetas",
+      "card": "Tarjeta",
+      "saved": "Diseño guardado",
+      "movedSaved": "{card} movida. Diseño guardado.",
+      "allShownSaved": "Todas las tarjetas se muestran. Diseño guardado.",
+      "restoredSaved": "Orden original de tarjetas restaurado. Todas las tarjetas se muestran.",
+      "nameLoaded": "{name} cargado",
+      "nameSaved": "{name} guardado",
+      "saveFailed": "Tu diseño cambió, pero no se pudo guardar en este navegador.",
+      "readFailed": "No se pudieron leer las preferencias guardadas del panel. Todas las tarjetas se muestran.",
+      "hiddenBanner": "{count, plural, one {# tarjeta está oculta en este diseño.} other {# tarjetas están ocultas en este diseño.}}",
+      "showAll": "Mostrar todas las tarjetas",
+      "allHidden": "Todas las tarjetas están ocultas. Elige Mostrar todas las tarjetas para restaurarlas.",
+      "dragInstructions": "Pulsa Espacio o Entrar para levantar una tarjeta. Usa las flechas para moverla y pulsa Espacio o Entrar para soltarla. Pulsa Escape para cancelar.",
+      "pickedUp": "{card} levantada.",
+      "draggingOver": "{card} está sobre {other}.",
+      "outsideCards": "Fuera de las tarjetas. Suelta aquí para cancelar.",
+      "placedAt": "{card} colocada en la posición {position} de {count}.",
+      "moveCancelled": "Movimiento cancelado.",
+      "moveCancelledUnchanged": "Movimiento cancelado. Diseño sin cambios.",
+      "rearrange": "Reorganizar {card}",
+      "rearrangeHint": "Arrastra para reorganizar {card}"
+    }
+  }
+}

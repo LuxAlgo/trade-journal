@@ -14,7 +14,7 @@ export const GET = handler(
   async (_request: Request, { params }: { params: Promise<{ key: string }> }) => {
     const { key } = await params;
     const row = getTradeByKey(key);
-    if (!row) return bad("Trade not found", 404);
+    if (!row) return bad("Trade not found", 404, "trade_not_found");
     return ok({ saved: savedEstimates([rowToTrade(row)]).get(key) ?? null });
   },
 );
@@ -23,7 +23,7 @@ export const POST = handler(
   async (request: Request, { params }: { params: Promise<{ key: string }> }) => {
     const { key } = await params;
     const row = getTradeByKey(key);
-    if (!row) return bad("Trade not found", 404);
+    if (!row) return bad("Trade not found", 404, "trade_not_found");
     const body = await request.json();
     requireValue(body && typeof body.provider === "string", "Choose a market data provider.");
     requireValue(
@@ -114,7 +114,8 @@ export const POST = handler(
       }
       return ok({ ...history, estimate });
     } catch (error) {
-      if (error instanceof MarketDataError) return bad(error.message, 502);
+      if (error instanceof MarketDataError)
+        return bad(error.message, 502, "market_data_unavailable");
       throw error;
     }
   },

@@ -87,7 +87,7 @@ function planImport(
 ): Plan {
   const options = readOptions(rawOptions);
   const account = db.select().from(accounts).where(eq(accounts.id, accountId)).get();
-  requireValue(account, "Account not found.");
+  requireValue(account, "Account not found.", "account_not_found");
   const savedSources = db
     .select()
     .from(importSources)
@@ -498,14 +498,20 @@ export const commitNinjaTraderImport = (
   db.transaction(
     (tx) => {
       const plan = planImport(accountId, parsed, content, timeZone, options);
-      requireValue(plan.review.conflicts.length === 0, plan.review.conflicts.join(" "));
+      requireValue(
+        plan.review.conflicts.length === 0,
+        plan.review.conflicts.join(" "),
+        "import_reconciliation_conflict",
+      );
       requireValue(
         !plan.review.corrections.length || options.approveFeeCorrections,
         "Review and approve the commission corrections before importing.",
+        "fee_corrections_required",
       );
       requireValue(
         options.previewToken && options.previewToken === plan.review.token,
         "The import or journal changed since preview. Review the import again before saving.",
+        "preview_token_mismatch",
       );
       for (const source of plan.sources)
         tx.insert(importSources).values(source).onConflictDoNothing().run();

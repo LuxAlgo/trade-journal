@@ -1,0 +1,111 @@
+{
+  "controls": {
+    "close": "Cerrar",
+    "about": "Acerca de {heading}",
+    "clear": "Limpiar",
+    "today": "Hoy",
+    "loadingCalendar": "Cargando calendario",
+    "chooseDate": "Elegir fecha de {field}",
+    "calendarFor": "Calendario de {field}",
+    "dateError": {
+      "invalid": "Introduce una fecha válida (YYYY-MM-DD).",
+      "max": "Introduce una fecha válida (YYYY-MM-DD) no posterior a {max}.",
+      "min": "Introduce una fecha válida (YYYY-MM-DD) no anterior a {min}.",
+      "minMax": "Introduce una fecha válida (YYYY-MM-DD) no anterior a {min} ni posterior a {max}."
+    },
+    "theme": {
+      "toLight": "Cambiar a modo claro",
+      "toDark": "Cambiar a modo oscuro",
+      "light": "Modo claro",
+      "dark": "Modo oscuro",
+      "storageError": "Se cambió la apariencia, pero tu navegador no pudo guardarla para la próxima vez."
+    },
+    "privacy": {
+      "title": "Modo privacidad",
+      "short": "Privacidad",
+      "on": "Activado",
+      "off": "Desactivado",
+      "ariaOn": "Modo privacidad activado",
+      "ariaOff": "Modo privacidad desactivado",
+      "hideHint": "Oculta saldos, P&L y precios de las operaciones en todo el diario",
+      "readError": "No se pudo leer tu preferencia de privacidad.",
+      "saveError": "La privacidad cambió en esta página, pero no se pudo guardar en este navegador.",
+      "hiddenValue": "Importe oculto",
+      "editHint": "Desactiva el modo privacidad para editar este valor"
+    },
+    "timezone": {
+      "choose": "Elegir una zona horaria",
+      "triggerAria": "{label}: {value}",
+      "optionsAria": "Opciones de {label}",
+      "search": "Buscar zonas horarias",
+      "searchPlaceholder": "Busca por ciudad o zona horaria…",
+      "list": "Zonas horarias",
+      "count": "{count, plural, one {# zona horaria} other {# zonas horarias}}",
+      "noMatch": "No hay ninguna zona horaria que coincida. Prueba con una ciudad o el nombre completo de una zona horaria."
+    },
+    "currency": {
+      "select": "Selecciona una moneda"
+    },
+    "notice": {
+      "converted": "P&L de trading en {currency} · usa las tasas de conversión base guardadas.",
+      "editRates": "Editar tasas",
+      "setupTitle": "Configura la conversión para ver tu panel combinado",
+      "missing": "Guarda las tasas de conversión de {currencies} para usar la moneda de presentación. Los importes siguientes permanecen en sus monedas originales.",
+      "sources": "Estas cuentas usan {currencies}. Configura tus tasas de conversión para combinar su rendimiento.",
+      "setupCta": "Configurar conversión de moneda"
+    },
+    "attachments": {
+      "add": "Añadir adjunto",
+      "uploading": "Subiendo…",
+      "hint": "Imágenes o PDF · hasta 8 MB cada uno",
+      "uploadAria": "Subir adjunto",
+      "failed": "Error al subir.",
+      "remove": "Eliminar {name}",
+      "removeConfirm": "¿Eliminar {name}?"
+    },
+    "editor": {
+      "edit": "Editar",
+      "preview": "Vista previa",
+      "bold": "Negrita",
+      "italic": "Cursiva",
+      "heading": "Título",
+      "bulletList": "Lista con viñetas",
+      "list": "Lista",
+      "checklist": "Lista de comprobación",
+      "checklistShort": "Lista",
+      "linkTrade": "Vincular operación",
+      "insertTemplate": "Insertar plantilla…",
+      "insertTemplateAria": "Insertar plantilla de nota",
+      "templatesAria": "Plantillas de nota",
+      "saveTemplate": "Guardar plantilla",
+      "namePrompt": "Nombra esta plantilla de nota",
+      "placeholder": "Escribe tu revisión…",
+      "findAria": "Buscar operación por símbolo, fecha o cuenta",
+      "findPlaceholder": "Busca por símbolo, fecha o cuenta",
+      "loadingTrades": "Cargando operaciones…",
+      "noMatches": "No hay operaciones que coincidan.",
+      "showingLatest": "Mostrando las 50 coincidencias más recientes. Busca por fecha o cuenta para encontrar operaciones anteriores.",
+      "empty": "Todavía no hay nada escrito.",
+      "notesAria": "Notas de revisión",
+      "templates": {
+        "pre": "Plan premercado",
+        "preContent": "## Contexto de mercado\n\n## Configuraciones a observar\n\n## Límites de riesgo\n- [ ] Confirmar el límite de riesgo diario\n- [ ] Revisar eventos programados\n\n## Mi intención\n",
+        "review": "Revisión de operación",
+        "reviewContent": "## Configuración y tesis\n\n## Ejecución\n\n## Qué funcionó\n\n## Qué cambiaré\n",
+        "weekly": "Revisión semanal",
+        "weeklyContent": "## Aciertos de la semana\n\n## Errores repetidos\n\n## Reglas que seguí\n\n## Una mejora para la próxima semana\n"
+      }
+    },
+    "duration": {
+      "belowMinute": "< 1 min",
+      "minutes": "{count} min",
+      "hoursMinutes": "{hours} h {minutes} min",
+      "daysHours": "{days} d {hours} h"
+    },
+    "autosave": {
+      "saving": "Guardando…",
+      "saved": "Guardado",
+      "notSaved": "No se guardó: {message}"
+    }
+  }
+}

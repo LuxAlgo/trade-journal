@@ -7,7 +7,7 @@ type Params = { params: Promise<{ id: string }> };
 export const PATCH = handler(async (request: Request, { params }: Params) => {
   const { id } = await params;
   const existing = db.select().from(playbooks).where(eq(playbooks.id, id)).get();
-  if (!existing) return bad("Playbook not found", 404);
+  if (!existing) return bad("Playbook not found", 404, "playbook_not_found");
   const body = (await request.json()) as { name?: string; description?: string; rules?: string[] };
   db.update(playbooks)
     .set({

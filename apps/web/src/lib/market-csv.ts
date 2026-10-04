@@ -2,6 +2,12 @@ import { headerKey, parseCsv } from "@luxalgo/journal-importers";
 import { RESOLUTIONS, type Resolution, type MarketBar } from "./market-data";
 export const MAX_CSV_BYTES = 5 * 1024 * 1024;
 export const MAX_CSV_BARS = 50_000;
+// The English throw texts below are machine-stable validation identifiers
+// shared with the server (docs/i18n.md §5): the API's 400 body and the parser
+// regression tests read them verbatim, so they are never translated and the
+// rejection rules never change. The Settings UI localizes its own client-side
+// copies via the `settings` namespace, and API failures via the `errors`
+// codes (csv_too_large / invalid_market_csv) — see market-csv-settings.tsx.
 export function parseMarketCsv(
   content: string,
   symbol: string,

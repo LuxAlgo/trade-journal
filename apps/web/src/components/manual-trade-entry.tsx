@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { MonetaryField } from "@/components/privacy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { postJson } from "@/lib/use-api";
+import { formatLocale, type Locale } from "@/i18n/config";
 
 import { AccountPicker } from "./account-picker";
 import { fmtNumber } from "@/lib/utils";
@@ -26,6 +28,9 @@ interface ManualLeg {
 }
 
 export function ManualTradeEntry({ onSaved }: { onSaved: () => void }) {
+  const t = useTranslations("manual-entry");
+  const locale = useLocale();
+  const fmtLocale = formatLocale(locale as Locale);
   const [accountId, setAccountId] = useState("");
   const [symbol, setSymbol] = useState("");
   const [notes, setNotes] = useState("");
@@ -66,7 +71,7 @@ export function ManualTradeEntry({ onSaved }: { onSaved: () => void }) {
       });
       onSaved();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn’t save the trade. Try again.");
+      setError(cause instanceof Error ? cause.message : t("saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -77,13 +82,13 @@ export function ManualTradeEntry({ onSaved }: { onSaved: () => void }) {
       <AccountPicker value={accountId} onChange={setAccountId} kind="manual" />
       <div>
         <Label htmlFor={`${fieldId}-symbol`} className="mb-1 block text-xs text-muted-foreground">
-          Symbol
+          {t("symbol")}
         </Label>
         <Input
           id={`${fieldId}-symbol`}
           value={symbol}
           onChange={(event) => setSymbol(event.target.value.toUpperCase())}
-          placeholder="AAPL, ESZ6, BTCUSDT…"
+          placeholder={t("symbolPlaceholder")}
         />
       </div>
       <div className="manual-executions space-y-3">
@@ -92,9 +97,11 @@ export function ManualTradeEntry({ onSaved }: { onSaved: () => void }) {
             key={index}
             className="manual-execution-row grid min-w-0 gap-2 rounded-lg border p-3"
           >
-            <legend className="px-1 text-xs text-muted-foreground">Execution {index + 1}</legend>
+            <legend className="px-1 text-xs text-muted-foreground">
+              {t("execution", { number: index + 1 })}
+            </legend>
             <label className="manual-execution-date grid min-w-0 gap-1 text-xs text-muted-foreground">
-              Date & time
+              {t("dateTime")}
               <Input
                 type="datetime-local"
                 value={leg.datetime}
@@ -102,7 +109,7 @@ export function ManualTradeEntry({ onSaved }: { onSaved: () => void }) {
               />
             </label>
             <div className="grid min-w-0 gap-1 text-xs text-muted-foreground">
-              <span id={`${fieldId}-execution-side-${index}`}>Side</span>
+              <span id={`${fieldId}-execution-side-${index}`}>{t("side")}</span>
               <Select
                 value={leg.side}
                 onValueChange={(value) => setLeg(index, { side: value as "buy" | "sell" })}
@@ -111,25 +118,25 @@ export function ManualTradeEntry({ onSaved }: { onSaved: () => void }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="buy">Buy</SelectItem>
-                  <SelectItem value="sell">Sell</SelectItem>
+                  <SelectItem value="buy">{t("buy")}</SelectItem>
+                  <SelectItem value="sell">{t("sell")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
-              Quantity
+              {t("quantity")}
               <Input
-                placeholder="qty"
+                placeholder={t("quantityPlaceholder")}
                 inputMode="decimal"
                 value={leg.quantity}
                 onChange={(event) => setLeg(index, { quantity: event.target.value })}
               />
             </label>
             <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
-              Price
+              {t("price")}
               <MonetaryField>
                 <Input
-                  placeholder="price"
+                  placeholder={t("pricePlaceholder")}
                   inputMode="decimal"
                   value={leg.price}
                   onChange={(event) => setLeg(index, { price: event.target.value })}
@@ -137,10 +144,10 @@ export function ManualTradeEntry({ onSaved }: { onSaved: () => void }) {
               </MonetaryField>
             </label>
             <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
-              Fee
+              {t("fee")}
               <MonetaryField>
                 <Input
-                  placeholder="fee"
+                  placeholder={t("feePlaceholder")}
                   inputMode="decimal"
                   value={leg.fee}
                   onChange={(event) => setLeg(index, { fee: event.target.value })}
@@ -151,20 +158,17 @@ export function ManualTradeEntry({ onSaved }: { onSaved: () => void }) {
         ))}
       </div>
       <div className="space-y-1">
-        <Label htmlFor={`${fieldId}-notes`}>Notes (optional)</Label>
+        <Label htmlFor={`${fieldId}-notes`}>{t("notes")}</Label>
         <textarea
           id={`${fieldId}-notes`}
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           maxLength={100000}
           rows={4}
-          placeholder="Your setup, why you took the trade, or what you learned…"
+          placeholder={t("notesPlaceholder")}
           className="flex w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
         />
-        <p className="text-xs text-muted-foreground">
-          Markdown supported. Notes are saved with the trade; existing notes are kept when adding to
-          an open position.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("notesHint")}</p>
       </div>
       {error && (
         <p role="alert" className="text-sm text-destructive">
@@ -182,16 +186,17 @@ export function ManualTradeEntry({ onSaved }: { onSaved: () => void }) {
             ])
           }
         >
-          Add execution
+          {t("addExecution")}
         </Button>
         <Button size="sm" onClick={save} disabled={!valid || busy}>
-          {busy ? "Saving…" : "Save trade"}
+          {busy ? t("saving") : t("save")}
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        Dates and times use your device’s timezone. Executions matching an open position on{" "}
-        {symbol || "the symbol"} are stitched into round trips automatically (
-        {fmtNumber(legs.filter((leg) => leg.datetime).length, 0)} legs so far).
+        {t("roundTrips", {
+          symbol: symbol || t("theSymbol"),
+          count: fmtNumber(legs.filter((leg) => leg.datetime).length, 0, fmtLocale),
+        })}
       </p>
     </fieldset>
   );

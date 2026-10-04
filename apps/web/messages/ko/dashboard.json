@@ -1,0 +1,184 @@
+{
+  "dashboard": {
+    "title": "대시보드",
+    "loadFailed": "대시보드를 불러오지 못했습니다.",
+    "tryAgain": "다시 시도",
+    "allAccounts": "모든 계좌",
+    "closedWinRate": "{count, plural, other {청산된 매매 #건 · 승률 {percent}}}",
+    "currencyAccounts": "{currency} 계좌",
+    "noFilterMatches": "이 필터와 일치하는 매매가 없습니다. 필터를 지우거나 조정하면 더 많은 결과를 볼 수 있습니다.",
+    "about": "{title} 정보",
+    "vsPrior7d": "이전 7일 대비",
+    "closedFees": "{count, plural, other {청산된 매매 #건 · 수수료 <fees>{feesText}</fees>}}",
+    "netPnl": {
+      "label": "순손익",
+      "hint": "선택한 기간의 수수료 차감 후 실현 손익입니다."
+    },
+    "tradeWin": {
+      "label": "매매 승률",
+      "hint": "승리한 매매를 모든 청산된 매매로 나눈 값입니다(본전 포함).",
+      "gaugeLabel": "매매 승률",
+      "wins": "{count}승",
+      "breakevens": "{count}본",
+      "losses": "{count}패"
+    },
+    "profitFactor": {
+      "label": "수익 팩터",
+      "hint": "총이익 ÷ 총손실입니다. 1보다 크면 이익이 손실을 웃돕니다.",
+      "formula": "총이익 ÷ 총손실"
+    },
+    "dayWin": {
+      "label": "일일 승률",
+      "hint": "선택한 기간에서 수익일 ÷ 전체 거래일입니다.",
+      "gaugeLabel": "일일 승률",
+      "days": "{count, plural, other {#일}}"
+    },
+    "avgWinLoss": {
+      "label": "평균 수익 / 손실",
+      "hint": "평균 수익 매매 ÷ 평균 손실 매매입니다. 막대는 두 값을 비율로 보여줍니다.",
+      "barLabel": "평균 수익과 평균 손실 비율 막대",
+      "footnote": "<win>{winText}</win> 평균 수익 · <loss>{lossText}</loss> 평균 손실"
+    },
+    "edgeScore": {
+      "label": "엣지 점수",
+      "help": "승률, 수익 팩터, 평균 손익, 드로다운, 회복력, 일관성을 결합한 0–100 점수입니다. 청산된 매매가 5건 이상 필요합니다.",
+      "outOf": "/100",
+      "empty": "청산된 매매가 5건 이상 필요합니다. 계산식은 공개되어 있습니다 — <a>보기</a>."
+    },
+    "cumulative": {
+      "label": "누적 손익",
+      "title": "일일 순누적 손익",
+      "help": "선택한 기간의 순손익 누적 합계입니다. 아래 드로다운 막대는 자산 곡선 고점 대비 하락을 보여줍니다."
+    },
+    "dailyPnl": {
+      "label": "일일 손익",
+      "title": "일일 순손익",
+      "help": "각 거래일의 순손익입니다. 0 위의 막대는 수익, 아래의 막대는 손실입니다."
+    },
+    "calendar": {
+      "label": "캘린더",
+      "fullCalendar": "전체 캘린더"
+    },
+    "activity": {
+      "label": "활동",
+      "recent": "최근 매매",
+      "open": "미청산 포지션",
+      "noClosed": "아직 청산된 매매가 없습니다",
+      "flat": "포지션 없음 — 미청산 포지션이 없습니다"
+    },
+    "maxDrawdown": {
+      "label": "최대 드로다운",
+      "hint": "누적 손익 곡선의 고점에서 저점까지의 최대 낙폭입니다.",
+      "needsBalance": "백분율 표시에는 초기 자산 설정이 필요합니다",
+      "withRecovery": "{percent} · 회복 계수 {value}x"
+    },
+    "streaks": {
+      "label": "연승 / 연패",
+      "hint": "현재 연속 승리(W) 또는 손실(L) 기록과 최고·최악의 기록입니다.",
+      "bestWorst": "최고 {wins}W · 최악 {losses}L"
+    },
+    "expectancy": {
+      "label": "매매당 기대값",
+      "hint": "청산된 매매 1건당 평균 순손익입니다. 내 수치에서 한 건 더 거래할 때의 가치입니다.",
+      "avgR": "리스크 태그된 {count}건의 평균 {value}R",
+      "needsRisk": "손절가를 태그하면 R 배수가 표시됩니다"
+    },
+    "avgDuration": {
+      "label": "평균 보유 시간",
+      "hint": "첫 진입 체결부터 최종 청산까지의 평균 시간입니다.",
+      "reportsHint": "승패 보유 시간 비교는 리포트에서"
+    },
+    "bestWorstDay": {
+      "label": "최고 / 최악의 날",
+      "hint": "선택한 기간의 하루 순손익 최고값과 최저값입니다."
+    },
+    "timePerformance": {
+      "label": "매매 시간대 성과",
+      "help": "매매를 진입 시간대별로 묶었습니다. 위 차트는 순손익, 아래 차트는 매매 수입니다."
+    },
+    "empty": {
+      "title": "저널이 비어 있습니다",
+      "body": "브로커를 연결해 자동 동기화하거나, 10개 이상의 플랫폼(TradeZella 내보내기 포함)에서 거래 내역을 업로드하거나, 직접 매매를 추가할 수 있습니다.",
+      "import": "첫 매매 가져오기",
+      "loadDemo": "데모 데이터 불러오기",
+      "loadingDemo": "불러오는 중…",
+      "demoNote": "데모 데이터는 별도 계좌에 저장되며, 언제든지 계좌에서 삭제할 수 있습니다."
+    },
+    "customizer": {
+      "trigger": "사용자 지정",
+      "title": "대시보드 카드",
+      "visibleCount": "{count}장 표시",
+      "close": "사용자 지정 닫기",
+      "searchLabel": "대시보드 카드 찾기",
+      "searchPlaceholder": "카드 찾기…",
+      "clearSearch": "카드 검색 지우기",
+      "showCard": "{card} 표시",
+      "noMatches": "일치하는 카드 없음",
+      "clearSearchAction": "검색 지우기",
+      "reset": "레이아웃 초기화",
+      "resetAria": "기본 레이아웃으로 복원",
+      "showAll": "모든 카드 표시",
+      "srStatus": "{count, plural, other {#장의 카드를 찾았습니다.}}{total}장 중 {visible}장 표시."
+    },
+    "savedLayouts": {
+      "trigger": "레이아웃",
+      "triggerAria": "대시보드 레이아웃",
+      "title": "대시보드 레이아웃",
+      "savedCount": "{count}개 저장됨",
+      "close": "대시보드 레이아웃 닫기",
+      "searchLabel": "레이아웃 찾기",
+      "searchPlaceholder": "레이아웃 찾기…",
+      "presetsHeading": "프리셋",
+      "presetsHint": "원하는 방향을 고른 후 사용자 지정으로 내 레이아웃으로 만들 수 있습니다.",
+      "applyPreset": "{name} 프리셋 적용",
+      "cardsCount": "{count, plural, other {#장의 카드}}",
+      "cardsCountCurrent": "{count, plural, other {#장의 카드 · 현재 레이아웃}}",
+      "defaultBadge": "기본",
+      "yourLayouts": "저장한 레이아웃",
+      "loadLayout": "{name} 불러오기",
+      "noMatches": "일치하는 레이아웃 없음",
+      "saveLabel": "현재 레이아웃 저장",
+      "nameAria": "레이아웃 이름",
+      "namePlaceholder": "예: 주간 리뷰",
+      "save": "저장",
+      "savedStatus": "{name} 저장됨",
+      "presetNames": {
+        "overview": "오버뷰",
+        "tradingDay": "거래일",
+        "performance": "퍼포먼스",
+        "riskReview": "리스크 리뷰"
+      },
+      "presetDescriptions": {
+        "overview": "모든 카드를 원래 순서로 표시합니다.",
+        "tradingDay": "캘린더와 최근 매매를 먼저, 그다음 일일 결과를 표시합니다.",
+        "performance": "수익률, 승률, 자산 곡선, 내 엣지를 표시합니다.",
+        "riskReview": "드로다운, 연승 연패, 기대값, 일일 변동을 표시합니다."
+      }
+    },
+    "layout": {
+      "loading": "대시보드 레이아웃을 불러오는 중…",
+      "cardsVisible": "카드 {visible} / {total}장",
+      "card": "카드",
+      "saved": "레이아웃이 저장되었습니다",
+      "movedSaved": "{card}을(를) 이동했습니다. 레이아웃이 저장되었습니다.",
+      "allShownSaved": "모든 카드가 표시됩니다. 레이아웃이 저장되었습니다.",
+      "restoredSaved": "원래 카드 순서를 복원했습니다. 모든 카드가 표시됩니다.",
+      "nameLoaded": "{name} 불러옴",
+      "nameSaved": "{name} 저장됨",
+      "saveFailed": "레이아웃이 변경되었지만 이 브라우저에 저장하지 못했습니다.",
+      "readFailed": "저장된 대시보드 설정을 읽지 못했습니다. 모든 카드가 표시됩니다.",
+      "hiddenBanner": "{count, plural, other {이 레이아웃에서 #장의 카드가 숨겨져 있습니다.}}",
+      "showAll": "모든 카드 표시",
+      "allHidden": "모든 카드가 숨겨져 있습니다. 모든 카드 표시를 선택하여 복원하세요.",
+      "dragInstructions": "스페이스바 또는 Enter 키로 카드를 집습니다. 화살표 키로 이동한 후 스페이스바 또는 Enter 키로 놓습니다. Escape 키로 취소합니다.",
+      "pickedUp": "{card}을(를) 집었습니다.",
+      "draggingOver": "{card}이(가) {other} 위에 있습니다.",
+      "outsideCards": "카드 영역 밖입니다. 여기에 놓으면 취소됩니다.",
+      "placedAt": "{card}을(를) {count}장 중 {position}번째에 놓았습니다.",
+      "moveCancelled": "이동이 취소되었습니다.",
+      "moveCancelledUnchanged": "이동이 취소되었습니다. 레이아웃은 변경되지 않았습니다.",
+      "rearrange": "{card} 재배치",
+      "rearrangeHint": "드래그하여 {card} 재배치"
+    }
+  }
+}

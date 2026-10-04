@@ -1,0 +1,27 @@
+{
+  "playbooks": {
+    "title": "Playbooks",
+    "new": "New playbook",
+    "empty": "A playbook is a setup you trade on purpose — name it, write its rules, then tag trades with it and let Reports tell you if it actually pays.",
+    "tradeCount": "{count, plural, one {# trade} other {# trades}}",
+    "deleteConfirm": "Delete \"{name}\"? Trades keep their data, just lose the link.",
+    "deleteAria": "Delete playbook {name}",
+    "namePlaceholder": "Name (e.g. Opening range breakout)",
+    "descriptionPlaceholder": "One-line description",
+    "rulesPlaceholder": "One rule per line:\nOnly A+ setups\nRisk max 1R\nNo entries after 11:30",
+    "create": "Create",
+    "adherence": {
+      "ruleAdherence": "Rule adherence",
+      "assessments": "{evaluated}/{possible} rule assessments across {total} filtered closed trades.",
+      "unassessed": "{count, plural, one {# trade still needs assessment.} other {# trades still need assessment.}}",
+      "allFollowed": "All rules followed",
+      "oneBroken": "At least one broken",
+      "tradesWin": "{count, plural, one {# trade} other {# trades}} · {win} win",
+      "mixedCurrencies": "P&L hidden for mixed currencies.",
+      "performanceByRule": "Performance by rule",
+      "ruleRate": "{rate} followed · {count, plural, one {# assessment} other {# assessments}}",
+      "ruleFollowedBroken": "Followed: {followedTrades, plural, one {# trade} other {# trades}} / {followedWin} win · Broken: {brokenTrades, plural, one {# trade} other {# trades}} / {brokenWin} win",
+      "ruleNetPnl": "Net P&L: <followed>{followedValue}</followed> followed / <broken>{brokenValue}</broken> broken {currency}"
+    }
+  }
+}

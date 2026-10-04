@@ -5,7 +5,7 @@ type Context = { params: Promise<{ id: string }> };
 export const GET = handler(async (_request: Request, { params }: Context) => {
   const { id } = await params;
   const a = db.select().from(attachments).where(eq(attachments.id, id)).get();
-  if (!a) return bad("Attachment not found", 404);
+  if (!a) return bad("Attachment not found", 404, "attachment_not_found");
   return new Response(new Uint8Array(a.data), {
     headers: {
       "Content-Type": a.mime,

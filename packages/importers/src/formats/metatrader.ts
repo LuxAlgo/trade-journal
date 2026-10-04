@@ -97,6 +97,7 @@ export const metatrader: ImportFormat = {
               "MetaTrader statements are trade-level; entry/exit executions were reconstructed at the reported prices. Swap was folded into fees.",
             ]
           : [],
+      ...(executions.length > 0 ? { diagnostics: [{ code: "trade_level_reconstructed" }] } : {}),
     };
   },
 };

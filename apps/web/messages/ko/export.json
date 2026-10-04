@@ -1,0 +1,20 @@
+{
+  "export": {
+    "exportPdf": "PDF 내보내기",
+    "exportPng": "PNG 내보내기",
+    "privacyHint": "재무 수치를 내보내려면 개인정보 보호 모드를 끄세요.",
+    "dialogTitle": "리뷰 내보내기",
+    "download": "{format} 다운로드",
+    "downloadIndexed": "{format} 다운로드 · {index}/{total}",
+    "pdfPreviewNote": "리뷰 텍스트 · 페이지로 나뉜 문서는 PDF를 다운로드하세요.",
+    "pngAlt": "내보낸 저널 리뷰",
+    "doneLabel": "[완료]",
+    "error": {
+      "fontLoad": "PDF 글꼴을 불러올 수 없습니다.",
+      "missingGlyphs": "PDF 글꼴이 다음 문자를 지원하지 않습니다: {chars}. 해당 문자를 제거하여 내보내거나 PNG 리뷰를 내보내세요.",
+      "pngUnavailable": "이 브라우저에서는 이미지를 내보낼 수 없습니다.",
+      "pngFailed": "이미지 내보내기에 실패했습니다.",
+      "generic": "내보내기에 실패했습니다."
+    }
+  }
+}

@@ -1,9 +1,11 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatApiError } from "@/lib/api-error";
 import { postJson } from "@/lib/use-api";
 import { CurrencyPicker } from "./currency-picker";
 
@@ -28,6 +30,9 @@ export function AccountCreateForm({
   className?: string;
   showTitle?: boolean;
 }) {
+  const t = useTranslations("accounts");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [balance, setBalance] = useState("0");
@@ -59,7 +64,9 @@ export function AccountCreateForm({
       setName("");
       setBalance("0");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Account creation failed.");
+      // Coded API errors localize via the errors namespace; anything else
+      // keeps its original message (i18n.md §6).
+      setError(cause instanceof Error ? formatApiError(tErrors, cause) : t("createFailed"));
     } finally {
       setSaving(false);
       onSavingChange?.(false);
@@ -73,10 +80,10 @@ export function AccountCreateForm({
         if (!saving) void create();
       }}
     >
-      {showTitle && <h3 className="text-sm font-medium">Create account</h3>}
+      {showTitle && <h3 className="text-sm font-medium">{t("createAccount")}</h3>}
       {!kind && (
         <div className="space-y-1">
-          <Label htmlFor={`${fieldId}-kind`}>Account type</Label>
+          <Label htmlFor={`${fieldId}-kind`}>{t("accountType")}</Label>
           <select
             id={`${fieldId}-kind`}
             className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -84,14 +91,14 @@ export function AccountCreateForm({
             disabled={saving}
             onChange={(event) => setAccountKind(event.target.value as "manual" | "import")}
           >
-            <option value="manual">Manual trades</option>
-            <option value="import">File import</option>
+            <option value="manual">{t("typeManual")}</option>
+            <option value="import">{t("typeImport")}</option>
           </select>
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-1">
-          <Label htmlFor={`${fieldId}-name`}>Account name</Label>
+          <Label htmlFor={`${fieldId}-name`}>{t("nameLabel")}</Label>
           <Input
             id={`${fieldId}-name`}
             autoFocus
@@ -100,11 +107,11 @@ export function AccountCreateForm({
             value={name}
             onChange={(event) => setName(event.target.value)}
             disabled={saving}
-            placeholder="Trading test account"
+            placeholder={t("namePlaceholder")}
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`${fieldId}-currency`}>Currency</Label>
+          <Label htmlFor={`${fieldId}-currency`}>{t("currencyLabel")}</Label>
           <CurrencyPicker
             id={`${fieldId}-currency`}
             value={currency}
@@ -113,7 +120,7 @@ export function AccountCreateForm({
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`${fieldId}-balance`}>Starting balance</Label>
+          <Label htmlFor={`${fieldId}-balance`}>{t("balanceLabel")}</Label>
           <Input
             id={`${fieldId}-balance`}
             required
@@ -142,7 +149,7 @@ export function AccountCreateForm({
           Number(balance) < 0
         }
       >
-        {saving ? "Creating…" : "Create account"}
+        {saving ? t("creating") : t("createAccount")}
       </Button>
     </form>
   );

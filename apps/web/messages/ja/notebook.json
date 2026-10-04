@@ -1,0 +1,31 @@
+{
+  "notebook": {
+    "title": "ノート",
+    "newNote": "新規ノート",
+    "allNotes": "すべてのノート",
+    "newFolder": "新規フォルダー",
+    "noteFolder": "ノートフォルダー",
+    "searchPlaceholder": "ノートを検索",
+    "emptyNotes": "ここにはまだノートがありません。",
+    "untitled": "無題",
+    "emptyContent": "空",
+    "selectOrCreate": "ノートを選択するか作成してください。",
+    "backToNotes": "ノートに戻る",
+    "titlePlaceholder": "タイトル",
+    "edit": "編集",
+    "preview": "プレビュー",
+    "delete": "削除",
+    "deleteConfirm": "このノートを削除しますか？",
+    "saveNow": "今すぐ保存",
+    "folderDialog": {
+      "title": "新規フォルダー",
+      "description": "名前を付けたフォルダーにノートを整理します。",
+      "nameLabel": "フォルダー名",
+      "cancel": "キャンセル",
+      "create": "フォルダーを作成",
+      "creating": "作成中…",
+      "failed": "フォルダーを作成できませんでした。もう一度お試しください。"
+    },
+    "reviewTitle": "ジャーナルノート"
+  }
+}
