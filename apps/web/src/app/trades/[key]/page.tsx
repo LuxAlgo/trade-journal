@@ -38,6 +38,7 @@ import { ReviewExport } from "@/components/review-export";
 import { RuleChecklist } from "@/components/rule-checklist";
 import { useAutosave } from "@/lib/use-autosave";
 import { postJson, useApi } from "@/lib/use-api";
+import { netReturnOnNotional } from "@luxalgo/journal-core";
 import { fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
 import { tradeKeyFromSegment } from "@/lib/trade-links";
 import { formatTimestamp } from "@/lib/timezone";
@@ -191,17 +192,7 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
               <Meta label="Duration" value={fmtDuration(trade.durationMs)} />
               <Meta
                 label="Net / entry notional"
-                value={fmtPercent(
-                  trade.avgEntry * trade.quantity > 0 &&
-                    (trade.contractMultiplier !== null ||
-                      !["futures", "option", "forex", "cfd"].includes(trade.assetClass ?? ""))
-                    ? trade.netPnl /
-                        (Math.abs(trade.avgEntry) *
-                          trade.quantity *
-                          (trade.contractMultiplier ?? 1))
-                    : null,
-                  2,
-                )}
+                value={fmtPercent(netReturnOnNotional(trade), 2)}
               />
               <Meta
                 label="Planned R"

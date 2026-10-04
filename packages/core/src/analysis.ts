@@ -44,6 +44,29 @@ export const readFilters = (params: { get(key: string): string | null }): Analys
   );
 
 /** Planned risk uses the weighted entry and total entry quantity, not peak concurrent exposure. */
+/** Asset classes whose price is per unit of a contract, so notional needs the contract multiplier. */
+const MULTIPLIER_ASSETS = ["futures", "option", "forex", "cfd"];
+
+export interface NotionalReturnInput {
+  netPnl: number;
+  avgEntry: number;
+  quantity: number;
+  contractMultiplier?: number | null;
+  assetClass?: string | null;
+}
+
+/**
+ * Net P&L as a fraction of entry notional (|avg entry| × quantity × contract multiplier).
+ * Null when the notional is unknown: a futures/option/forex/CFD trade without a configured
+ * multiplier, or a zero notional. The trade list and the trade page both use this, so they always agree.
+ */
+export const netReturnOnNotional = (trade: NotionalReturnInput): number | null => {
+  const multiplier = trade.contractMultiplier ?? null;
+  if (multiplier === null && MULTIPLIER_ASSETS.includes(trade.assetClass ?? "")) return null;
+  const notional = Math.abs(trade.avgEntry) * trade.quantity * (multiplier ?? 1);
+  return notional > 0 && Number.isFinite(notional) ? trade.netPnl / notional : null;
+};
+
 export function tradeRisk(trade: AnnotatedTrade): number | null {
   const stop = trade.annotations?.stopLoss;
   const multiplier =

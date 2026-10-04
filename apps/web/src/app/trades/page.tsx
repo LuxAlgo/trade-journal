@@ -14,7 +14,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { ArrowUpDown, Check, Columns3, Download, Tag, Trash2 } from "lucide-react";
-import { dayKeyOf, type TradeMetrics } from "@luxalgo/journal-core";
+import { dayKeyOf, netReturnOnNotional, type TradeMetrics } from "@luxalgo/journal-core";
 import { FilterBar, useFilters } from "@/components/filter-bar";
 import { Pnl } from "@/components/pnl";
 import { MonetaryValue } from "@/components/privacy";
@@ -39,6 +39,8 @@ interface TradeRow {
   quantity: number;
   avgEntry: number;
   avgExit: number | null;
+  assetClass: string | null;
+  contractMultiplier: number | null;
   grossPnl: number;
   fees: number;
   netPnl: number;
@@ -180,10 +182,11 @@ function Trades() {
       },
       {
         id: "roi",
-        accessorFn: (row) =>
-          row.avgEntry * row.quantity > 0 ? row.netPnl / (row.avgEntry * row.quantity) : 0,
+        accessorFn: (row) => netReturnOnNotional(row) ?? undefined,
         header: "Net ROI",
-        cell: ({ getValue }) => <span className="tnum">{fmtPercent(getValue<number>(), 2)}</span>,
+        cell: ({ getValue }) => (
+          <span className="tnum">{fmtPercent(getValue<number | undefined>() ?? null, 2)}</span>
+        ),
       },
       {
         id: "fees",
