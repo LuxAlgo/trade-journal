@@ -1,0 +1,33 @@
+{
+  "progress": {
+    "title": "Progress",
+    "addRoutine": "Add routine",
+    "addRoutineTitle": "Add a daily routine",
+    "intro": "Build a repeatable trading day. Routines are tracked independently of trade filters and profit.",
+    "dailyCompletion": "Daily completion",
+    "completedOf": "{completed} of {total, plural, one {# scheduled routine} other {# scheduled routines}}",
+    "reviewDate": "Review date",
+    "progressDate": "Progress date",
+    "exportTitle": "Routine review · {date}",
+    "exportCompleted": "Completed: {completed}/{total}",
+    "exportDone": "[done]",
+    "exportPending": "[ ]",
+    "exportRoutineLine": "{marker} {stage}: {title}",
+    "stage": {
+      "before": "Before trading",
+      "during": "During trading",
+      "after": "After trading"
+    },
+    "archive": "Archive",
+    "archiveConfirm": "Archive “{title}”? Previous days are preserved.",
+    "noRoutines": "No routines scheduled.",
+    "recentWeeks": "Last 13 weeks",
+    "dayHint": "{completed} of {total, plural, one {# routine} other {# routines}} completed",
+    "dayAria": "{date}: {completed}/{total} complete",
+    "heatmapLegend": "Brighter squares mean a higher completion rate. Grey means no scheduled routines. Click a day to review it. New routines start today.",
+    "routineLabel": "Routine",
+    "routinePlaceholder": "Review the economic calendar",
+    "whenLabel": "When",
+    "saveFailed": "Could not save."
+  }
+}

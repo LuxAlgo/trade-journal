@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { createElement, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { Settings2, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Checkbox } from "./ui/checkbox";
 import { HelpHint } from "./ui/tooltip";
 import { Input } from "./ui/input";
@@ -13,7 +14,7 @@ import {
   type AiSettingsPayload,
   type AiProvider,
 } from "@/lib/ai-settings";
-import { AI_IMPORT_HELP, type AiImportOptions as Options } from "@/lib/ai-import";
+import type { AiImportOptions as Options } from "@/lib/ai-import";
 
 export function AiImportOptions({
   enabled,
@@ -30,6 +31,7 @@ export function AiImportOptions({
   settings?: AiSettingsPayload;
   disabled: boolean;
 }) {
+  const t = useTranslations("import.ai");
   const [open, setOpen] = useState(false);
   const connection = settings?.aiConnections[value.provider];
   return (
@@ -48,15 +50,15 @@ export function AiImportOptions({
           htmlFor="ai-import-enabled"
           className="flex cursor-pointer items-center gap-1.5 text-xs font-normal text-muted-foreground"
         >
-          Parse with AI
+          {t("enabledLabel")}
         </Label>
-        <HelpHint heading="AI statement parsing">{AI_IMPORT_HELP}</HelpHint>
+        <HelpHint heading={t("helpHeading")}>{t("help")}</HelpHint>
         {enabled && (
           <Popover.Trigger asChild>
             <button
               type="button"
               disabled={disabled}
-              aria-label="AI parsing settings"
+              aria-label={t("settingsAria")}
               className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <Settings2 className="size-3.5" />
@@ -69,13 +71,13 @@ export function AiImportOptions({
           align="end"
           sideOffset={8}
           collisionPadding={12}
-          aria-label="AI parsing settings"
+          aria-label={t("settingsAria")}
           className="z-50 w-[360px] max-w-[calc(100vw-24px)] max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-xl border bg-popover p-4 text-popover-foreground shadow-xl"
         >
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm font-medium">AI parsing settings</span>
+            <span className="text-sm font-medium">{t("settingsTitle")}</span>
             <Popover.Close
-              aria-label="Close AI parsing settings"
+              aria-label={t("closeAria")}
               className="rounded-md p-1 text-muted-foreground hover:bg-accent"
             >
               <X className="size-4" />
@@ -84,7 +86,7 @@ export function AiImportOptions({
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label htmlFor="import-ai-provider">AI provider</Label>
+                <Label htmlFor="import-ai-provider">{t("provider")}</Label>
                 <OptionSelect
                   id="import-ai-provider"
                   value={value.provider}
@@ -103,7 +105,7 @@ export function AiImportOptions({
                 </OptionSelect>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="import-ai-model">Model ID</Label>
+                <Label htmlFor="import-ai-model">{t("model")}</Label>
                 <Input
                   id="import-ai-model"
                   value={value.model}
@@ -114,7 +116,9 @@ export function AiImportOptions({
               </div>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="import-ai-key">{AI_PROVIDER_NAMES[value.provider]} API key</Label>
+              <Label htmlFor="import-ai-key">
+                {t("apiKey", { provider: AI_PROVIDER_NAMES[value.provider] })}
+              </Label>
               <Input
                 id="import-ai-key"
                 type="password"
@@ -124,29 +128,27 @@ export function AiImportOptions({
                 disabled={disabled}
                 onChange={(e) => onChange({ ...value, apiKey: e.target.value })}
                 placeholder={
-                  connection?.configured
-                    ? "Leave blank to use your configured key"
-                    : "Enter your API key"
+                  connection?.configured ? t("keyConfiguredPlaceholder") : t("keyPlaceholder")
                 }
               />
               <p className="text-xs text-muted-foreground">
-                Keys entered here are used for this upload session only. Manage saved keys in{" "}
-                <a href="/settings#ai-settings" className="underline">
-                  Settings
-                </a>
-                .
+                {t.rich("sessionKeyNote", {
+                  a: (chunks) =>
+                    createElement(
+                      "a",
+                      { href: "/settings#ai-settings", className: "underline" },
+                      chunks,
+                    ),
+                })}
               </p>
             </div>
             <p className="text-xs text-muted-foreground">
-              Your file will be sent to {AI_PROVIDER_NAMES[value.provider]} when you select{" "}
-              <strong>Preview with AI</strong>. Provider charges apply. Review the extracted trades
-              before importing.
+              {t.rich("sendNotice", {
+                provider: AI_PROVIDER_NAMES[value.provider],
+                strong: (chunks) => createElement("strong", null, chunks),
+              })}
             </p>
-            <p className="text-xs text-muted-foreground">
-              CSV, TSV, HTML, XML, TXT and PDF · Up to 200 executions per preview. PDFs up to 8 MB;
-              text exports up to 150,000 characters. For spreadsheets, export as CSV first. PDF
-              support depends on your selected model.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("limits")}</p>
           </div>
         </Popover.Content>
       </Popover.Portal>

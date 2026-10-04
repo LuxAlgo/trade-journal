@@ -12,12 +12,14 @@ import {
   ZAxis,
 } from "recharts";
 import { useMemo } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   clockLabel,
   type PlottedTrade,
   type TradeXAxis,
   type TradeYAxis,
 } from "@/lib/trade-explorer";
+import { formatLocale, type Locale } from "@/i18n/config";
 import { fmtMoney } from "@/lib/utils";
 import { usePrivacy } from "../privacy";
 import { ChartFrame } from "./chart-frame";
@@ -38,6 +40,10 @@ export function TradeScatter({
   timeZone: string;
   onSelect: (point: PlottedTrade) => void;
 }) {
+  const t = useTranslations("charts");
+  const te = useTranslations("enums");
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
   const tokens = useVizTokens();
   const privateMode = usePrivacy();
   const groups = useMemo(
@@ -49,26 +55,37 @@ export function TradeScatter({
     [points],
   );
   const date = useMemo(
-    () => new Intl.DateTimeFormat("en", { timeZone, dateStyle: "medium", timeStyle: "short" }),
-    [timeZone],
+    () => new Intl.DateTimeFormat(tag, { timeZone, dateStyle: "medium", timeStyle: "short" }),
+    [tag, timeZone],
   );
+  const compactNumber = useMemo(
+    () => new Intl.NumberFormat(tag, { maximumFractionDigits: 1, notation: "compact" }),
+    [tag],
+  );
+  const number2 = useMemo(() => new Intl.NumberFormat(tag, { maximumFractionDigits: 2 }), [tag]);
   const yLabel = (n: number) =>
-    y === "realizedR" ? `${n.toFixed(2)}R` : privateMode ? "••••" : fmtMoney(n, currency);
+    y === "realizedR" ? `${n.toFixed(2)}R` : privateMode ? "••••" : fmtMoney(n, currency, tag);
   const xLabel = (n: number) =>
     x === "entryMinute"
       ? clockLabel(n)
       : x === "mae" || x === "mfe"
         ? privateMode
           ? "••••"
-          : fmtMoney(n, currency)
-        : n.toLocaleString(undefined, { maximumFractionDigits: 1, notation: "compact" });
+          : fmtMoney(n, currency, tag)
+        : compactNumber.format(n);
   if (!tokens) return <div className="h-80" />;
+  const yAxisName = (axis: "netPnl" | "realizedR" | "mae" | "mfe") =>
+    axis === "netPnl"
+      ? t("yNetPnl")
+      : axis === "realizedR"
+        ? t("yRealizedR")
+        : t("yEstimated", { axis: axis.toUpperCase() });
   return (
     <ChartFrame height={340}>
       <ResponsiveContainer width="100%" height="100%">
         <ScatterChart
           margin={{ top: 12, right: 24, bottom: 8, left: 0 }}
-          aria-label="Individual trade outcomes. Select a point to inspect; all trades also have links in the table below."
+          aria-label={t("scatterAria")}
         >
           <CartesianGrid stroke={tokens.gridline} />
           <XAxis
@@ -101,25 +118,28 @@ export function TradeScatter({
               return active && point ? (
                 <div style={{ ...tooltipStyle(tokens), maxWidth: 230, overflowWrap: "anywhere" }}>
                   <p className="font-medium">
-                    {point.symbol} · {point.direction}
+                    {point.symbol} ·{" "}
+                    {te.has(`direction.${point.direction}`)
+                      ? te(`direction.${point.direction}`)
+                      : point.direction}
                   </p>
-                  <p className="text-xs">Closed {date.format(new Date(point.closedAt))}</p>
+                  <p className="text-xs">
+                    {t("closedAt", { time: date.format(new Date(point.closedAt)) })}
+                  </p>
                   <p>
                     {x === "durationMinutes"
-                      ? `${point.x.toLocaleString(undefined, { maximumFractionDigits: 2 })} minutes`
+                      ? t("minutesFull", { value: number2.format(point.x) })
                       : x === "entryMinute"
-                        ? `${clockLabel(point.x)} entry`
-                        : `Estimated ${x.toUpperCase()}: ${xLabel(point.x)}`}
+                        ? t("entryAt", { time: clockLabel(point.x) })
+                        : t("estimatedAxis", {
+                            axis: x.toUpperCase(),
+                            value: xLabel(point.x),
+                          })}
                   </p>
                   <p>
-                    {y === "netPnl"
-                      ? "Net P&L"
-                      : y === "realizedR"
-                        ? "Realized R"
-                        : `Estimated ${y.toUpperCase()}`}
-                    : {yLabel(point.y)}
+                    {yAxisName(y)}: {yLabel(point.y)}
                   </p>
-                  <p className="text-xs text-muted-foreground">Select to inspect this trade</p>
+                  <p className="text-xs text-muted-foreground">{t("scatterInspectHint")}</p>
                 </div>
               ) : null;
             }}
@@ -128,7 +148,7 @@ export function TradeScatter({
             <Scatter
               key={index}
               data={data}
-              name={["Positive net P&L", "Negative net P&L", "Zero net P&L"][index]}
+              name={[t("legendPositive"), t("legendNegative"), t("legendZero")][index]}
               shape="circle"
               fill={[tokens.profitFill, tokens.loss, tokens.inkMuted][index]}
               fillOpacity={0.7}

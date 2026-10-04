@@ -1,0 +1,38 @@
+{
+  "voice": {
+    "state": {
+      "idle": "Dictate",
+      "starting": "Starting…",
+      "listening": "Listening · Stop"
+    },
+    "title": {
+      "idle": "Dictate your note",
+      "active": "Stop dictation"
+    },
+    "language": {
+      "label": "Dictation language",
+      "follow": "Follow interface language"
+    },
+    "popover": {
+      "label": "Dictation help",
+      "useKeyboard": "Use keyboard dictation",
+      "dismiss": "Dismiss"
+    },
+    "help": {
+      "keyboard": "Keyboard dictation types directly into your note. Use your keyboard’s microphone key or your system’s dictation shortcut. On Mac, enable Dictation in System Settings → Keyboard."
+    },
+    "status": {
+      "ready": "Note ready. Press your keyboard’s microphone key or dictation shortcut to speak."
+    },
+    "error": {
+      "notAllowed": "Microphone or speech access was blocked. Allow microphone access in your browser and system settings, then try again.",
+      "audioCapture": "No microphone is available. Connect or enable a microphone, then try again.",
+      "noSpeech": "No speech was detected. Try again and speak after the button says Listening.",
+      "network": "This browser could not reach its speech recognition service. Try Chrome with an internet connection, or use keyboard dictation below.",
+      "languageNotSupported": "This browser does not support dictation in your current language. Use keyboard dictation below.",
+      "timeout": "Speech recognition could not start in this browser. Try Chrome, or use keyboard dictation below.",
+      "start": "Speech recognition could not start in this browser. Try Chrome, or use keyboard dictation below.",
+      "unsupported": "This browser does not support speech recognition. Open the journal in Chrome, or use keyboard dictation below."
+    }
+  }
+}

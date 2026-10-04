@@ -33,6 +33,7 @@ export const ibkr: ImportFormat = {
         executions: [],
         skippedRows: 0,
         warnings: ["No Trades section found."],
+        diagnostics: [{ code: "section_not_found" }],
       };
     }
     const keys = headerRow.map(headerKey);

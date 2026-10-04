@@ -1,15 +1,17 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import type { CurrencyScope } from "@/lib/currencies";
 import { Button } from "@/components/ui/button";
 
 export function CurrencyNotice({ scope }: { scope: CurrencyScope }) {
+  const t = useTranslations("controls");
   if (scope.converted)
     return (
       <p className="px-4 py-2 text-xs text-muted-foreground">
-        Trading P&amp;L in {scope.currency} · saved baseline conversion rates.{" "}
+        {t("notice.converted", { currency: scope.currency ?? "" })}{" "}
         <Link className="underline" href="/settings#currency-conversion">
-          Edit rates
+          {t("notice.editRates")}
         </Link>
       </p>
     );
@@ -26,17 +28,21 @@ export function CurrencyNotice({ scope }: { scope: CurrencyScope }) {
         />
         <div className="space-y-1">
           <p className="font-semibold text-amber-950 dark:text-amber-100">
-            Set up conversion to see your combined dashboard
+            {t("notice.setupTitle")}
           </p>
           <p className="text-sm text-amber-900 dark:text-amber-200">
             {scope.missingCurrencies.length
-              ? `Save conversion rates for ${scope.missingCurrencies.join(", ")} to use the reporting currency. Amounts below remain in their original currencies.`
-              : `These accounts use ${scope.sourceCurrencies.join(", ")}. Set your conversion rates to combine their performance.`}
+              ? t("notice.missing", {
+                  currencies: scope.missingCurrencies.join(", "),
+                })
+              : t("notice.sources", {
+                  currencies: scope.sourceCurrencies.join(", "),
+                })}
           </p>
         </div>
       </div>
       <Button asChild className="shrink-0 self-start lg:self-auto">
-        <Link href="/settings#currency-conversion">Set up currency conversion</Link>
+        <Link href="/settings#currency-conversion">{t("notice.setupCta")}</Link>
       </Button>
     </div>
   );

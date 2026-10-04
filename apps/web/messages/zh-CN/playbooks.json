@@ -1,0 +1,27 @@
+{
+  "playbooks": {
+    "title": "交易剧本",
+    "new": "新建交易剧本",
+    "empty": "交易剧本是你有意识去交易的形态——为它命名、写下规则，然后给交易打上标记，让报表告诉你它是否真的赚钱。",
+    "tradeCount": "{count, plural, other {# 笔交易}}",
+    "deleteConfirm": "删除「{name}」？交易数据会保留，只是取消关联。",
+    "deleteAria": "删除交易剧本 {name}",
+    "namePlaceholder": "名称（例如：开盘区间突破）",
+    "descriptionPlaceholder": "一句话描述",
+    "rulesPlaceholder": "每行一条规则：\n只做 A+ 形态\n风险最多 1R\n11:30 后不进场",
+    "create": "创建",
+    "adherence": {
+      "ruleAdherence": "规则依从度",
+      "assessments": "{evaluated}/{possible} 次规则评估，涵盖 {total} 笔筛选后的已平仓交易。",
+      "unassessed": "{count, plural, other {# 笔交易仍待评估。}}",
+      "allFollowed": "全部规则遵守",
+      "oneBroken": "至少违反一条",
+      "tradesWin": "{count, plural, other {# 笔交易}} · {win} 胜率",
+      "mixedCurrencies": "币种混合时隐藏盈亏。",
+      "performanceByRule": "按规则查看表现",
+      "ruleRate": "{rate} 遵守 · {count, plural, other {# 次评估}}",
+      "ruleFollowedBroken": "遵守：{followedTrades, plural, other {# 笔交易}} / {followedWin} 胜 · 违反：{brokenTrades, plural, other {# 笔交易}} / {brokenWin} 胜",
+      "ruleNetPnl": "净盈亏：<followed>{followedValue}</followed> 遵守 / <broken>{brokenValue}</broken> 违反 {currency}"
+    }
+  }
+}

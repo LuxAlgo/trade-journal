@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
 import { TooltipProvider } from "../src/components/ui/tooltip";
+import { renderWithLocale } from "./helpers/i18n";
 const state = vi.hoisted(() => ({ post: vi.fn(), push: vi.fn(), configured: false }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: state.push }) }));
 vi.mock("@/components/filter-bar", () => ({ FilterBar: () => null }));
@@ -33,25 +33,28 @@ vi.mock("@/lib/use-api", () => ({
   }),
 }));
 const { default: ImportPage } = await import("../src/app/import/page");
-let container: HTMLDivElement;
-let root: Root;
+let container: HTMLElement;
+let unmount: () => void;
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   state.post.mockReset();
   state.push.mockReset();
   state.configured = false;
   vi.spyOn(window, "alert").mockImplementation(() => {});
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
 });
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
+afterEach(() => {
+  unmount();
   vi.restoreAllMocks();
 });
-const render = () =>
-  act(async () => root.render(createElement(TooltipProvider, null, createElement(ImportPage))));
+// T08: component trees render inside NextIntlClientProvider (the tooltip
+// component reads the `controls` namespace), so use renderWithLocale.
+const render = () => {
+  const rendered = renderWithLocale(
+    createElement(TooltipProvider, null, createElement(ImportPage)),
+    { locale: "en" },
+  );
+  container = rendered.container;
+  unmount = rendered.unmount;
+};
 const button = (name: string) =>
   Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
     (b) => b.textContent === name,
@@ -72,7 +75,7 @@ const upload = () =>
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
 it("defaults off and never sends a chosen file to AI until explicitly previewed with a configured key", async () => {
-  await render();
+  render();
   expect(container.querySelector("#ai-import-enabled")?.getAttribute("data-state")).toBe(
     "unchecked",
   );
@@ -85,7 +88,7 @@ it("defaults off and never sends a chosen file to AI until explicitly previewed 
 });
 it("shows all extracted rows and requires review before committing the frozen preview", async () => {
   state.configured = true;
-  await render();
+  render();
   await act(async () =>
     (container.querySelector("#ai-import-enabled") as HTMLButtonElement).click(),
   );

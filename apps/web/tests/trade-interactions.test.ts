@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
+// Same interactions as before the i18n migration (T23): the components now read
+// copy from the `trade-detail` messages, so rendering goes through the i18n test
+// helper with the real "en" resources — the accessible names below stay the
+// exact English strings the widgets expose in the default language.
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, createElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { act, createElement, type ReactElement } from "react";
+import { renderWithLocale } from "./helpers/i18n";
 import { TradeRating } from "../src/components/trade-rating";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import type { TradeMarketResult } from "../src/lib/market-data";
@@ -19,27 +23,33 @@ vi.mock("@luxalgo/vela", () => ({
   unregisterNativeIndicator: vi.fn(),
 }));
 const { HistoricalReplay } = await import("../src/components/trade-market-data");
-let container: HTMLDivElement;
-let root: Root;
+const cleanups: Array<() => void> = [];
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   chart.setMarket.mockReset().mockResolvedValue(undefined);
   chart.destroy.mockReset();
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
 });
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
+afterEach(() => {
+  while (cleanups.length) cleanups.pop()!();
+  document.body.innerHTML = "";
 });
+const mount = async (ui: ReactElement) => {
+  const rendered = renderWithLocale(
+    createElement(TooltipProvider, { delayDuration: 0, children: ui }),
+    { locale: "en" },
+  );
+  cleanups.push(rendered.unmount);
+  // Flush the async chart bootstrap (dynamic import + ready()) inside act,
+  // mirroring the original act(async) render before the i18n migration.
+  await act(async () => {});
+  return rendered;
+};
 const button = (label: string) =>
-  container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
-const filled = () => container.querySelectorAll('[data-filled="true"]').length;
+  document.body.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+const filled = () => document.body.querySelectorAll('[data-filled="true"]').length;
 
 it("previews all stars up to the hovered or focused rating without saving", async () => {
   const save = vi.fn().mockResolvedValue(undefined);
-  await act(async () => root.render(createElement(TradeRating, { value: 2, onChange: save })));
+  await mount(createElement(TradeRating, { value: 2, onChange: save }));
   await act(async () =>
     button("Rate 4 stars").dispatchEvent(new MouseEvent("pointerover", { bubbles: true })),
   );
@@ -65,19 +75,19 @@ it("animates the selection immediately and restores the saved value if saving fa
         reject = no;
       }),
   );
-  await act(async () => root.render(createElement(TradeRating, { value: 2, onChange: save })));
+  await mount(createElement(TradeRating, { value: 2, onChange: save }));
   await act(async () => button("Rate 4 stars").click());
   expect(save).toHaveBeenCalledWith(4);
   expect(filled()).toBe(4);
-  expect(container.querySelectorAll(".journal-rating-selected")).toHaveLength(4);
+  expect(document.body.querySelectorAll(".journal-rating-selected")).toHaveLength(4);
   await act(async () => reject(new Error("offline")));
   expect(filled()).toBe(2);
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain("not saved");
+  expect(document.body.querySelector('[role="alert"]')?.textContent).toContain("not saved");
 });
 
 it("saves a rating and allows selecting it again to clear it", async () => {
   const save = vi.fn().mockResolvedValue(undefined);
-  await act(async () => root.render(createElement(TradeRating, { value: null, onChange: save })));
+  await mount(createElement(TradeRating, { value: null, onChange: save }));
   await act(async () => button("Rate 3 stars").click());
   expect(button("Rate 3 stars").getAttribute("aria-pressed")).toBe("true");
   await act(async () => button("Rate 3 stars").click());
@@ -102,35 +112,30 @@ const history: TradeMarketResult = {
   })),
   estimate: { mae: -1, mfe: 2, sampledBars: 3, excludedBars: 0, warnings: [] },
 };
-const renderReplay = async (privacy = false) =>
-  act(async () =>
-    root.render(
-      createElement(
-        TooltipProvider,
-        null,
-        createElement(HistoricalReplay, {
-          history,
-          privacy,
-          executions: [],
-          trade: {
-            key: "test",
-            symbol: "TEST",
-            currency: "USD",
-            netPnl: 1,
-            avgEntry: 100,
-            direction: "long",
-            openedAt: "2026-09-01T10:00:00Z",
-            closedAt: "2026-09-01T10:03:00Z",
-          },
-        }),
-      ),
-    ),
+const renderReplay = async (privacy = false) => {
+  await mount(
+    createElement(HistoricalReplay, {
+      history,
+      privacy,
+      executions: [],
+      trade: {
+        key: "test",
+        symbol: "TEST",
+        currency: "USD",
+        netPnl: 1,
+        avgEntry: 100,
+        direction: "long",
+        openedAt: "2026-09-01T10:00:00Z",
+        closedAt: "2026-09-01T10:03:00Z",
+      },
+    }),
   );
+};
 const count = () =>
-  container.querySelector<HTMLInputElement>('[aria-label="Replay position"]')!.value;
+  document.body.querySelector<HTMLInputElement>('[aria-label="Replay position"]')!.value;
 it("reveals Vela after readiness and steps backwards and forwards without future candles", async () => {
   await renderReplay();
-  expect(container.querySelector(".journal-replay-reveal")).toBeTruthy();
+  expect(document.body.querySelector(".journal-replay-reveal")).toBeTruthy();
   expect(count()).toBe("3");
   expect(button("Next candle").disabled).toBe(true);
   await act(async () => button("Previous candle").click());
@@ -148,6 +153,6 @@ it("reveals Vela after readiness and steps backwards and forwards without future
 });
 it("hides the historical chart and controls in privacy mode", async () => {
   await renderReplay(true);
-  expect(container.querySelector('[aria-label="Replay position"]')).toBeNull();
-  expect(container.textContent).toContain("hidden in privacy mode");
+  expect(document.body.querySelector('[aria-label="Replay position"]')).toBeNull();
+  expect(document.body.textContent).toContain("hidden in privacy mode");
 });

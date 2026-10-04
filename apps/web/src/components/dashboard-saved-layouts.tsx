@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState, type CSSProperties } from "react";
 import * as Popover from "@radix-ui/react-popover";
+import { useTranslations } from "next-intl";
 import { Check, ChevronDown, LayoutTemplate, Save, Search, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -11,6 +12,23 @@ import {
   visibleCardIds,
   type DashboardArrangement,
 } from "@/lib/dashboard-layout";
+
+// Preset names/descriptions live in lib (English identifiers); map the known
+// ones to messages for display while storage keeps the stable English name.
+const presetKeyOf = (name: string): string | null => {
+  switch (name) {
+    case "Overview":
+      return "overview";
+    case "Trading day":
+      return "tradingDay";
+    case "Performance":
+      return "performance";
+    case "Risk review":
+      return "riskReview";
+    default:
+      return null;
+  }
+};
 
 export function DashboardSavedLayouts({
   layouts,
@@ -25,6 +43,7 @@ export function DashboardSavedLayouts({
   onLoad(name: string, arrangement: DashboardArrangement): void;
   onSave(name: string): boolean;
 }) {
+  const t = useTranslations("dashboard");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [name, setName] = useState("");
@@ -33,6 +52,14 @@ export function DashboardSavedLayouts({
   const listRef = useRef<HTMLDivElement>(null);
   const names = Object.keys(layouts);
   const presets = dashboardLayoutPresets(ids);
+  const presetDisplayName = (preset: { name: string; description: string }) => {
+    const key = presetKeyOf(preset.name);
+    return key ? t(`savedLayouts.presetNames.${key}`) : preset.name;
+  };
+  const presetDisplayDescription = (preset: { name: string; description: string }) => {
+    const key = presetKeyOf(preset.name);
+    return key ? t(`savedLayouts.presetDescriptions.${key}`) : preset.description;
+  };
   const matchingPresets = presets.filter((preset) =>
     `${preset.name} ${preset.description}`
       .toLocaleLowerCase()
@@ -57,9 +84,10 @@ export function DashboardSavedLayouts({
           variant="outline"
           size="sm"
           className="dashboard-customize-trigger"
-          aria-label="Dashboard layouts"
+          aria-label={t("savedLayouts.triggerAria")}
         >
-          <LayoutTemplate /> Layouts <ChevronDown className="dashboard-customize-chevron" />
+          <LayoutTemplate /> {t("savedLayouts.trigger")}{" "}
+          <ChevronDown className="dashboard-customize-chevron" />
         </Button>
       </Popover.Trigger>
       <Popover.Portal>
@@ -71,11 +99,13 @@ export function DashboardSavedLayouts({
           aria-labelledby={titleId}
         >
           <div className="dashboard-customize-heading">
-            <h2 id={titleId}>Dashboard layouts</h2>
-            <span className="dashboard-customize-count">{names.length} saved</span>
+            <h2 id={titleId}>{t("savedLayouts.title")}</h2>
+            <span className="dashboard-customize-count">
+              {t("savedLayouts.savedCount", { count: names.length })}
+            </span>
             <Popover.Close
               className="dashboard-customize-icon-button"
-              aria-label="Close dashboard layouts"
+              aria-label={t("savedLayouts.close")}
             >
               <X size={15} />
             </Popover.Close>
@@ -84,8 +114,8 @@ export function DashboardSavedLayouts({
             <div className="dashboard-customize-search">
               <Search size={14} aria-hidden="true" />
               <input
-                aria-label="Find a layout"
-                placeholder="Find a layout…"
+                aria-label={t("savedLayouts.searchLabel")}
+                placeholder={t("savedLayouts.searchPlaceholder")}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
@@ -116,9 +146,11 @@ export function DashboardSavedLayouts({
               {matchingPresets.length > 0 && (
                 <>
                   <div className="px-3 pb-2 pt-2">
-                    <h3 className="text-[11px] font-medium text-muted-foreground">Presets</h3>
+                    <h3 className="text-[11px] font-medium text-muted-foreground">
+                      {t("savedLayouts.presetsHeading")}
+                    </h3>
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      Choose a focus, then make it yours with Customize.
+                      {t("savedLayouts.presetsHint")}
                     </p>
                   </div>
                   {matchingPresets.map((preset) => {
@@ -129,10 +161,12 @@ export function DashboardSavedLayouts({
                         type="button"
                         data-saved-layout
                         className="dashboard-customize-option dashboard-layout-option"
-                        aria-label={`Apply ${preset.name} preset`}
+                        aria-label={t("savedLayouts.applyPreset", {
+                          name: presetDisplayName(preset),
+                        })}
                         aria-pressed={active}
                         onClick={() => {
-                          onLoad(preset.name, preset.arrangement);
+                          onLoad(presetDisplayName(preset), preset.arrangement);
                           setOpen(false);
                         }}
                       >
@@ -141,18 +175,20 @@ export function DashboardSavedLayouts({
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-xs font-medium">
-                            {preset.name}
+                            {presetDisplayName(preset)}
                             <span className="ml-2 text-[10px] font-normal text-muted-foreground">
-                              {visibleCardIds(preset.arrangement).length} cards
+                              {t("savedLayouts.cardsCount", {
+                                count: visibleCardIds(preset.arrangement).length,
+                              })}
                             </span>
                             {preset.name === "Overview" && (
                               <span className="ml-2 text-[10px] font-normal text-muted-foreground">
-                                Default
+                                {t("savedLayouts.defaultBadge")}
                               </span>
                             )}
                           </span>
                           <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
-                            {preset.description}
+                            {presetDisplayDescription(preset)}
                           </span>
                         </span>
                         {active && (
@@ -165,7 +201,7 @@ export function DashboardSavedLayouts({
               )}
               {matches.length > 0 && (
                 <h3 className="px-3 pb-2 pt-3 text-[11px] font-medium text-muted-foreground">
-                  Your saved layouts
+                  {t("savedLayouts.yourLayouts")}
                 </h3>
               )}
               {matches.map((name, index) => {
@@ -178,7 +214,7 @@ export function DashboardSavedLayouts({
                     data-saved-layout
                     className="dashboard-customize-option dashboard-layout-option"
                     style={{ "--option-index": Math.min(index, 7) } as CSSProperties}
-                    aria-label={`Load ${name}`}
+                    aria-label={t("savedLayouts.loadLayout", { name })}
                     aria-pressed={active}
                     onClick={() => {
                       onLoad(name, layout);
@@ -191,7 +227,13 @@ export function DashboardSavedLayouts({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-medium">{name}</span>
                       <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                        {visibleCardIds(layout).length} cards{active ? " · Current layout" : ""}
+                        {active
+                          ? t("savedLayouts.cardsCountCurrent", {
+                              count: visibleCardIds(layout).length,
+                            })
+                          : t("savedLayouts.cardsCount", {
+                              count: visibleCardIds(layout).length,
+                            })}
                       </span>
                     </span>
                     {active && (
@@ -203,7 +245,7 @@ export function DashboardSavedLayouts({
               {!matches.length && !matchingPresets.length && (
                 <div className="dashboard-customize-empty">
                   <LayoutTemplate size={24} aria-hidden="true" />
-                  <p>No matching layouts</p>
+                  <p>{t("savedLayouts.noMatches")}</p>
                 </div>
               )}
             </div>
@@ -214,7 +256,7 @@ export function DashboardSavedLayouts({
               event.preventDefault();
               if (!name.trim()) return;
               if (!onSave(name.trim())) return;
-              setSaved(`${name.trim()} saved`);
+              setSaved(t("savedLayouts.savedStatus", { name: name.trim() }));
               setName("");
               setQuery("");
             }}
@@ -223,13 +265,13 @@ export function DashboardSavedLayouts({
               htmlFor={`${titleId}-name`}
               className="text-[11px] font-medium text-muted-foreground"
             >
-              Save current layout
+              {t("savedLayouts.saveLabel")}
             </label>
             <div className="flex min-w-0 items-center gap-2">
               <Input
                 id={`${titleId}-name`}
-                aria-label="Layout name"
-                placeholder="e.g. Weekly review"
+                aria-label={t("savedLayouts.nameAria")}
+                placeholder={t("savedLayouts.namePlaceholder")}
                 value={name}
                 maxLength={80}
                 onChange={(event) => {
@@ -245,7 +287,7 @@ export function DashboardSavedLayouts({
                 disabled={!name.trim()}
               >
                 <Save className="h-3.5 w-3.5" />
-                Save
+                {t("savedLayouts.save")}
               </Button>
             </div>
             {saved && (

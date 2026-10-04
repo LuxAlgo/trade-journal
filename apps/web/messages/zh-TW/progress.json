@@ -1,0 +1,33 @@
+{
+  "progress": {
+    "title": "進度",
+    "addRoutine": "新增例行事項",
+    "addRoutineTitle": "新增每日例行事項",
+    "intro": "建立可重複的交易日。例行事項的統計獨立於交易篩選和損益。",
+    "dailyCompletion": "今日完成度",
+    "completedOf": "{completed} / {total, plural, other {# 個排程例行事項}}",
+    "reviewDate": "檢視日期",
+    "progressDate": "進度日期",
+    "exportTitle": "例行檢視 · {date}",
+    "exportCompleted": "已完成：{completed}/{total}",
+    "exportDone": "[已完成]",
+    "exportPending": "[ ]",
+    "exportRoutineLine": "{marker} {stage}：{title}",
+    "stage": {
+      "before": "盤前",
+      "during": "盤中",
+      "after": "盤後"
+    },
+    "archive": "封存",
+    "archiveConfirm": "封存「{title}」？之前的日子會保留。",
+    "noRoutines": "沒有已排程的例行事項。",
+    "recentWeeks": "最近 13 週",
+    "dayHint": "已完成 {completed} / {total, plural, other {# 個例行事項}}",
+    "dayAria": "{date}：{completed}/{total} 已完成",
+    "heatmapLegend": "方塊越亮表示完成率越高；灰色表示當天沒有已排程的例行事項。點擊某天即可檢視該日。新例行事項從今天開始。",
+    "routineLabel": "例行事項",
+    "routinePlaceholder": "檢視經濟日曆",
+    "whenLabel": "時間段",
+    "saveFailed": "儲存失敗。"
+  }
+}

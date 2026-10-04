@@ -1,8 +1,10 @@
 "use client";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { MAX_CSV_BYTES, type MarketCsvDataset } from "@/lib/market-csv";
 import { RESOLUTIONS, type MarketBar, type Resolution } from "@/lib/market-data";
 import { postJson, useApi } from "@/lib/use-api";
+import { formatApiError } from "@/lib/api-error";
 import { decodeImportFile } from "@/lib/decode-import";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -16,10 +18,14 @@ interface Preview {
   sample: MarketBar[];
 }
 export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
+  const t = useTranslations("settings.csv");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
   const {
     data,
     refresh,
     error: listError,
+    errorInfo: listErrorInfo,
   } = useApi<{ datasets: MarketCsvDataset[] }>("/api/market-data/csv");
   const [file, setFile] = useState<{ name: string; content: string } | null>(null);
   const [symbol, setSymbol] = useState("");
@@ -34,6 +40,19 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
     setPreview(null);
     setMessage("");
     setError("");
+  };
+  const basisLabel = (basis: string) => {
+    const key = (
+      {
+        raw: "basisRaw",
+        split: "basisSplit",
+        adjusted: "basisAdjusted",
+        midpoint: "basisMidpoint",
+        bid: "basisBid",
+        ask: "basisAsk",
+      } as Record<string, string>
+    )[basis];
+    return key ? t(key) : basis;
   };
   const act = async (action: "preview" | "import" | "remove", id?: string) => {
     setBusy(true);
@@ -52,35 +71,26 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
       if (action === "preview") setPreview(body);
       else {
         setPreview(null);
-        setMessage(
-          action === "import"
-            ? "Market candles imported. Choose Market data CSV on a trade or in Reports."
-            : "Dataset and its saved estimates removed.",
-        );
+        setMessage(action === "import" ? t("imported") : t("removed"));
         refresh();
         onChange();
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "CSV request failed.");
+      setError(cause instanceof Error ? formatApiError(t, cause) : t("requestFailed"));
     } finally {
       setBusy(false);
     }
   };
   return (
     <div className="space-y-3 rounded-lg border p-3" id="market-csv">
-      <h3 className="text-sm font-medium">Market data CSV</h3>
-      <p className="text-xs text-muted-foreground">
-        Upload one instrument and candle resolution per file, up to 5 MB / 50,000 rows. Required
-        columns: time, open, high, low, close. Volume is optional. Time is the bar open: ISO-8601
-        with timezone, Unix seconds or milliseconds. Daily bars must start at 00:00 UTC. These are
-        market candles, separate from trade execution imports.
-      </p>
+      <h3 className="text-sm font-medium">{t("title")}</h3>
+      <p className="text-xs text-muted-foreground">{t("intro")}</p>
       <a className="text-xs underline" href="/market-data-template.csv" download>
-        Download generic CSV header template
+        {t("templateLink")}
       </a>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <Label htmlFor="candle-file">Candle CSV</Label>
+          <Label htmlFor="candle-file">{t("candleFile")}</Label>
           <Input
             id="candle-file"
             type="file"
@@ -92,7 +102,7 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
               setFile(null);
               if (!selected) return;
               if (selected.size > MAX_CSV_BYTES) {
-                setError("Use a CSV smaller than 5 MB.");
+                setError(t("fileTooLarge"));
                 return;
               }
               setBusy(true);
@@ -102,7 +112,7 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
                   content: decodeImportFile(await selected.arrayBuffer()),
                 });
               } catch {
-                setError("Could not read this file.");
+                setError(t("readFailed"));
               } finally {
                 setBusy(false);
               }
@@ -110,12 +120,12 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="candle-symbol">Instrument symbol</Label>
+          <Label htmlFor="candle-symbol">{t("symbol")}</Label>
           <Input
             id="candle-symbol"
             value={symbol}
             disabled={busy}
-            placeholder="Exact symbol used in your file"
+            placeholder={t("symbolPlaceholder")}
             onChange={(event) => {
               change();
               setSymbol(event.target.value.trim());
@@ -123,7 +133,7 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="candle-resolution">Candle resolution</Label>
+          <Label htmlFor="candle-resolution">{t("resolution")}</Label>
           <OptionSelect
             id="candle-resolution"
             value={resolution}
@@ -134,7 +144,7 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
             }}
           >
             <option value="" disabled>
-              Choose the file’s resolution
+              {t("resolutionPlaceholder")}
             </option>
             {Object.keys(RESOLUTIONS).map((value) => (
               <option key={value} value={value}>
@@ -144,7 +154,7 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
           </OptionSelect>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="candle-currency">Quote currency</Label>
+          <Label htmlFor="candle-currency">{t("quoteCurrency")}</Label>
           <Input
             id="candle-currency"
             value={currency}
@@ -157,7 +167,7 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="candle-basis">Price basis</Label>
+          <Label htmlFor="candle-basis">{t("priceBasis")}</Label>
           <OptionSelect
             id="candle-basis"
             value={priceBasis}
@@ -168,14 +178,14 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
             }}
           >
             <option value="" disabled>
-              Choose the file’s price basis
+              {t("basisPlaceholder")}
             </option>
-            <option value="raw">Unadjusted / raw</option>
-            <option value="split">Split adjusted</option>
-            <option value="adjusted">Other adjusted</option>
-            <option value="midpoint">Midpoint</option>
-            <option value="bid">Bid</option>
-            <option value="ask">Ask</option>
+            <option value="raw">{t("basisRaw")}</option>
+            <option value="split">{t("basisSplit")}</option>
+            <option value="adjusted">{t("basisAdjusted")}</option>
+            <option value="midpoint">{t("basisMidpoint")}</option>
+            <option value="bid">{t("basisBid")}</option>
+            <option value="ask">{t("basisAsk")}</option>
           </OptionSelect>
         </div>
       </div>
@@ -184,18 +194,19 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
         disabled={busy || !file || !symbol || !currency || !resolution || !priceBasis}
         onClick={() => void act("preview")}
       >
-        Validate & preview candles
+        {t("validate")}
       </Button>
       {preview && (
         <div className="space-y-2 rounded-lg border p-3">
           <p className="text-xs">
-            {preview.count.toLocaleString()} candles · {preview.from} to {preview.to}
+            {t("previewSummary", { count: preview.count, from: preview.from, to: preview.to })}
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <caption className="text-left">First candles (UTC)</caption>
+              <caption className="text-left">{t("firstCandles")}</caption>
               <thead>
                 <tr>
+                  {/* Machine column names from the CSV contract: kept in en. */}
                   {["Time", "Open", "High", "Low", "Close"].map((label) => (
                     <th key={label} className="p-2">
                       {label}
@@ -218,13 +229,13 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
             </table>
           </div>
           <Button disabled={busy} onClick={() => void act("import")}>
-            Import market candles
+            {t("importCandles")}
           </Button>
         </div>
       )}
       {(error || listError) && (
         <p role="alert" className="text-xs text-destructive">
-          {error || listError}
+          {error || formatApiError(tErrors, listErrorInfo ?? listError)}
         </p>
       )}
       {message && (
@@ -242,8 +253,13 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
               {dataset.name} · {dataset.symbol} · {dataset.resolution}
             </p>
             <p className="text-muted-foreground">
-              {dataset.count.toLocaleString()} candles · {dataset.currency} · {dataset.priceBasis} ·{" "}
-              {dataset.from.slice(0, 10)} – {dataset.to.slice(0, 10)}
+              {t("datasetSummary", {
+                count: dataset.count,
+                currency: dataset.currency,
+                basis: basisLabel(dataset.priceBasis),
+                from: dataset.from.slice(0, 10),
+                to: dataset.to.slice(0, 10),
+              })}
             </p>
           </div>
           <Button
@@ -252,7 +268,7 @@ export function MarketCsvSettings({ onChange }: { onChange: () => void }) {
             disabled={busy}
             onClick={() => void act("remove", dataset.id)}
           >
-            Remove dataset
+            {t("removeDataset")}
           </Button>
         </div>
       ))}

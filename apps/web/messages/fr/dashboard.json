@@ -1,0 +1,184 @@
+{
+  "dashboard": {
+    "title": "Tableau de bord",
+    "loadFailed": "Impossible de charger le tableau de bord.",
+    "tryAgain": "Réessayer",
+    "allAccounts": "Tous les comptes",
+    "closedWinRate": "{count, plural, one {# trade clôturé · taux de réussite {percent}} other {# trades clôturés · taux de réussite {percent}}}",
+    "currencyAccounts": "Comptes en {currency}",
+    "noFilterMatches": "Aucun trade ne correspond à ces filtres. Effacez ou ajustez les filtres pour voir plus de résultats.",
+    "about": "À propos de {title}",
+    "vsPrior7d": "par rapport aux 7 jours précédents",
+    "closedFees": "{count, plural, one {# trade clôturé · <fees>{feesText}</fees> de frais} other {# trades clôturés · <fees>{feesText}</fees> de frais}}",
+    "netPnl": {
+      "label": "P&L net",
+      "hint": "Profit et perte réalisés, nets de frais, sur la plage sélectionnée."
+    },
+    "tradeWin": {
+      "label": "% de réussite (trades)",
+      "hint": "Trades gagnants divisés par tous les trades clôturés, seuils de rentabilité inclus.",
+      "gaugeLabel": "Taux de réussite",
+      "wins": "{count} G",
+      "breakevens": "{count} BE",
+      "losses": "{count} P"
+    },
+    "profitFactor": {
+      "label": "Facteur de profit",
+      "hint": "Profit brut ÷ perte brute. Au-dessus de 1, les gains l'emportent sur les pertes.",
+      "formula": "profit brut ÷ perte brute"
+    },
+    "dayWin": {
+      "label": "% de jours gagnants",
+      "hint": "Jours de trading verts ÷ tous les jours de trading de la plage sélectionnée.",
+      "gaugeLabel": "Taux de jours gagnants",
+      "days": "{count, plural, one {# jour} other {# jours}}"
+    },
+    "avgWinLoss": {
+      "label": "Gain moyen / perte",
+      "hint": "Trade gagnant moyen ÷ trade perdant moyen. La barre montre les deux à l'échelle.",
+      "barLabel": "Gain moyen face à perte moyenne, à l'échelle",
+      "footnote": "<win>{winText}</win> de gain moyen · <loss>{lossText}</loss> de perte moyenne"
+    },
+    "edgeScore": {
+      "label": "Score d'avantage",
+      "help": "Un score de 0 à 100 combinant taux de réussite, facteur de profit, gain/perte moyen, drawdown, récupération et régularité. Au moins cinq trades clôturés requis.",
+      "outOf": "/100",
+      "empty": "Au moins 5 trades clôturés requis. La formule est ouverte — <a>consultez-la</a>."
+    },
+    "cumulative": {
+      "label": "P&L cumulé",
+      "title": "P&L net cumulé quotidien",
+      "help": "Total cumulé du profit et de la perte nets sur la période sélectionnée. Les barres de drawdown en dessous montrent les baisses depuis le pic de la courbe d'équité."
+    },
+    "dailyPnl": {
+      "label": "P&L quotidien",
+      "title": "P&L net quotidien",
+      "help": "Profit ou perte net(e) de chaque journée de trading. Les barres au-dessus de zéro sont des gains\u00a0; celles en dessous, des pertes."
+    },
+    "calendar": {
+      "label": "Calendrier",
+      "fullCalendar": "Calendrier complet"
+    },
+    "activity": {
+      "label": "Activité",
+      "recent": "Trades récents",
+      "open": "Positions ouvertes",
+      "noClosed": "Aucun trade clôturé pour le moment",
+      "flat": "Aucune position — pas de positions ouvertes"
+    },
+    "maxDrawdown": {
+      "label": "Drawdown max",
+      "hint": "Plus forte baisse du pic au creux de la courbe de P&L cumulé.",
+      "needsBalance": "définissez un solde initial pour le %",
+      "withRecovery": "{percent} · récupération {value}x"
+    },
+    "streaks": {
+      "label": "Séries",
+      "hint": "Série actuelle de gains (G) ou de pertes (P) consécutifs, avec la meilleure et la pire série.",
+      "bestWorst": "meilleure {wins}G · pire {losses}P"
+    },
+    "expectancy": {
+      "label": "Espérance par trade",
+      "hint": "P&L net moyen par trade clôturé\u00a0: ce que vaut un trade de plus avec vos chiffres.",
+      "avgR": "{value}R de moyenne sur {count} trades avec risque renseigné",
+      "needsRisk": "renseignez les stop-loss pour débloquer les multiples de R"
+    },
+    "avgDuration": {
+      "label": "Durée moyenne",
+      "hint": "Temps moyen du premier fill d'entrée à la sortie finale.",
+      "reportsHint": "gagnants vs perdants dans Rapports"
+    },
+    "bestWorstDay": {
+      "label": "Meilleur / pire jour",
+      "hint": "P&L net maximal et minimal d'une seule journée dans la plage sélectionnée."
+    },
+    "timePerformance": {
+      "label": "Performance par heure de trade",
+      "help": "Trades regroupés par heure d'ouverture. Le graphique du haut montre le P&L net\u00a0; celui du bas, le nombre de trades."
+    },
+    "empty": {
+      "title": "Votre journal est vide",
+      "body": "Connectez un broker pour une synchronisation automatique, importez un relevé parmi plus de 10 plateformes (y compris votre export TradeZella) ou ajoutez des trades manuellement.",
+      "import": "Importer vos premiers trades",
+      "loadDemo": "Charger les données de démo",
+      "loadingDemo": "Chargement…",
+      "demoNote": "Les données de démo arrivent dans leur propre compte\u00a0; supprimez-les à tout moment dans Comptes."
+    },
+    "customizer": {
+      "trigger": "Personnaliser",
+      "title": "Cartes du tableau de bord",
+      "visibleCount": "{count} visibles",
+      "close": "Fermer la personnalisation",
+      "searchLabel": "Rechercher des cartes",
+      "searchPlaceholder": "Trouver une carte…",
+      "clearSearch": "Effacer la recherche de cartes",
+      "showCard": "Afficher {card}",
+      "noMatches": "Aucune carte correspondante",
+      "clearSearchAction": "Effacer la recherche",
+      "reset": "Réinitialiser la disposition",
+      "resetAria": "Restaurer la disposition par défaut",
+      "showAll": "Afficher toutes les cartes",
+      "srStatus": "{count, plural, one {# carte trouvée.} other {# cartes trouvées.}} {visible} sur {total} visibles."
+    },
+    "savedLayouts": {
+      "trigger": "Dispositions",
+      "triggerAria": "Dispositions du tableau de bord",
+      "title": "Dispositions du tableau de bord",
+      "savedCount": "{count} enregistrées",
+      "close": "Fermer les dispositions du tableau de bord",
+      "searchLabel": "Rechercher une disposition",
+      "searchPlaceholder": "Trouver une disposition…",
+      "presetsHeading": "Préréglages",
+      "presetsHint": "Choisissez une orientation, puis rendez-la vôtre avec Personnaliser.",
+      "applyPreset": "Appliquer le préréglage {name}",
+      "cardsCount": "{count, plural, one {# carte} other {# cartes}}",
+      "cardsCountCurrent": "{count, plural, one {# carte · Disposition actuelle} other {# cartes · Disposition actuelle}}",
+      "defaultBadge": "Par défaut",
+      "yourLayouts": "Vos dispositions enregistrées",
+      "loadLayout": "Charger {name}",
+      "noMatches": "Aucune disposition correspondante",
+      "saveLabel": "Enregistrer la disposition actuelle",
+      "nameAria": "Nom de la disposition",
+      "namePlaceholder": "ex. Revue hebdomadaire",
+      "save": "Enregistrer",
+      "savedStatus": "{name} enregistrée",
+      "presetNames": {
+        "overview": "Vue d'ensemble",
+        "tradingDay": "Journée de trading",
+        "performance": "Performance",
+        "riskReview": "Revue des risques"
+      },
+      "presetDescriptions": {
+        "overview": "Toutes les cartes dans l'ordre d'origine.",
+        "tradingDay": "Calendrier et trades récents d'abord, puis résultats quotidiens.",
+        "performance": "Rendements, taux de réussite, courbe d'équité et votre avantage de trading.",
+        "riskReview": "Drawdown, séries, espérance et variations quotidiennes."
+      }
+    },
+    "layout": {
+      "loading": "Chargement de la disposition du tableau de bord…",
+      "cardsVisible": "{visible} cartes sur {total}",
+      "card": "Carte",
+      "saved": "Disposition enregistrée",
+      "movedSaved": "{card} déplacée. Disposition enregistrée.",
+      "allShownSaved": "Toutes les cartes sont affichées. Disposition enregistrée.",
+      "restoredSaved": "Ordre d'origine des cartes restauré. Toutes les cartes sont affichées.",
+      "nameLoaded": "{name} chargée",
+      "nameSaved": "{name} enregistrée",
+      "saveFailed": "Votre disposition a changé, mais n'a pas pu être enregistrée dans ce navigateur.",
+      "readFailed": "Impossible de lire les préférences enregistrées du tableau de bord. Toutes les cartes sont affichées.",
+      "hiddenBanner": "{count, plural, one {# carte est masquée dans cette disposition.} other {# cartes sont masquées dans cette disposition.}}",
+      "showAll": "Afficher toutes les cartes",
+      "allHidden": "Toutes les cartes sont masquées. Choisissez Afficher toutes les cartes pour les restaurer.",
+      "dragInstructions": "Appuyez sur Espace ou Entrée pour saisir une carte. Utilisez les flèches pour la déplacer, puis Espace ou Entrée pour la déposer. Appuyez sur Échap pour annuler.",
+      "pickedUp": "{card} saisie.",
+      "draggingOver": "{card} est au-dessus de {other}.",
+      "outsideCards": "Hors des cartes. Déposez ici pour annuler.",
+      "placedAt": "{card} placée à la position {position} sur {count}.",
+      "moveCancelled": "Déplacement annulé.",
+      "moveCancelledUnchanged": "Déplacement annulé. Disposition inchangée.",
+      "rearrange": "Réorganiser {card}",
+      "rearrangeHint": "Glissez pour réorganiser {card}"
+    }
+  }
+}

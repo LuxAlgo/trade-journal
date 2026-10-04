@@ -13,8 +13,10 @@ import {
   AI_IMPORT_MAX_TEXT,
   type AiImportOptions,
 } from "@/lib/ai-import";
+import { formatLocale, localeLabels, type Locale } from "@/i18n/config";
 import { isAiProvider } from "@/lib/ai-settings";
-import { requireValue } from "./api";
+import { CodedError, requireValue } from "./api";
+import { requestLocale } from "./ai";
 import { getAiKey } from "./settings";
 import { encryptJson, decryptJson } from "./crypto";
 import { executionHash } from "./ids";
@@ -83,6 +85,15 @@ Normalize dates to YYYY-MM-DDTHH:mm:ss with the original explicit offset if pres
 For closed trade rows with explicit entry/exit times, prices and size, return two executions with fees on the exit and warn that these are reconstructed average fills. Never infer execution prices from P&L. If gross P&L cannot be represented from these prices/quantity without extra adjustments, report an error. Do not mix a summary and its detailed fills.
 List all distinct source accounts. Multiple accounts or simultaneous hedged positions cannot be merged: report errors and ask for a single-account execution export. Position-only statements are not execution histories. Preserve account separation; do not silently net positions.
 Each execution needs a source row/page and short excerpt. List uncertainties in errors (blocks import), explanatory notes in warnings. Return complete=false when any trade is omitted or uncertain. Output only the requested structured object.`;
+
+/**
+ * Language requirement for the human-readable extraction output only: the
+ * trader reads `warnings`/`errors` in the review UI, so they follow the
+ * interface language. Every schema field, value and timestamp stays
+ * machine-canonical (docs/i18n.md §9).
+ */
+const extractionLanguage = (locale: Locale): string =>
+  `The free-text "warnings" and "errors" strings are read by the trader: write them in ${localeLabels[locale]} (BCP 47: ${formatLocale(locale)}). Every other field, value and label in the object stays language-neutral.`;
 
 export function validateAiExtraction(
   value: unknown,
@@ -186,7 +197,11 @@ export async function parseStatementWithAi(
     "Invalid API key.",
   );
   const apiKey = options.apiKey?.trim() || getAiKey(options.provider);
-  requireValue(apiKey, "Add an API key for the selected provider to parse this upload.");
+  requireValue(
+    apiKey,
+    "Add an API key for the selected provider to parse this upload.",
+    "ai_not_configured",
+  );
   let input: UserContent;
   if (statement.encoding === "pdf") {
     requireValue(
@@ -210,13 +225,14 @@ export async function parseStatementWithAi(
   }
   let output: unknown;
   try {
+    const locale = await requestLocale();
     const result = await generateText({
       model:
         options.provider === "openai"
           ? createOpenAI({ apiKey }).responses(options.model)
           : createAnthropic({ apiKey })(options.model),
       ...(options.provider === "openai" ? { providerOptions: { openai: { store: false } } } : {}),
-      system: SYSTEM,
+      system: `${SYSTEM}\n\n${extractionLanguage(locale)}`,
       messages: [
         {
           role: "user",
@@ -242,8 +258,9 @@ export async function parseStatementWithAi(
     );
     output = result.output;
   } catch {
-    throw new Error(
+    throw new CodedError(
       "AI parsing failed or returned an incomplete response. Check your key, model, provider credits and file size, then try again. PDF uploads require a model that accepts PDFs.",
+      "ai_request_failed",
     );
   }
   return validateAiExtraction(output, statement.timeZone);
@@ -277,6 +294,9 @@ export function readAiImportPreview(statement: AiStatement, token: string): Pars
     );
     return value.parsed;
   } catch {
-    throw new Error("AI preview expired or the file changed. Preview it again before importing.");
+    throw new CodedError(
+      "AI preview expired or the file changed. Preview it again before importing.",
+      "ai_preview_expired",
+    );
   }
 }

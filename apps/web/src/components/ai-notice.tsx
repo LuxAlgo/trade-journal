@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useId } from "react";
+import { useTranslations } from "next-intl";
 import { ArrowUpRight, CircleAlert, Sparkles, X } from "lucide-react";
 import { aiFeedback } from "@/lib/ai-feedback";
 import { Button } from "./ui/button";
@@ -15,6 +16,7 @@ export function AiNotice({
   onRetry: () => void;
   onDismiss: () => void;
 }) {
+  const t = useTranslations("ai");
   const feedback = aiFeedback(error);
   const id = useId();
   const Icon = feedback.tone === "error" ? CircleAlert : Sparkles;
@@ -33,20 +35,20 @@ export function AiNotice({
       </span>
       <div className="min-w-0 flex-1">
         <p id={`${id}-title`} className="text-sm font-medium leading-5">
-          {feedback.title}
+          {t(feedback.titleKey)}
         </p>
         <p
           id={`${id}-description`}
           className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground"
         >
-          {feedback.description}
+          {t(feedback.descriptionKey)}
         </p>
         {feedback.action ? (
           <Link
             href={feedback.action.href}
             className="mt-3 inline-flex items-center gap-1 rounded text-xs font-medium underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-current"
           >
-            {feedback.action.label}
+            {t(feedback.action.labelKey)}
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
         ) : feedback.retry ? (
@@ -57,7 +59,7 @@ export function AiNotice({
             className="mt-3 h-8 text-xs"
             onClick={onRetry}
           >
-            Try again
+            {t("tryAgain")}
           </Button>
         ) : null}
       </div>
@@ -66,7 +68,7 @@ export function AiNotice({
         variant="ghost"
         size="icon"
         className="-mr-1 -mt-1 h-7 w-7 shrink-0 text-muted-foreground"
-        aria-label="Dismiss AI notice"
+        aria-label={t("dismiss")}
         onClick={onDismiss}
       >
         <X className="h-3.5 w-3.5" />

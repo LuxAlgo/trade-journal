@@ -1,0 +1,85 @@
+{
+  "ai": {
+    "scope": {
+      "allAccounts": "All accounts"
+    },
+    "recapInstruction": "Write a session recap for {date} in first person (\"I\"), 120-200 words, markdown with a short \"**Keep**\" and \"**Fix**\" list at the end.",
+    "recap": {
+      "button": "AI recap",
+      "writing": "Writing…"
+    },
+    "ask": {
+      "title": "Ask your journal",
+      "hint": "Uses the selected accounts and journal filters. Changing filters clears the answer.",
+      "inputAriaLabel": "Ask your journal a question",
+      "placeholder": "Why do my Monday shorts keep failing?",
+      "thinking": "Thinking…",
+      "submit": "Ask",
+      "suggestionMistake": "What's my most expensive mistake?",
+      "suggestionWeekday": "Which weekday should I stop trading?",
+      "suggestionDirection": "Am I better at longs or shorts?"
+    },
+    "tryAgain": "Try again",
+    "dismiss": "Dismiss AI notice",
+    "action": {
+      "setUp": "Set up AI",
+      "reviewSettings": "Review AI settings",
+      "importTrades": "Import trades",
+      "signIn": "Sign in"
+    },
+    "feedback": {
+      "noMatchingTrades": {
+        "title": "No matching trades",
+        "description": "There are no trades to analyze in this selection. Adjust the accounts, dates or other journal filters."
+      },
+      "checkFilters": {
+        "title": "Check your journal filters",
+        "description": "The selected scope is no longer valid. Update the accounts and filters before trying again."
+      },
+      "refreshJournal": {
+        "title": "Refresh your journal",
+        "description": "The journal timezone changed. Refresh this page so the displayed dates and AI analysis agree."
+      },
+      "setUpAi": {
+        "title": "Set up AI to continue",
+        "description": "Connect an Anthropic or OpenAI API key in Settings to ask questions, generate recaps, and review trades."
+      },
+      "checkConnection": {
+        "title": "Check your AI connection",
+        "description": "Your AI provider couldn’t verify your key or permissions. Review them in Settings, then try again."
+      },
+      "billing": {
+        "title": "Your AI account needs attention",
+        "description": "Check the billing, credit balance, or quota on your AI provider account, then try again."
+      },
+      "checkModel": {
+        "title": "Check your AI model",
+        "description": "Check the model ID and your provider account’s access in Settings."
+      },
+      "rateLimit": {
+        "title": "AI is temporarily busy",
+        "description": "Please wait a moment before trying again. Your journal data hasn’t changed."
+      },
+      "emptyJournal": {
+        "title": "Add trades to get started",
+        "description": "AI insights use your journal history. Import your trades, then ask your question again."
+      },
+      "noRecap": {
+        "title": "No trades to recap yet",
+        "description": "A recap needs at least one closed trade on this day. You can still write your own day note."
+      },
+      "signIn": {
+        "title": "Please sign in again",
+        "description": "Your session may have expired. Sign in to continue using your journal."
+      },
+      "connection": {
+        "title": "Couldn’t connect to AI",
+        "description": "Check your connection and try again. Your journal data hasn’t changed."
+      },
+      "fallback": {
+        "title": "Couldn’t complete the AI request",
+        "description": "Please try again in a moment. If this continues, check your AI settings."
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "notebook": {
+    "title": "Carnet",
+    "newNote": "Nouvelle note",
+    "allNotes": "Toutes les notes",
+    "newFolder": "Nouveau dossier",
+    "noteFolder": "Dossier de notes",
+    "searchPlaceholder": "Rechercher dans les notes",
+    "emptyNotes": "Aucune note ici pour le moment.",
+    "untitled": "Sans titre",
+    "emptyContent": "vide",
+    "selectOrCreate": "Sélectionnez ou créez une note.",
+    "backToNotes": "Retour aux notes",
+    "titlePlaceholder": "Titre",
+    "edit": "Modifier",
+    "preview": "Aperçu",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer cette note\u00a0?",
+    "saveNow": "Enregistrer maintenant",
+    "folderDialog": {
+      "title": "Nouveau dossier",
+      "description": "Organisez vos notes dans un dossier nommé.",
+      "nameLabel": "Nom du dossier",
+      "cancel": "Annuler",
+      "create": "Créer le dossier",
+      "creating": "Création…",
+      "failed": "Impossible de créer le dossier. Réessayez."
+    },
+    "reviewTitle": "Note du journal"
+  }
+}

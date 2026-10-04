@@ -1,0 +1,111 @@
+{
+  "controls": {
+    "close": "Fermer",
+    "about": "À propos de {heading}",
+    "clear": "Effacer",
+    "today": "Aujourd'hui",
+    "loadingCalendar": "Chargement du calendrier",
+    "chooseDate": "Choisir la date de {field}",
+    "calendarFor": "Calendrier de {field}",
+    "dateError": {
+      "invalid": "Saisissez une date valide (YYYY-MM-DD).",
+      "max": "Saisissez une date valide (YYYY-MM-DD) au plus tard le {max}.",
+      "min": "Saisissez une date valide (YYYY-MM-DD) au plus tôt le {min}.",
+      "minMax": "Saisissez une date valide (YYYY-MM-DD) au plus tôt le {min} et au plus tard le {max}."
+    },
+    "theme": {
+      "toLight": "Passer en mode clair",
+      "toDark": "Passer en mode sombre",
+      "light": "Mode clair",
+      "dark": "Mode sombre",
+      "storageError": "L'apparence a été modifiée, mais votre navigateur n'a pas pu l'enregistrer pour la prochaine fois."
+    },
+    "privacy": {
+      "title": "Mode privé",
+      "short": "Confidentialité",
+      "on": "Activé",
+      "off": "Désactivé",
+      "ariaOn": "Mode privé activé",
+      "ariaOff": "Mode privé désactivé",
+      "hideHint": "Masque les soldes, les P&L et les prix de transaction dans tout le journal",
+      "readError": "Impossible de lire votre préférence de confidentialité.",
+      "saveError": "La confidentialité a été modifiée pour cette page, mais n'a pas pu être enregistrée dans ce navigateur.",
+      "hiddenValue": "Montant masqué",
+      "editHint": "Désactivez le mode privé pour modifier cette valeur"
+    },
+    "timezone": {
+      "choose": "Choisir un fuseau horaire",
+      "triggerAria": "{label} : {value}",
+      "optionsAria": "Options de {label}",
+      "search": "Rechercher des fuseaux horaires",
+      "searchPlaceholder": "Rechercher par ville ou fuseau horaire…",
+      "list": "Fuseaux horaires",
+      "count": "{count, plural, one {# fuseau horaire} other {# fuseaux horaires}}",
+      "noMatch": "Aucun fuseau horaire correspondant. Essayez une ville ou un nom de fuseau horaire complet."
+    },
+    "currency": {
+      "select": "Sélectionner une devise"
+    },
+    "notice": {
+      "converted": "P&L de trading en {currency} · utilise les taux de conversion de référence enregistrés.",
+      "editRates": "Modifier les taux",
+      "setupTitle": "Configurez la conversion pour voir votre tableau de bord combiné",
+      "missing": "Enregistrez les taux de conversion de {currencies} pour utiliser la devise de référence. Les montants ci-dessous restent dans leur devise d'origine.",
+      "sources": "Ces comptes utilisent {currencies}. Définissez vos taux de conversion pour combiner leurs performances.",
+      "setupCta": "Configurer la conversion de devise"
+    },
+    "attachments": {
+      "add": "Ajouter une pièce jointe",
+      "uploading": "Envoi en cours…",
+      "hint": "Images ou PDF · 8 Mo maximum chacun",
+      "uploadAria": "Téléverser une pièce jointe",
+      "failed": "Échec de l'envoi.",
+      "remove": "Supprimer {name}",
+      "removeConfirm": "Supprimer {name} ?"
+    },
+    "editor": {
+      "edit": "Modifier",
+      "preview": "Aperçu",
+      "bold": "Gras",
+      "italic": "Italique",
+      "heading": "Titre",
+      "bulletList": "Liste à puces",
+      "list": "Liste",
+      "checklist": "Liste de cases à cocher",
+      "checklistShort": "Liste",
+      "linkTrade": "Lier une transaction",
+      "insertTemplate": "Insérer un modèle…",
+      "insertTemplateAria": "Insérer un modèle de note",
+      "templatesAria": "Modèles de notes",
+      "saveTemplate": "Enregistrer le modèle",
+      "namePrompt": "Nommez ce modèle de note",
+      "placeholder": "Rédigez votre revue…",
+      "findAria": "Rechercher une transaction par symbole, date ou compte",
+      "findPlaceholder": "Rechercher par symbole, date ou compte",
+      "loadingTrades": "Chargement des transactions…",
+      "noMatches": "Aucune transaction correspondante.",
+      "showingLatest": "Affichage des 50 dernières correspondances. Recherchez par date ou compte pour trouver des transactions plus anciennes.",
+      "empty": "Rien d'écrit pour le moment.",
+      "notesAria": "Notes de revue",
+      "templates": {
+        "pre": "Plan d'avant-séance",
+        "preContent": "## Contexte de marché\n\n## Configurations à surveiller\n\n## Limites de risque\n- [ ] Confirmer la limite de risque quotidienne\n- [ ] Vérifier les événements programmés\n\n## Mon intention\n",
+        "review": "Revue de transaction",
+        "reviewContent": "## Configuration et thèse\n\n## Exécution\n\n## Ce qui a fonctionné\n\n## Ce que je vais changer\n",
+        "weekly": "Revue hebdomadaire",
+        "weeklyContent": "## Réussites de la semaine\n\n## Erreurs répétées\n\n## Règles respectées\n\n## Une amélioration pour la semaine prochaine\n"
+      }
+    },
+    "duration": {
+      "belowMinute": "< 1 min",
+      "minutes": "{count} min",
+      "hoursMinutes": "{hours} h {minutes} min",
+      "daysHours": "{days} j {hours} h"
+    },
+    "autosave": {
+      "saving": "Enregistrement…",
+      "saved": "Enregistré",
+      "notSaved": "Non enregistré : {message}"
+    }
+  }
+}

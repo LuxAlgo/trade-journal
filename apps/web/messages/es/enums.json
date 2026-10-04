@@ -1,0 +1,69 @@
+{
+  "enums": {
+    "direction": {
+      "long": "Largo",
+      "short": "Corto"
+    },
+    "status": {
+      "closed": "Cerrada",
+      "open": "Abierta",
+      "win": "Ganada",
+      "loss": "Perdida",
+      "breakeven": "Punto de equilibrio"
+    },
+    "reviewed": {
+      "yes": "Sí",
+      "no": "No"
+    },
+    "assetClass": {
+      "equity": "Acciones",
+      "futures": "Futuros",
+      "forex": "Forex",
+      "option": "Opciones",
+      "crypto": "Cripto",
+      "cfd": "CFD",
+      "other": "Otro"
+    },
+    "costBasis": {
+      "fifo": "FIFO",
+      "lifo": "LIFO",
+      "wavg": "Promedio ponderado"
+    },
+    "priceBasis": {
+      "raw": "Sin ajustar",
+      "split": "Ajustado por split",
+      "adjusted": "Ajustado",
+      "midpoint": "Punto medio",
+      "bid": "Oferta (bid)",
+      "ask": "Demanda (ask)"
+    },
+    "prop": {
+      "values": {
+        "evaluation": "Evaluación",
+        "verification": "Verificación",
+        "funded": "Fondeada",
+        "instantFunded": "Fondeo instantáneo",
+        "live": "Real",
+        "active": "Activa",
+        "passed": "Aprobada",
+        "breached": "Incumplida",
+        "closed": "Cerrada",
+        "requested": "Solicitado",
+        "approved": "Aprobado",
+        "completed": "Completado",
+        "rejected": "Rechazado",
+        "cancelled": "Cancelado",
+        "reset": "Reinicio",
+        "activation": "Activación",
+        "subscription": "Suscripción",
+        "platform": "Plataforma",
+        "marketData": "Datos de mercado",
+        "transfer": "Transferencia",
+        "other": "Otro",
+        "expense": "Gasto",
+        "refund": "Reembolso",
+        "payout": "Pago de beneficios"
+      }
+    }
+  }
+}

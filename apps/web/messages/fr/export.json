@@ -1,0 +1,20 @@
+{
+  "export": {
+    "exportPdf": "Exporter en PDF",
+    "exportPng": "Exporter en PNG",
+    "privacyHint": "Désactivez le mode privé pour exporter les chiffres financiers.",
+    "dialogTitle": "Export de la revue",
+    "download": "Télécharger le {format}",
+    "downloadIndexed": "Télécharger le {format} · {index}/{total}",
+    "pdfPreviewNote": "Texte de la revue · téléchargez le PDF pour consulter le document paginé.",
+    "pngAlt": "Revue du journal de trading exportée",
+    "doneLabel": "[fait]",
+    "error": {
+      "fontLoad": "Impossible de charger la police du PDF.",
+      "missingGlyphs": "La police du PDF ne prend pas en charge ces caractères\u00a0: {chars}. Retirez-les pour cet export ou exportez une revue en PNG.",
+      "pngUnavailable": "L'export d'images n'est pas disponible dans ce navigateur.",
+      "pngFailed": "Échec de l'export de l'image.",
+      "generic": "Échec de l'export."
+    }
+  }
+}

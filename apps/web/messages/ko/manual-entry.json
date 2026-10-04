@@ -1,0 +1,28 @@
+{
+  "manual-entry": {
+    "addTrade": "매매 추가",
+    "addTradeDescription": "계좌를 선택하고 매수와 매도를 입력합니다. 진입만 저장하면 미청산 포지션으로 기록되고, 청산까지 포함하면 청산된 매매로 기록됩니다.",
+    "symbol": "심볼",
+    "symbolPlaceholder": "AAPL, ESZ6, BTCUSDT…",
+    "execution": "체결 {number}",
+    "dateTime": "날짜 및 시간",
+    "side": "방향",
+    "buy": "매수",
+    "sell": "매도",
+    "quantity": "수량",
+    "quantityPlaceholder": "수량",
+    "price": "가격",
+    "pricePlaceholder": "가격",
+    "fee": "수수료",
+    "feePlaceholder": "수수료",
+    "notes": "메모(선택)",
+    "notesPlaceholder": "세팅, 진입 이유, 배운 점 등…",
+    "notesHint": "Markdown을 지원합니다. 메모는 매매와 함께 저장되며, 미청산 포지션에 추가할 때 기존 메모가 유지됩니다.",
+    "saveFailed": "매매를 저장하지 못했습니다. 다시 시도해 주세요.",
+    "addExecution": "체결 추가",
+    "saving": "저장 중…",
+    "save": "매매 저장",
+    "roundTrips": "날짜와 시간은 기기의 시간대를 사용합니다. {symbol}의 미청산 포지션과 일치하는 체결은 자동으로 왕복 거래로 연결됩니다(지금까지 {count}건).",
+    "theSymbol": "해당 심볼"
+  }
+}

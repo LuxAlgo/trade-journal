@@ -1,0 +1,111 @@
+{
+  "controls": {
+    "close": "關閉",
+    "about": "關於{heading}",
+    "clear": "清除",
+    "today": "今天",
+    "loadingCalendar": "日曆載入中",
+    "chooseDate": "選擇{field}日期",
+    "calendarFor": "{field}日曆",
+    "dateError": {
+      "invalid": "請輸入有效日期（YYYY-MM-DD）。",
+      "max": "請輸入有效日期（YYYY-MM-DD），不晚於 {max}。",
+      "min": "請輸入有效日期（YYYY-MM-DD），不早於 {min}。",
+      "minMax": "請輸入有效日期（YYYY-MM-DD），不早於 {min} 且不晚於 {max}。"
+    },
+    "theme": {
+      "toLight": "切換至淺色模式",
+      "toDark": "切換至深色模式",
+      "light": "淺色模式",
+      "dark": "深色模式",
+      "storageError": "外觀已變更，但瀏覽器無法在下次保存。"
+    },
+    "privacy": {
+      "title": "隱私模式",
+      "short": "隱私",
+      "on": "開",
+      "off": "關",
+      "ariaOn": "隱私模式已開啟",
+      "ariaOff": "隱私模式已關閉",
+      "hideHint": "在整個日誌中隱藏餘額、損益和交易價格",
+      "readError": "無法讀取隱私偏好。",
+      "saveError": "本頁隱私已變更，但無法儲存在此瀏覽器中。",
+      "hiddenValue": "金額已隱藏",
+      "editHint": "關閉隱私模式以編輯此值"
+    },
+    "timezone": {
+      "choose": "選擇時區",
+      "triggerAria": "{label}：{value}",
+      "optionsAria": "{label}選項",
+      "search": "搜尋時區",
+      "searchPlaceholder": "搜尋城市或時區…",
+      "list": "時區清單",
+      "count": "{count, plural, other {# 個時區}}",
+      "noMatch": "沒有符合的時區。請嘗試城市或完整時區名稱。"
+    },
+    "currency": {
+      "select": "選擇貨幣"
+    },
+    "notice": {
+      "converted": "交易損益以 {currency} 顯示 · 使用已儲存的基準換算率。",
+      "editRates": "編輯匯率",
+      "setupTitle": "設定換算以查看合併儀表板",
+      "missing": "儲存 {currencies} 的換算率以使用報告貨幣。下方金額仍保持原幣別。",
+      "sources": "這些帳戶使用 {currencies}。設定換算率以合併其表現。",
+      "setupCta": "設定貨幣換算"
+    },
+    "attachments": {
+      "add": "新增附件",
+      "uploading": "上傳中…",
+      "hint": "圖片或 PDF · 每個最大 8 MB",
+      "uploadAria": "上傳附件",
+      "failed": "上傳失敗。",
+      "remove": "移除 {name}",
+      "removeConfirm": "確定移除 {name}？"
+    },
+    "editor": {
+      "edit": "編輯",
+      "preview": "預覽",
+      "bold": "粗體",
+      "italic": "斜體",
+      "heading": "標題",
+      "bulletList": "項目符號清單",
+      "list": "清單",
+      "checklist": "檢查清單",
+      "checklistShort": "清單",
+      "linkTrade": "關聯交易",
+      "insertTemplate": "插入範本…",
+      "insertTemplateAria": "插入筆記範本",
+      "templatesAria": "筆記範本",
+      "saveTemplate": "儲存範本",
+      "namePrompt": "為此筆記範本命名",
+      "placeholder": "寫下您的複盤…",
+      "findAria": "按代碼、日期或帳戶查找交易",
+      "findPlaceholder": "搜尋代碼、日期或帳戶",
+      "loadingTrades": "正在載入交易…",
+      "noMatches": "沒有符合的交易。",
+      "showingLatest": "顯示最近的 50 筆符合項目。可按日期或帳戶搜尋更早的交易。",
+      "empty": "暫無內容。",
+      "notesAria": "複盤筆記",
+      "templates": {
+        "pre": "盤前計畫",
+        "preContent": "## 市場環境\n\n## 關注的型態\n\n## 風險上限\n- [ ] 確認當日風險上限\n- [ ] 查看日程事件\n\n## 我的意圖\n",
+        "review": "交易複盤",
+        "reviewContent": "## 型態與思路\n\n## 執行\n\n## 做得好的\n\n## 我將改進的\n",
+        "weekly": "每週複盤",
+        "weeklyContent": "## 本週亮點\n\n## 重複出現的錯誤\n\n## 我遵守的規則\n\n## 下週的一個改進\n"
+      }
+    },
+    "duration": {
+      "belowMinute": "< 1 分鐘",
+      "minutes": "{count} 分鐘",
+      "hoursMinutes": "{hours} 小時 {minutes} 分",
+      "daysHours": "{days} 天 {hours} 小時"
+    },
+    "autosave": {
+      "saving": "儲存中…",
+      "saved": "已儲存",
+      "notSaved": "未儲存：{message}"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "playbooks": {
+    "title": "プレイブック",
+    "new": "プレイブックを作成",
+    "empty": "プレイブックは、意図して取り組むセットアップです。名前を付け、ルールを書き、トレードにタグを付けると、レポートが実際に機能しているかを教えてくれます。",
+    "tradeCount": "{count, plural, other {#件のトレード}}",
+    "deleteConfirm": "「{name}」を削除しますか？トレードのデータは残り、リンクだけが解除されます。",
+    "deleteAria": "プレイブック{name}を削除",
+    "namePlaceholder": "名前（例：オープニングレンジブレイクアウト）",
+    "descriptionPlaceholder": "一行の説明",
+    "rulesPlaceholder": "1行に1つのルール：\nA+セットアップのみ\nリスクは最大1R\n11:30以降はエントリーしない",
+    "create": "作成",
+    "adherence": {
+      "ruleAdherence": "ルール遵守率",
+      "assessments": "フィルター後のクローズ済みトレード{total}件について、ルール評価{evaluated}/{possible}件。",
+      "unassessed": "{count, plural, other {#件のトレードがまだ未評価です。}}",
+      "allFollowed": "すべてのルールを遵守",
+      "oneBroken": "1つ以上違反",
+      "tradesWin": "{count, plural, other {#件のトレード}} · 勝率{win}",
+      "mixedCurrencies": "通貨が混在するため損益は非表示です。",
+      "performanceByRule": "ルール別のパフォーマンス",
+      "ruleRate": "遵守率{rate} · 評価{count, plural, other {#件}}",
+      "ruleFollowedBroken": "遵守：{followedTrades, plural, other {#件}} / 勝率{followedWin} · 違反：{brokenTrades, plural, other {#件}} / 勝率{brokenWin}",
+      "ruleNetPnl": "純損益：遵守<followed>{followedValue}</followed> / 違反<broken>{brokenValue}</broken> {currency}"
+    }
+  }
+}

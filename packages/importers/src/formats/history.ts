@@ -1,7 +1,26 @@
 import { importTradeHistory } from "../history/import";
 import { normalizeHeader } from "../history/aliases";
-import type { ImportResult } from "../history/model";
-import type { ImportFormat, ImportOptions, ImportedExecution, ParsedImport } from "../types";
+import type { ImportIssue, ImportResult } from "../history/model";
+import type {
+  ImportDiagnostic,
+  ImportFormat,
+  ImportOptions,
+  ImportedExecution,
+  ParsedImport,
+} from "../types";
+
+/** History issues already carry stable kebab-case codes; diagnostics use snake_case. */
+const toDiagnostic = (issue: ImportIssue): ImportDiagnostic => ({
+  code: issue.code.replace(/-/g, "_"),
+  ...(issue.row === undefined && issue.column === undefined
+    ? {}
+    : {
+        params: {
+          ...(issue.row === undefined ? {} : { row: issue.row }),
+          ...(issue.column === undefined ? {} : { column: issue.column }),
+        },
+      }),
+});
 
 /** Options for the history path; `adapterId` is the only way to use the generic alias mapper. */
 export interface HistoryParseOptions extends ImportOptions {
@@ -83,6 +102,19 @@ export const parseHistory = (
         (i.code === "malformed-csv" && /never closed/.test(i.message)),
     )
     .map((i) => i.message);
+  const diagnostics: ImportDiagnostic[] = [
+    ...history.issues
+      .filter((i) => i.severity === "warning" && !i.code.startsWith("r-"))
+      .map(toDiagnostic),
+    ...history.issues
+      .filter(
+        (i) =>
+          i.severity === "error" ||
+          i.code === "input-truncated" ||
+          (i.code === "malformed-csv" && /never closed/.test(i.message)),
+      )
+      .map(toDiagnostic),
+  ];
   const executions: ImportedExecution[] = [];
   const format = `history-${history.format.kind}`;
   const fallbackSymbol = symbolFrom(content, options);
@@ -133,6 +165,7 @@ export const parseHistory = (
           warnings.push(
             `Line ${fill.row}: the deal has no matching position in this file; skipped.`,
           );
+          diagnostics.push({ code: "unmatched_deal_skipped", params: { row: fill.row } });
           continue;
         }
         const next = position + signed;
@@ -149,6 +182,7 @@ export const parseHistory = (
           warnings.push(
             `Line ${fill.row}: a fee credit (negative fee) on a fill without a reported P&L was recorded as a zero fee.`,
           );
+          diagnostics.push({ code: "fee_credit_zeroed", params: { row: fill.row } });
         }
         fee = 0;
       }
@@ -180,6 +214,7 @@ export const parseHistory = (
       warnings.push(
         `The "${pnlHeader}" column does not say whether it is net or gross of fees; it was used as net because the file has no commission column.`,
       );
+      diagnostics.push({ code: "pnl_basis_assumed", params: { column: pnlHeader } });
     }
     for (const trade of history.trades) {
       const symbol = (trade.symbol || fallbackSymbol)?.trim().toUpperCase();
@@ -259,21 +294,36 @@ export const parseHistory = (
       warnings.push(
         `${history.openTrades.length} incomplete position(s) skipped; this history export requires completed entry/exit pairs.`,
       );
+      diagnostics.push({
+        code: "open_trades_skipped",
+        params: { count: history.openTrades.length },
+      });
     }
   }
-  if (needsSymbol) errors.push("Choose the symbol for this file before importing.");
-  if (skippedRows > history.stats.skippedRows && !needsSymbol)
+  if (needsSymbol) {
+    errors.push("Choose the symbol for this file before importing.");
+    diagnostics.push({ code: "symbol_required" });
+  }
+  if (skippedRows > history.stats.skippedRows && !needsSymbol) {
     warnings.push(
       "Some history rows lack valid prices, quantity, direction or complete timestamps and were skipped.",
     );
-  if (!executions.length && !needsSymbol && !errors.length)
+    diagnostics.push({ code: "rows_skipped_invalid" });
+  }
+  if (!executions.length && !needsSymbol && !errors.length) {
     errors.push("No complete executions could be imported from this history.");
+    diagnostics.push({ code: "no_complete_executions" });
+  }
+  const unique = new Map<string, ImportDiagnostic>();
+  for (const item of diagnostics.slice(0, 100))
+    unique.set(JSON.stringify([item.code, item.params]), item);
   return {
     format,
     executions: errors.length ? [] : executions,
     skippedRows,
     warnings: [...new Set(warnings)].slice(0, 50),
     ...(errors.length ? { errors: [...new Set(errors)].slice(0, 20) } : {}),
+    diagnostics: [...unique.values()].slice(0, 50),
     ...(needsSymbol ? { needsSymbol: true } : {}),
   };
 };
@@ -289,5 +339,6 @@ export const historyFormat: ImportFormat = {
       skippedRows: 0,
       warnings: [],
       errors: ["History columns could not be recognized."],
+      diagnostics: [{ code: "columns_unrecognized" }],
     },
 };

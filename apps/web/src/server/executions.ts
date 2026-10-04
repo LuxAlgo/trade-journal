@@ -110,6 +110,7 @@ export const insertExecutions = (
   requireValue(
     db.select({ id: accounts.id }).from(accounts).where(eq(accounts.id, accountId)).get(),
     "Account not found.",
+    "account_not_found",
   );
   const { usable, skipped, skippedReasons } = partitionExecutions(rows, source);
   requireValue(
@@ -124,7 +125,7 @@ export const insertExecutions = (
 
   db.transaction((tx) => {
     const positionErrors = positionImportErrors(accountId, usable);
-    requireValue(positionErrors.length === 0, positionErrors.join(" "));
+    requireValue(positionErrors.length === 0, positionErrors.join(" "), "import_position_conflict");
     if (source === "import") {
       const existingHashes = new Set(
         tx

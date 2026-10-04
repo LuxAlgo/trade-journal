@@ -1,0 +1,20 @@
+{
+  "export": {
+    "exportPdf": "Exportar PDF",
+    "exportPng": "Exportar PNG",
+    "privacyHint": "Desactiva el modo privacidad para exportar cifras financieras.",
+    "dialogTitle": "Exportación de la revisión",
+    "download": "Descargar {format}",
+    "downloadIndexed": "Descargar {format} · {index}/{total}",
+    "pdfPreviewNote": "Texto de la revisión · descarga el PDF para ver el documento paginado.",
+    "pngAlt": "Revisión del diario de trading exportada",
+    "doneLabel": "[hecho]",
+    "error": {
+      "fontLoad": "No se pudo cargar la fuente del PDF.",
+      "missingGlyphs": "La fuente del PDF no admite estos caracteres: {chars}. Quítalos para esta exportación o exporta una revisión en PNG.",
+      "pngUnavailable": "La exportación de imágenes no está disponible en este navegador.",
+      "pngFailed": "Error al exportar la imagen.",
+      "generic": "Error al exportar."
+    }
+  }
+}

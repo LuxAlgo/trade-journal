@@ -1,0 +1,33 @@
+{
+  "progress": {
+    "title": "Progression",
+    "addRoutine": "Ajouter une routine",
+    "addRoutineTitle": "Ajouter une routine quotidienne",
+    "intro": "Construisez une journée de trading répétable. Les routines sont suivies indépendamment des filtres de transactions et des profits.",
+    "dailyCompletion": "Accomplissement quotidien",
+    "completedOf": "{completed} sur {total, plural, one {# routine programmée} other {# routines programmées}}",
+    "reviewDate": "Date de consultation",
+    "progressDate": "Date de progression",
+    "exportTitle": "Revue des routines · {date}",
+    "exportCompleted": "Terminées\u00a0: {completed}/{total}",
+    "exportDone": "[fait]",
+    "exportPending": "[ ]",
+    "exportRoutineLine": "{marker} {stage}\u00a0: {title}",
+    "stage": {
+      "before": "Avant la séance",
+      "during": "Pendant la séance",
+      "after": "Après la séance"
+    },
+    "archive": "Archiver",
+    "archiveConfirm": "Archiver «\u00a0{title}\u00a0»\u00a0? Les jours précédents sont conservés.",
+    "noRoutines": "Aucune routine programmée.",
+    "recentWeeks": "13 dernières semaines",
+    "dayHint": "{completed, plural, one {# routine terminée} other {# routines terminées}} sur {total}",
+    "dayAria": "{date}\u00a0: {completed}/{total} terminées",
+    "heatmapLegend": "Les carrés plus clairs indiquent un taux d'accomplissement plus élevé. Gris signifie qu'aucune routine n'est programmée. Cliquez sur un jour pour le consulter. Les nouvelles routines commencent aujourd'hui.",
+    "routineLabel": "Routine",
+    "routinePlaceholder": "Consulter le calendrier économique",
+    "whenLabel": "Quand",
+    "saveFailed": "Impossible d'enregistrer."
+  }
+}

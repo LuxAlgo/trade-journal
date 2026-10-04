@@ -7,7 +7,7 @@ export const POST = handler(
     if (!passwordConfigured()) return ok({ authenticated: true });
     const { password } = (await request.json()) as { password?: string };
     if (typeof password !== "string" || !password || !verifyPassword(password))
-      return bad("Wrong password", 401);
+      return bad("Wrong password", 401, "wrong_password");
     const jar = await cookies();
     jar.set(AUTH_COOKIE, sessionToken(), {
       httpOnly: true,

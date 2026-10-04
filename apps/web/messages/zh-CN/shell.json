@@ -1,0 +1,32 @@
+{
+  "shell": {
+    "nav": {
+      "dashboard": "仪表盘",
+      "calendar": "日历",
+      "dailyJournal": "每日日志",
+      "trades": "交易",
+      "reports": "报表",
+      "propFirms": "自营交易公司",
+      "notebook": "笔记本",
+      "playbooks": "交易剧本",
+      "progress": "进度",
+      "missedTrades": "错失的交易",
+      "import": "导入",
+      "accounts": "账户",
+      "settings": "设置"
+    },
+    "navigationLabel": "日志导航",
+    "openNavigation": "打开导航",
+    "closeNavigation": "关闭导航",
+    "sidebar": {
+      "expand": "展开侧边栏",
+      "collapse": "收起侧边栏",
+      "expandTitle": "展开侧边栏（⌘B）",
+      "collapseTitle": "收起侧边栏（⌘B）"
+    },
+    "footer": {
+      "openSource": "开源软件",
+      "notInvestmentAdvice": "不构成投资建议。"
+    }
+  }
+}

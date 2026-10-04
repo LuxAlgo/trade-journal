@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { FILTER_KEYS } from "@luxalgo/journal-core";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   BarChart3,
   BookOpen,
@@ -32,23 +33,25 @@ import { PageTransition } from "./page-transition";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
 
+// Labels resolve through the `shell` namespace at render time; the array keeps
+// the route → icon mapping and translation keys only.
 const NAV = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/journal", label: "Daily journal", icon: NotebookPen },
-  { href: "/trades", label: "Trades", icon: ListOrdered },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/prop-firms", label: "Prop firms", icon: Landmark },
-  { href: "/notebook", label: "Notebook", icon: BookText },
-  { href: "/playbooks", label: "Playbooks", icon: BookOpen },
-  { href: "/progress", label: "Progress", icon: ListChecks },
-  { href: "/missed", label: "Missed trades", icon: BookmarkPlus },
+  { href: "/", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { href: "/calendar", labelKey: "nav.calendar", icon: CalendarDays },
+  { href: "/journal", labelKey: "nav.dailyJournal", icon: NotebookPen },
+  { href: "/trades", labelKey: "nav.trades", icon: ListOrdered },
+  { href: "/reports", labelKey: "nav.reports", icon: BarChart3 },
+  { href: "/prop-firms", labelKey: "nav.propFirms", icon: Landmark },
+  { href: "/notebook", labelKey: "nav.notebook", icon: BookText },
+  { href: "/playbooks", labelKey: "nav.playbooks", icon: BookOpen },
+  { href: "/progress", labelKey: "nav.progress", icon: ListChecks },
+  { href: "/missed", labelKey: "nav.missedTrades", icon: BookmarkPlus },
 ] as const;
 
 const NAV_SETUP = [
-  { href: "/import", label: "Import", icon: Import },
-  { href: "/accounts", label: "Accounts", icon: Wallet },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/import", labelKey: "nav.import", icon: Import },
+  { href: "/accounts", labelKey: "nav.accounts", icon: Wallet },
+  { href: "/settings", labelKey: "nav.settings", icon: Settings },
 ] as const;
 
 const SIDEBAR_COLLAPSED_KEY = "journal-sidebar-collapsed-v1";
@@ -86,6 +89,7 @@ function NavLink({
 }
 
 export function Shell({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("shell");
   const pathname = usePathname();
   const search = useSearchParams();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -148,28 +152,28 @@ export function Shell({ children }: { children: React.ReactNode }) {
   if (pathname === "/login") return <>{children}</>;
   const navigation = (collapsed = false) => (
     <nav
-      aria-label="Journal navigation"
+      aria-label={t("navigationLabel")}
       className="journal-sidebar-navigation min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain p-2"
       onClick={(event) => {
         if ((event.target as HTMLElement).closest("a")) setMenuOpen(false);
       }}
     >
-      {NAV.map(({ href, label, icon }) => (
+      {NAV.map(({ href, labelKey, icon }) => (
         <NavLink
           key={href}
           href={href === "/prop-firms" ? href : filterQuery.size ? `${href}?${filterQuery}` : href}
-          label={label}
+          label={t(labelKey)}
           icon={icon}
           collapsed={collapsed}
           active={href === "/" ? pathname === "/" : pathname.startsWith(href)}
         />
       ))}
       <div className="!my-3 border-t" />
-      {NAV_SETUP.map(({ href, label, icon }) => (
+      {NAV_SETUP.map(({ href, labelKey, icon }) => (
         <NavLink
           key={href}
           href={filterQuery.size ? `${href}?${filterQuery}` : href}
-          label={label}
+          label={t(labelKey)}
           icon={icon}
           collapsed={collapsed}
           active={pathname.startsWith(href)}
@@ -180,7 +184,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const footer = (
     <div className="journal-sidebar-footer space-y-1 border-t p-3 text-xs text-muted-foreground">
       <div>
-        Open source ·{" "}
+        {t("footer.openSource")} ·{" "}
         <a
           href="https://github.com/LuxAlgo/trade-journal"
           className="underline underline-offset-2 hover:text-foreground"
@@ -190,7 +194,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           GitHub
         </a>
       </div>
-      <div>Not investment advice.</div>
+      <div>{t("footer.notInvestmentAdvice")}</div>
     </div>
   );
   return (
@@ -202,7 +206,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               variant="ghost"
               size="icon"
               className="h-9 w-9 shrink-0"
-              aria-label="Open navigation"
+              aria-label={t("openNavigation")}
             >
               <Menu />
             </Button>
@@ -215,6 +219,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             >
               <div className="flex h-14 shrink-0 items-center gap-2.5 border-b px-4">
                 <LuxAlgoMark className="h-[18px] w-5" />
+                {/* Brand name — intentionally untranslated. */}
                 <DialogPrimitive.Title className="text-sm font-semibold">
                   Trade Journal
                 </DialogPrimitive.Title>
@@ -223,7 +228,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                     variant="ghost"
                     size="icon"
                     className="ml-auto h-8 w-8"
-                    aria-label="Close navigation"
+                    aria-label={t("closeNavigation")}
                   >
                     <X />
                   </Button>
@@ -265,10 +270,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
             size="icon"
             className="journal-sidebar-trigger absolute h-7 w-7 rounded-full bg-background shadow-sm"
             onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
             aria-expanded={!sidebarCollapsed}
             aria-keyshortcuts="Meta+B Control+B"
-            title={`${sidebarCollapsed ? "Expand" : "Collapse"} sidebar (⌘B)`}
+            title={sidebarCollapsed ? t("sidebar.expandTitle") : t("sidebar.collapseTitle")}
           >
             {sidebarCollapsed ? (
               <PanelLeftOpen className="h-3.5 w-3.5" />

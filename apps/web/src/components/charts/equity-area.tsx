@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   Area,
   AreaChart,
@@ -11,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { formatLocale, type Locale } from "@/i18n/config";
 import { fmtMoney, fmtPercent } from "@/lib/utils";
 import { usePrivacy } from "../privacy";
 import { tooltipStyle, useVizTokens } from "./tokens";
@@ -26,7 +28,7 @@ export function EquityArea({
   data,
   height = 240,
   valueFormat = "money",
-  valueLabel = "Cumulative P&L",
+  valueLabel,
   currency = "USD",
   curve = "monotone",
 }: {
@@ -37,14 +39,18 @@ export function EquityArea({
   currency?: string;
   curve?: "monotone" | "stepAfter";
 }) {
-  const t = useVizTokens();
+  const t = useTranslations("charts");
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
+  const viz = useVizTokens();
   const id = useId().replace(/:/g, "");
   const privacy = usePrivacy();
   const privateMode = privacy && valueFormat === "money";
+  const seriesLabel = valueLabel ?? t("equityValueLabel");
   const formatValue = (value: number) =>
-    valueFormat === "percent" ? fmtPercent(value, 2) : fmtMoney(value, currency);
-  if (!t) return <div style={{ height }} />;
-  const line = t.brand;
+    valueFormat === "percent" ? fmtPercent(value, 2, tag) : fmtMoney(value, currency, tag);
+  if (!viz) return <div style={{ height }} />;
+  const line = viz.brand;
   const top = Math.max(0, ...data.map((point) => point.cumNetPnl));
   const bottom = Math.min(0, ...data.map((point) => point.cumNetPnl));
   const zero = top === bottom ? 100 : (top / (top - bottom)) * 100;
@@ -59,26 +65,26 @@ export function EquityArea({
           <defs>
             <linearGradient id={`${id}-line`} x1="0" y1="0" x2="0" y2="1">
               <stop offset={`${zero}%`} stopColor={line} />
-              <stop offset={`${zero}%`} stopColor={t.loss} />
+              <stop offset={`${zero}%`} stopColor={viz.loss} />
             </linearGradient>
             <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={line} stopOpacity={0.3} />
               <stop offset={`${zero}%`} stopColor={line} stopOpacity={0.035} />
-              <stop offset={`${zero}%`} stopColor={t.loss} stopOpacity={0.035} />
-              <stop offset="100%" stopColor={t.loss} stopOpacity={0.3} />
+              <stop offset={`${zero}%`} stopColor={viz.loss} stopOpacity={0.035} />
+              <stop offset="100%" stopColor={viz.loss} stopOpacity={0.3} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke={t.gridline} strokeWidth={1} vertical={false} />
+          <CartesianGrid stroke={viz.gridline} strokeWidth={1} vertical={false} />
           <XAxis
             dataKey="t"
-            tick={{ fill: t.inkMuted, fontSize: 11 }}
+            tick={{ fill: viz.inkMuted, fontSize: 11 }}
             tickLine={false}
-            axisLine={{ stroke: t.baseline }}
+            axisLine={{ stroke: viz.baseline }}
             minTickGap={48}
             tickFormatter={(value: string) => value.slice(0, 10)}
           />
           <YAxis
-            tick={{ fill: t.inkMuted, fontSize: 11 }}
+            tick={{ fill: viz.inkMuted, fontSize: 11 }}
             tickLine={false}
             axisLine={false}
             width={70}
@@ -87,17 +93,20 @@ export function EquityArea({
               privateMode ? "••••" : formatValue(value).replace(".00", "")
             }
           />
-          <ReferenceLine y={0} stroke={t.baseline} />
+          <ReferenceLine y={0} stroke={viz.baseline} />
           <Tooltip
-            contentStyle={tooltipStyle(t)}
+            contentStyle={tooltipStyle(viz)}
             labelFormatter={(value) => String(value).slice(0, 10)}
-            formatter={(value) => [privateMode ? "Hidden" : formatValue(Number(value)), valueLabel]}
-            cursor={{ stroke: t.inkMuted, strokeDasharray: "3 3" }}
+            formatter={(value) => [
+              privateMode ? t("hidden") : formatValue(Number(value)),
+              seriesLabel,
+            ]}
+            cursor={{ stroke: viz.inkMuted, strokeDasharray: "3 3" }}
           />
           <Area
             type={curve}
             dataKey="cumNetPnl"
-            stroke={bottom < 0 ? (top > 0 ? `url(#${id}-line)` : t.loss) : line}
+            stroke={bottom < 0 ? (top > 0 ? `url(#${id}-line)` : viz.loss) : line}
             strokeWidth={2}
             fill={`url(#${id}-fill)`}
             baseValue={0}
@@ -107,8 +116,8 @@ export function EquityArea({
                 cx={cx}
                 cy={cy}
                 r={4}
-                fill={payload.cumNetPnl < 0 ? t.loss : line}
-                stroke={t.card}
+                fill={payload.cumNetPnl < 0 ? viz.loss : line}
+                stroke={viz.card}
                 strokeWidth={2}
               />
             )}

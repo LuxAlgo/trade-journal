@@ -1,7 +1,14 @@
 /** Offline currency catalogue; existing account codes remain selectable. */
-const names = new Intl.DisplayNames("en", { type: "currency" });
+const displayNames = new Map<string, Intl.DisplayNames>();
 export const currencyCodes = Intl.supportedValuesOf("currency");
-export const currencyName = (code: string): string => `${code} — ${names.of(code) ?? code}`;
+export const currencyName = (code: string, locale = "en"): string => {
+  let names = displayNames.get(locale);
+  if (!names) {
+    names = new Intl.DisplayNames(locale, { type: "currency" });
+    displayNames.set(locale, names);
+  }
+  return `${code} — ${names.of(code) ?? code}`;
+};
 export const isCurrencyCode = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Z]{3}$/.test(value);
 

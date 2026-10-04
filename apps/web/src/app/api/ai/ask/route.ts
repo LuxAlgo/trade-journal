@@ -10,7 +10,7 @@ import {
   type BucketStats,
 } from "@luxalgo/journal-core";
 import { bad, handler, ok } from "@/server/api";
-import { runAi } from "@/server/ai";
+import { languageDirective, requestLocale, runAi } from "@/server/ai";
 import { queryTrades } from "@/server/trades-query";
 import { accountContext, readAiRequest } from "@/server/ai-scope";
 
@@ -29,11 +29,13 @@ const bucketBlock = (title: string, buckets: BucketStats[]): string =>
  * own aggregates. The same questions an agent can ask through the MCP tools.
  */
 export const POST = handler(async (request: Request) => {
-  const scope = readAiRequest(await request.json(), "question");
+  const locale = await requestLocale();
+  const scope = readAiRequest(await request.json(), "question", locale);
   const { question, timeZone, filters } = scope;
 
   const { trades } = queryTrades(filters);
-  if (trades.length === 0) return bad("No trades match the selected accounts and filters");
+  if (trades.length === 0)
+    return bad("No trades match the selected accounts and filters", 400, "no_matching_trades");
   const m = computeMetrics(trades, { timeZone });
 
   const context = [
@@ -53,6 +55,8 @@ export const POST = handler(async (request: Request) => {
     `Answer the trader's question using ONLY these aggregates from their journal. If the data
 can't answer it, say exactly what's missing (e.g. "tag your trades' stops to get R stats").
 Cite the numbers you used. Under 200 words.
+
+${languageDirective(locale)}
 
 ${context}
 

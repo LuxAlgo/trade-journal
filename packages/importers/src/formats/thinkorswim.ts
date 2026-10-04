@@ -20,6 +20,7 @@ export const thinkorswim: ImportFormat = {
         executions: [],
         skippedRows: 0,
         warnings: ["No 'Account Trade History' section found."],
+        diagnostics: [{ code: "section_not_found" }],
       };
     }
 

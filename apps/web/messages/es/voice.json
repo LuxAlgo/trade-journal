@@ -1,0 +1,38 @@
+{
+  "voice": {
+    "state": {
+      "idle": "Dictar",
+      "starting": "Iniciando…",
+      "listening": "Escuchando · Detener"
+    },
+    "title": {
+      "idle": "Dicta tu nota",
+      "active": "Detener el dictado"
+    },
+    "language": {
+      "label": "Idioma del dictado",
+      "follow": "Seguir el idioma de la interfaz"
+    },
+    "popover": {
+      "label": "Ayuda de dictado",
+      "useKeyboard": "Usar dictado por teclado",
+      "dismiss": "Descartar"
+    },
+    "help": {
+      "keyboard": "El dictado por teclado escribe directamente en tu nota. Usa la tecla de micrófono de tu teclado o el atajo de dictado de tu sistema. En Mac, activa el dictado en Ajustes del sistema → Teclado."
+    },
+    "status": {
+      "ready": "Nota lista. Pulsa la tecla de micrófono de tu teclado o el atajo de dictado para hablar."
+    },
+    "error": {
+      "notAllowed": "El acceso al micrófono o a la voz está bloqueado. Permite el acceso al micrófono en el navegador y en la configuración del sistema, e inténtalo de nuevo.",
+      "audioCapture": "No hay micrófono disponible. Conecta o activa un micrófono e inténtalo de nuevo.",
+      "noSpeech": "No se detectó voz. Inténtalo de nuevo y habla cuando el botón muestre «Escuchando».",
+      "network": "Este navegador no pudo conectarse a su servicio de reconocimiento de voz. Prueba Chrome con conexión a internet o usa el dictado por teclado de abajo.",
+      "languageNotSupported": "Este navegador no admite el dictado en tu idioma actual. Usa el dictado por teclado de abajo.",
+      "timeout": "No se pudo iniciar el reconocimiento de voz en este navegador. Prueba Chrome o usa el dictado por teclado de abajo.",
+      "start": "No se pudo iniciar el reconocimiento de voz en este navegador. Prueba Chrome o usa el dictado por teclado de abajo.",
+      "unsupported": "Este navegador no admite el reconocimiento de voz. Abre el diario en Chrome o usa el dictado por teclado de abajo."
+    }
+  }
+}

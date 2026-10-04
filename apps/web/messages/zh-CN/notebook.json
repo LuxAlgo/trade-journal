@@ -1,0 +1,31 @@
+{
+  "notebook": {
+    "title": "笔记本",
+    "newNote": "新建笔记",
+    "allNotes": "全部笔记",
+    "newFolder": "新建文件夹",
+    "noteFolder": "笔记文件夹",
+    "searchPlaceholder": "搜索笔记",
+    "emptyNotes": "这里还没有笔记。",
+    "untitled": "无标题",
+    "emptyContent": "空",
+    "selectOrCreate": "选择或创建一条笔记。",
+    "backToNotes": "返回笔记列表",
+    "titlePlaceholder": "标题",
+    "edit": "编辑",
+    "preview": "预览",
+    "delete": "删除",
+    "deleteConfirm": "确定要删除这条笔记吗？",
+    "saveNow": "立即保存",
+    "folderDialog": {
+      "title": "新建文件夹",
+      "description": "将笔记整理到命名文件夹中。",
+      "nameLabel": "文件夹名称",
+      "cancel": "取消",
+      "create": "创建文件夹",
+      "creating": "创建中…",
+      "failed": "无法创建文件夹，请重试。"
+    },
+    "reviewTitle": "日志笔记"
+  }
+}

@@ -38,7 +38,8 @@ export const POST = handler(async (request: Request) => {
     else await provider.test(connectionKey(provider.id));
     return ok({ connections: connections(), tested: body.action === "test" });
   } catch (error) {
-    if (error instanceof MarketDataError) return bad(error.message, 400);
+    if (error instanceof MarketDataError)
+      return bad(error.message, 400, "market_data_connection_error");
     throw error;
   }
 });

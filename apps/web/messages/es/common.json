@@ -1,0 +1,11 @@
+{
+  "common": {
+    "loading": {
+      "page": "Cargando página…"
+    },
+    "language": {
+      "switch": "Cambiar idioma",
+      "error": "No se pudo guardar tu idioma. Inténtalo de nuevo."
+    }
+  }
+}

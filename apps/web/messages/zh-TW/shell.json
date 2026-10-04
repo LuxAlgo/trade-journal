@@ -1,0 +1,32 @@
+{
+  "shell": {
+    "nav": {
+      "dashboard": "儀表板",
+      "calendar": "日曆",
+      "dailyJournal": "每日日誌",
+      "trades": "交易",
+      "reports": "報表",
+      "propFirms": "自營交易公司",
+      "notebook": "筆記本",
+      "playbooks": "交易劇本",
+      "progress": "進度",
+      "missedTrades": "錯失的交易",
+      "import": "匯入",
+      "accounts": "帳戶",
+      "settings": "設定"
+    },
+    "navigationLabel": "日誌導覽",
+    "openNavigation": "開啟導覽",
+    "closeNavigation": "關閉導覽",
+    "sidebar": {
+      "expand": "展開側邊欄",
+      "collapse": "收合側邊欄",
+      "expandTitle": "展開側邊欄（⌘B）",
+      "collapseTitle": "收合側邊欄（⌘B）"
+    },
+    "footer": {
+      "openSource": "開放原始碼",
+      "notInvestmentAdvice": "不構成投資建議。"
+    }
+  }
+}

@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
+// T32: the AI components read the `ai` namespace, so the trees render inside
+// NextIntlClientProvider via renderWithLocale (docs/i18n.md §14).
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, createElement } from "react";
+import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { NextIntlClientProvider } from "next-intl";
 import { computeMetrics, type AnalysisFilters } from "@luxalgo/journal-core";
 import { TooltipProvider } from "../src/components/ui/tooltip";
+import { loadMessages, renderWithLocale } from "./helpers/i18n";
 
 const state = vi.hoisted(() => ({
   filters: { accounts: "a" } as AnalysisFilters,
@@ -31,7 +35,20 @@ vi.mock("@/lib/use-api", () => ({
   }),
 }));
 vi.mock("@/lib/use-autosave", () => ({
-  useAutosave: () => ({ save: state.save, status: "Saved", flush: vi.fn() }),
+  formatAutosaveStatus: (_c: unknown, _e: unknown, s: { state: string } | undefined, fb: string) =>
+    !s || s.state === "idle"
+      ? fb
+      : s.state === "error"
+        ? `Not saved: x`
+        : s.state === "saving"
+          ? "Saving…"
+          : "Saved",
+  useAutosave: () => ({
+    save: state.save,
+    status: "Saved",
+    saveState: { state: "saved", message: "", errorInfo: null },
+    flush: vi.fn(),
+  }),
 }));
 vi.mock("@/components/rich-editor", () => ({
   RichEditor: ({ value, onChange }: { value: string; onChange: (s: string) => void }) =>
@@ -50,32 +67,32 @@ vi.mock("@/components/review-export", () => ({ ReviewExport: () => null }));
 const { AskJournal } = await import("../src/components/ask-journal");
 const { default: JournalDayPage } = await import("../src/app/journal/[date]/page");
 
-let container: HTMLDivElement;
-let root: Root;
+let container: HTMLElement;
+let rerender: (ui: ReactElement) => void;
+const cleanups: Array<() => void> = [];
 beforeEach(() => {
-  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   state.filters = { accounts: "a" };
   state.timeZone = "UTC";
   state.post.mockReset();
   state.save.mockReset();
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
 });
-afterEach(async () => {
-  await act(async () => root.unmount());
-  container.remove();
+afterEach(() => {
+  while (cleanups.length) cleanups.pop()!();
+  document.body.innerHTML = "";
 });
-const deferred = () => {
-  let resolve!: (value: unknown) => void, reject!: (error: Error) => void;
-  const promise = new Promise((yes, no) => {
-    resolve = yes;
-    reject = no;
-  });
-  return { promise, resolve, reject };
+const mount = (ui: ReactElement, locale = "en") => {
+  // The root layout wraps the app in TooltipProvider (titled buttons use it).
+  const rendered = renderWithLocale(
+    createElement(TooltipProvider, { delayDuration: 0, children: ui }),
+    { locale },
+  );
+  container = rendered.container;
+  rerender = (next: ReactElement) =>
+    rendered.rerender(createElement(TooltipProvider, { delayDuration: 0, children: next }));
+  cleanups.push(rendered.unmount);
 };
-const renderAsk = () =>
-  act(async () => root.render(createElement(TooltipProvider, null, createElement(AskJournal))));
+const renderAsk = (locale = "en") => mount(createElement(AskJournal), locale);
+const refreshAsk = () => act(async () => rerender(createElement(AskJournal)));
 const click = (text: string) =>
   act(async () => {
     const button = Array.from(container.querySelectorAll("button")).find((b) =>
@@ -99,7 +116,7 @@ it("sends the full current filter snapshot and displays the server-confirmed sco
     reviewed: "yes",
   };
   state.post.mockResolvedValue(reply("Scoped answer"));
-  await renderAsk();
+  renderAsk();
   await click(suggestion);
   expect(state.post).toHaveBeenCalledWith("/api/ai/ask", {
     question: suggestion,
@@ -109,7 +126,7 @@ it("sends the full current filter snapshot and displays the server-confirmed sco
   expect(container.textContent).toContain("Scoped answer");
   expect(container.textContent).toContain("Account A · UTC");
   state.filters = {};
-  await renderAsk();
+  await refreshAsk();
   expect(container.textContent).not.toContain("Scoped answer");
 });
 
@@ -119,15 +136,15 @@ it.each(["accounts", "symbol", "timezone"])(
     const old = deferred(),
       current = deferred();
     state.post.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
-    await renderAsk();
+    renderAsk();
     await click(suggestion);
     if (change === "accounts") state.filters = { accounts: "b" };
     else if (change === "symbol") state.filters = { accounts: "a", symbol: "MSFT" };
     else state.timeZone = "America/New_York";
-    await renderAsk();
+    await refreshAsk();
     state.filters = { accounts: "a" };
     state.timeZone = "UTC";
-    await renderAsk();
+    await refreshAsk();
     await click(suggestion);
     await act(async () => old.resolve(reply("OLD RESULT")));
     expect(container.textContent).not.toContain("OLD RESULT");
@@ -143,10 +160,10 @@ it("ignores old errors and allows retry after a current failure", async () => {
     .mockReturnValueOnce(old.promise)
     .mockRejectedValueOnce(new Error("Temporary failure"))
     .mockResolvedValueOnce(reply("Retry answer"));
-  await renderAsk();
+  renderAsk();
   await click(suggestion);
   state.filters = { accounts: "b" };
-  await renderAsk();
+  await refreshAsk();
   await act(async () => old.reject(new Error("OLD ERROR")));
   expect(container.querySelector("[data-ai-notice]")).toBeNull();
   await click(suggestion);
@@ -155,9 +172,20 @@ it("ignores old errors and allows retry after a current failure", async () => {
   expect(container.textContent).toContain("Retry answer");
 });
 
+it("renders the localized failure and retry path under zh-CN", async () => {
+  state.post
+    .mockRejectedValueOnce(new Error("Temporary failure"))
+    .mockResolvedValueOnce(reply("已重试的回答"));
+  renderAsk("zh-CN");
+  await click("我最昂贵的错误是什么？");
+  expect(container.textContent).toContain("无法完成 AI 请求");
+  await click("重试");
+  expect(container.textContent).toContain("已重试的回答");
+});
+
 it("prevents duplicate submissions before a rerender", async () => {
   state.post.mockReturnValue(deferred().promise);
-  await renderAsk();
+  renderAsk();
   await act(async () => {
     const buttons = container.querySelectorAll("button");
     buttons[1]!.click();
@@ -166,18 +194,50 @@ it("prevents duplicate submissions before a rerender", async () => {
   expect(state.post).toHaveBeenCalledTimes(1);
 });
 
-const dateParams = Promise.resolve({ date: "2026-09-15" });
-const renderDay = (params = dateParams) =>
-  act(async () => root.render(createElement(JournalDayPage, { params })));
+function deferred() {
+  let resolve!: (value: unknown) => void, reject!: (error: Error) => void;
+  const promise = new Promise((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
+  return { promise, resolve, reject };
+}
+
 const recapReply = {
   recap: "Generated recap",
   scope: { label: "2026-09-15 · Account A · UTC", timeZone: "UTC" },
 };
+// The day page suspends on `use(params)`, which cannot resume after
+// renderWithLocale's synchronous act — so it mounts through an awaited act
+// with the same provider shape (locale + real messages from the helper).
+let dayRoot: Root;
+const dayTree = (date: string, locale: string) =>
+  createElement(NextIntlClientProvider, {
+    locale,
+    messages: loadMessages(locale),
+    timeZone: "UTC",
+    children: createElement(TooltipProvider, {
+      delayDuration: 0,
+      children: createElement(JournalDayPage, { params: Promise.resolve({ date }) }),
+    }),
+  });
+const renderDay = async (date: string, locale = "en") => {
+  const host = document.body.appendChild(document.createElement("div"));
+  dayRoot = createRoot(host);
+  container = host;
+  cleanups.push(() => {
+    act(() => dayRoot.unmount());
+    host.remove();
+  });
+  await act(async () => dayRoot.render(dayTree(date, locale)));
+};
+const refreshDay = (date: string) => act(async () => dayRoot.render(dayTree(date, "en")));
+const unmountDay = () => act(async () => dayRoot.render(null));
 
 it("appends a labeled recap to edits made while generation is pending", async () => {
   const pending = deferred();
   state.post.mockReturnValue(pending.promise);
-  await renderDay();
+  await renderDay("2026-09-15");
   await click("AI recap");
   expect(state.post).toHaveBeenCalledWith("/api/ai/recap", {
     date: "2026-09-15",
@@ -202,15 +262,15 @@ it.each(["account", "date", "unmount"])(
   async (change) => {
     const pending = deferred();
     state.post.mockReturnValue(pending.promise);
-    await renderDay();
+    await renderDay("2026-09-15");
     await click("AI recap");
     if (change === "account") {
       state.filters = { accounts: "b" };
-      await renderDay();
+      await refreshDay("2026-09-15");
       state.filters = { accounts: "a" };
-      await renderDay();
-    } else if (change === "date") await renderDay(Promise.resolve({ date: "2026-09-16" }));
-    else await act(async () => root.render(null));
+      await refreshDay("2026-09-15");
+    } else if (change === "date") await refreshDay("2026-09-16");
+    else await unmountDay();
     await act(async () => pending.resolve(recapReply));
     expect(state.save).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain("Generated recap");

@@ -1,0 +1,69 @@
+{
+  "enums": {
+    "direction": {
+      "long": "Long",
+      "short": "Short"
+    },
+    "status": {
+      "closed": "Closed",
+      "open": "Open",
+      "win": "Win",
+      "loss": "Loss",
+      "breakeven": "Breakeven"
+    },
+    "reviewed": {
+      "yes": "Yes",
+      "no": "No"
+    },
+    "assetClass": {
+      "equity": "Equity",
+      "futures": "Futures",
+      "forex": "Forex",
+      "option": "Option",
+      "crypto": "Crypto",
+      "cfd": "CFD",
+      "other": "Other"
+    },
+    "costBasis": {
+      "fifo": "FIFO",
+      "lifo": "LIFO",
+      "wavg": "Weighted average"
+    },
+    "priceBasis": {
+      "raw": "Raw",
+      "split": "Split",
+      "adjusted": "Adjusted",
+      "midpoint": "Midpoint",
+      "bid": "Bid",
+      "ask": "Ask"
+    },
+    "prop": {
+      "values": {
+        "evaluation": "Evaluation",
+        "verification": "Verification",
+        "funded": "Funded",
+        "instantFunded": "Instant funded",
+        "live": "Live",
+        "active": "Active",
+        "passed": "Passed",
+        "breached": "Breached",
+        "closed": "Closed",
+        "requested": "Requested",
+        "approved": "Approved",
+        "completed": "Completed",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled",
+        "reset": "Reset",
+        "activation": "Activation",
+        "subscription": "Subscription",
+        "platform": "Platform",
+        "marketData": "Market data",
+        "transfer": "Transfer",
+        "other": "Other",
+        "expense": "Expense",
+        "refund": "Refund",
+        "payout": "Payout"
+      }
+    }
+  }
+}

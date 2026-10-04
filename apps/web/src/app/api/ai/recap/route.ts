@@ -2,13 +2,14 @@ import { eq } from "drizzle-orm";
 import { computeMetrics, dayKeyOf } from "@luxalgo/journal-core";
 import { db, journalDays } from "@/db";
 import { bad, handler, ok } from "@/server/api";
-import { runAi } from "@/server/ai";
+import { languageDirective, requestLocale, runAi } from "@/server/ai";
 import { queryTrades } from "@/server/trades-query";
-import { accountContext, readAiRequest } from "@/server/ai-scope";
+import { accountContext, readAiRequest, serverTranslator } from "@/server/ai-scope";
 
 /** Generate a session recap for one trading day from the day's actual trades. */
 export const POST = handler(async (request: Request) => {
-  const scope = readAiRequest(await request.json(), "date");
+  const locale = await requestLocale();
+  const scope = readAiRequest(await request.json(), "date", locale);
   const { timeZone, filters } = scope;
   const date = scope.date!;
 
@@ -17,7 +18,11 @@ export const POST = handler(async (request: Request) => {
     (trade) => trade.closedAt && dayKeyOf(trade.closedAt, timeZone) === date,
   );
   if (dayTrades.length === 0)
-    return bad("No closed trades match this day and the selected filters");
+    return bad(
+      "No closed trades match this day and the selected filters",
+      400,
+      "no_matching_trades",
+    );
 
   const metrics = computeMetrics(dayTrades, { timeZone });
   // Day notes are shared across accounts and cannot be attributed to a filtered subset.
@@ -37,9 +42,14 @@ export const POST = handler(async (request: Request) => {
     )
     .join("\n");
 
+  // First-person voice, the two bold group headings and the length bound are
+  // phrased per interface language (ai.recapInstruction); the data blocks and
+  // the trader's own note stay as recorded.
+  const instruction = serverTranslator(locale, "ai")("recapInstruction", { date });
   const recap = await runAi(
-    `Write a session recap for ${date} in first person ("I"), 120-200 words, markdown with a
-short "**Keep**" and "**Fix**" list at the end.
+    `${instruction}
+
+${languageDirective(locale)}
 
 ${scope.context}
 ${accountContext(dayTrades, scope)}

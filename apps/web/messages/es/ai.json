@@ -1,0 +1,85 @@
+{
+  "ai": {
+    "scope": {
+      "allAccounts": "Todas las cuentas"
+    },
+    "recapInstruction": "Escribe un resumen de la sesión de {date} en primera persona (\"yo\"), de 120 a 200 palabras, en markdown, con una breve lista \"**Conservar**\" y \"**Corregir**\" al final.",
+    "recap": {
+      "button": "Resumen con IA",
+      "writing": "Escribiendo…"
+    },
+    "ask": {
+      "title": "Pregunta a tu diario",
+      "hint": "Usa las cuentas y los filtros del diario seleccionados. Si cambias los filtros, se borra la respuesta.",
+      "inputAriaLabel": "Haz una pregunta a tu diario",
+      "placeholder": "¿Por qué mis cortos del lunes siguen fallando?",
+      "thinking": "Pensando…",
+      "submit": "Preguntar",
+      "suggestionMistake": "¿Cuál es mi error más costoso?",
+      "suggestionWeekday": "¿Qué día de la semana debería dejar de operar?",
+      "suggestionDirection": "¿Se me dan mejor los largos o los cortos?"
+    },
+    "tryAgain": "Reintentar",
+    "dismiss": "Descartar el aviso de IA",
+    "action": {
+      "setUp": "Configurar IA",
+      "reviewSettings": "Revisar la configuración de IA",
+      "importTrades": "Importar operaciones",
+      "signIn": "Iniciar sesión"
+    },
+    "feedback": {
+      "noMatchingTrades": {
+        "title": "Sin operaciones coincidentes",
+        "description": "No hay operaciones que analizar en esta selección. Ajusta las cuentas, las fechas u otros filtros del diario."
+      },
+      "checkFilters": {
+        "title": "Revisa los filtros del diario",
+        "description": "El alcance seleccionado ya no es válido. Actualiza las cuentas y los filtros antes de intentarlo de nuevo."
+      },
+      "refreshJournal": {
+        "title": "Actualiza tu diario",
+        "description": "La zona horaria del diario cambió. Actualiza esta página para que las fechas mostradas y el análisis de IA coincidan."
+      },
+      "setUpAi": {
+        "title": "Configura la IA para continuar",
+        "description": "Conecta una clave API de Anthropic u OpenAI en Ajustes para hacer preguntas, generar resúmenes y revisar operaciones."
+      },
+      "checkConnection": {
+        "title": "Revisa tu conexión con la IA",
+        "description": "Tu proveedor de IA no pudo verificar tu clave o permisos. Revísalos en Ajustes y vuelve a intentarlo."
+      },
+      "billing": {
+        "title": "Tu cuenta de IA necesita atención",
+        "description": "Revisa la facturación, el saldo de crédito o la cuota de tu cuenta del proveedor de IA y vuelve a intentarlo."
+      },
+      "checkModel": {
+        "title": "Revisa tu modelo de IA",
+        "description": "Comprueba el ID del modelo y el acceso de tu cuenta de proveedor en Ajustes."
+      },
+      "rateLimit": {
+        "title": "La IA está ocupada temporalmente",
+        "description": "Espera un momento antes de intentarlo de nuevo. Los datos de tu diario no han cambiado."
+      },
+      "emptyJournal": {
+        "title": "Añade operaciones para empezar",
+        "description": "Los análisis de IA usan el historial de tu diario. Importa tus operaciones y vuelve a preguntar."
+      },
+      "noRecap": {
+        "title": "Aún no hay operaciones para resumir",
+        "description": "Un resumen necesita al menos una operación cerrada en ese día. Aun así puedes escribir tu propia nota del día."
+      },
+      "signIn": {
+        "title": "Inicia sesión de nuevo",
+        "description": "Es posible que tu sesión haya caducado. Inicia sesión para seguir usando tu diario."
+      },
+      "connection": {
+        "title": "No se pudo conectar con la IA",
+        "description": "Comprueba tu conexión y vuelve a intentarlo. Los datos de tu diario no han cambiado."
+      },
+      "fallback": {
+        "title": "No se pudo completar la solicitud de IA",
+        "description": "Inténtalo de nuevo en un momento. Si continúa, revisa tu configuración de IA."
+      }
+    }
+  }
+}

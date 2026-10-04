@@ -93,39 +93,131 @@ export type PropData = {
 };
 const supportedCurrencies = new Set(Intl.supportedValuesOf("currency"));
 const currencyFormats = new Map<string, Intl.NumberFormat>();
-function currencyFormat(currency: string) {
+
+/**
+ * Validation failures raised by the money parsers below. The English `message`
+ * is the machine-stable `{error}` text: server/prop-firms.ts re-wraps it
+ * verbatim and tests assert it, so the wording must not change (docs/i18n.md
+ * §6). `key` names the client-side `prop-firms.validation.*` message and
+ * `params` feeds its ICU placeholders; both are localization-only additions.
+ */
+export class PropValidationError extends Error {
+  constructor(
+    readonly key: string,
+    message: string,
+    readonly params?: Record<string, string | number>,
+  ) {
+    super(message);
+    this.name = "PropValidationError";
+  }
+}
+
+/** Canonical validation wordings — single source for both throwing and matching. */
+const VALIDATION_TEXT = {
+  currencyUnsupported: "Choose a supported three-letter currency code.",
+  amountInvalid: "Enter a nonnegative decimal amount.",
+  amountTooLarge: "Amount is too large.",
+  currencyMixed: "Select one currency before combining cash amounts.",
+} as const;
+const decimalsText = (currency: string, digits: number) =>
+  `${currency} accepts ${digits} decimal places.`;
+const DECIMALS_PATTERN = /^(\S+) accepts (\d+) decimal places\.$/;
+
+/**
+ * Map a machine-stable validation message (possibly round-tripped through the
+ * API, which preserves `{error}` but not the code) back to its
+ * `prop-firms.validation.*` key. Lives next to the wordings above so the
+ * messages and the matcher cannot drift apart; null falls back to the raw
+ * English text without masking it.
+ */
+export const propValidation = (
+  message: string,
+): { key: string; params?: Record<string, string | number> } | null => {
+  const exact = Object.entries(VALIDATION_TEXT).find(([, text]) => text === message);
+  if (exact) return { key: exact[0] };
+  const decimals = DECIMALS_PATTERN.exec(message);
+  return decimals
+    ? { key: "amountDecimals", params: { currency: decimals[1]!, digits: Number(decimals[2]) } }
+    : null;
+};
+
+function currencyFormat(currency: string, locale = "en") {
   if (!supportedCurrencies.has(currency))
-    throw new Error("Choose a supported three-letter currency code.");
-  let format = currencyFormats.get(currency);
+    throw new PropValidationError("currencyUnsupported", VALIDATION_TEXT.currencyUnsupported);
+  const key = `${locale}|${currency}`;
+  let format = currencyFormats.get(key);
   if (!format) {
-    format = new Intl.NumberFormat("en", { style: "currency", currency });
-    currencyFormats.set(currency, format);
+    format = new Intl.NumberFormat(locale, { style: "currency", currency });
+    currencyFormats.set(key, format);
   }
   return format;
 }
 export function currencyDigits(currency: string) {
   if (!/^[A-Z]{3}$/.test(currency) || !supportedCurrencies.has(currency))
-    throw new Error("Choose a supported three-letter currency code.");
+    throw new PropValidationError("currencyUnsupported", VALIDATION_TEXT.currencyUnsupported);
   return currencyFormat(currency).resolvedOptions().maximumFractionDigits ?? 2;
 }
 /** Parse decimal input directly into integer minor units; never silently round user input. */
 export function toMinor(value: unknown, currency: string): number {
   const digits = currencyDigits(currency);
   if (typeof value !== "string" || !/^\d+(?:\.\d+)?$/.test(value.trim()))
-    throw new Error("Enter a nonnegative decimal amount.");
+    throw new PropValidationError("amountInvalid", VALIDATION_TEXT.amountInvalid);
   const [whole, fraction = ""] = value.trim().split(".");
-  if (fraction.length > digits) throw new Error(`${currency} accepts ${digits} decimal places.`);
+  if (fraction.length > digits)
+    throw new PropValidationError("amountDecimals", decimalsText(currency, digits), {
+      currency,
+      digits,
+    });
   const result = Number(whole) * 10 ** digits + Number(fraction.padEnd(digits, "0"));
   if (!Number.isSafeInteger(result) || result > 10_000_000_000)
-    throw new Error("Amount is too large.");
+    throw new PropValidationError("amountTooLarge", VALIDATION_TEXT.amountTooLarge);
   return result;
 }
 export const fromMinor = (value: number, currency: string) =>
   (value / 10 ** currencyDigits(currency)).toFixed(currencyDigits(currency));
-export const propMoney = (value: number, currency: string) =>
-  currencyFormat(currency).format(value / 10 ** currencyDigits(currency));
-export const label = (value: string) =>
-  value.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
+export const propMoney = (value: number, currency: string, locale = "en") =>
+  currencyFormat(currency, locale).format(value / 10 ** currencyDigits(currency));
+
+/**
+ * English display text for the product-owned prop-firm enums (T15 lookup table,
+ * replacing the old mechanical capitalize). Other languages resolve through the
+ * `enums` namespace: pass next-intl's `useTranslations("enums")` bound `t`.
+ * Unknown custom category values keep the previous mechanical fallback.
+ */
+const PROP_LABELS: Record<string, string> = {
+  evaluation: "Evaluation",
+  verification: "Verification",
+  funded: "Funded",
+  instant_funded: "Instant funded",
+  live: "Live",
+  active: "Active",
+  passed: "Passed",
+  breached: "Breached",
+  closed: "Closed",
+  requested: "Requested",
+  approved: "Approved",
+  completed: "Completed",
+  rejected: "Rejected",
+  cancelled: "Cancelled",
+  reset: "Reset",
+  activation: "Activation",
+  subscription: "Subscription",
+  platform: "Platform",
+  market_data: "Market data",
+  transfer: "Transfer",
+  other: "Other",
+  expense: "Expense",
+  refund: "Refund",
+  payout: "Payout",
+};
+/** "instant_funded" → "instantFunded" so enum values map to camelCase message keys. */
+const enumKey = (value: string) =>
+  value.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+export const label = (value: string, translate?: (key: string) => string) => {
+  if (translate && Object.hasOwn(PROP_LABELS, value))
+    return translate(`prop.values.${enumKey(value)}`);
+  return PROP_LABELS[value] ?? value.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
+};
 export const expectedPayout = (entry: PropEntry) =>
   Number((BigInt(entry.amountMinor) * BigInt(entry.splitBps) + 5000n) / 10000n) - entry.feeMinor;
 export const receivedPayout = (id: string, receipts: PropReceipt[]) =>
@@ -190,7 +282,8 @@ export function cashMovements(entries: PropEntry[], receipts: PropReceipt[]): Ca
 }
 export function cashSummary(rows: CashMovement[]) {
   const currencies = [...new Set(rows.map((r) => r.currency))];
-  if (currencies.length > 1) throw new Error("Select one currency before combining cash amounts.");
+  if (currencies.length > 1)
+    throw new PropValidationError("currencyMixed", VALIDATION_TEXT.currencyMixed);
   let spent = 0,
     refunds = 0,
     received = 0;

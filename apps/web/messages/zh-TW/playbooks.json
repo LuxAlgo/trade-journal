@@ -1,0 +1,27 @@
+{
+  "playbooks": {
+    "title": "交易劇本",
+    "new": "新增交易劇本",
+    "empty": "交易劇本是你有意識去交易的形態——為它命名、寫下規則，接著為交易加上標記，讓報表告訴你它是否真的獲利。",
+    "tradeCount": "{count, plural, other {# 筆交易}}",
+    "deleteConfirm": "刪除「{name}」？交易資料會保留，只是取消連結。",
+    "deleteAria": "刪除交易劇本 {name}",
+    "namePlaceholder": "名稱（例如：開盤區間突破）",
+    "descriptionPlaceholder": "一句話描述",
+    "rulesPlaceholder": "每行一條規則：\n只做 A+ 形態\n風險最多 1R\n11:30 後不進場",
+    "create": "建立",
+    "adherence": {
+      "ruleAdherence": "規則遵循度",
+      "assessments": "{evaluated}/{possible} 次規則評估，涵蓋 {total} 筆篩選後的已平倉交易。",
+      "unassessed": "{count, plural, other {# 筆交易仍待評估。}}",
+      "allFollowed": "全部規則遵循",
+      "oneBroken": "至少違反一條",
+      "tradesWin": "{count, plural, other {# 筆交易}} · {win} 勝率",
+      "mixedCurrencies": "幣種混合時隱藏損益。",
+      "performanceByRule": "依規則查看表現",
+      "ruleRate": "{rate} 遵循 · {count, plural, other {# 次評估}}",
+      "ruleFollowedBroken": "遵循：{followedTrades, plural, other {# 筆交易}} / {followedWin} 勝 · 違反：{brokenTrades, plural, other {# 筆交易}} / {brokenWin} 勝",
+      "ruleNetPnl": "淨損益：<followed>{followedValue}</followed> 遵循 / <broken>{brokenValue}</broken> 違反 {currency}"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "common": {
+    "loading": {
+      "page": "Loading page…"
+    },
+    "language": {
+      "switch": "Change language",
+      "error": "Couldn't save your language. Please try again."
+    }
+  }
+}

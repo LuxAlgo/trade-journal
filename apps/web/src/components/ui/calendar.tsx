@@ -1,11 +1,32 @@
 "use client";
 
 import { DayPicker, type DayPickerProps } from "react-day-picker";
+import type { Locale as DateFnsLocale } from "date-fns";
+import { enUS, es, fr, ja, ko, zhCN, zhTW } from "date-fns/locale";
+import { useLocale } from "next-intl";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+const DATE_FNS_LOCALES: Record<string, DateFnsLocale> = {
+  en: enUS,
+  "zh-CN": zhCN,
+  ja,
+  ko,
+  "zh-TW": zhTW,
+  es,
+  fr,
+};
+
+/** Map an interface locale code to the matching date-fns locale for react-day-picker. */
+export const dateFnsLocale = (locale: string): DateFnsLocale => DATE_FNS_LOCALES[locale] ?? enUS;
+
 export function Calendar(props: DayPickerProps) {
+  const { locale: propsLocale, ...rest } = props;
+  const locale = useLocale();
+  // The interface locale drives month/weekday names and the displayed week start;
+  // stored dates, filters and financial week statistics stay locale-independent.
   return (
     <DayPicker
+      locale={propsLocale ?? dateFnsLocale(locale)}
       showOutsideDays
       fixedWeeks
       className="journal-date-calendar"
@@ -34,7 +55,7 @@ export function Calendar(props: DayPickerProps) {
             <ChevronRight className="size-4" />
           ),
       }}
-      {...props}
+      {...rest}
     />
   );
 }

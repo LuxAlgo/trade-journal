@@ -18,7 +18,7 @@ interface PatchBody {
 export const PATCH = handler(async (request: Request, { params }: Params) => {
   const { id } = await params;
   const account = db.select().from(accounts).where(eq(accounts.id, id)).get();
-  if (!account) return bad("Account not found", 404);
+  if (!account) return bad("Account not found", 404, "account_not_found");
 
   const body = (await request.json()) as PatchBody;
   const patch: Partial<typeof accounts.$inferInsert> = {};
@@ -32,7 +32,7 @@ export const PATCH = handler(async (request: Request, { params }: Params) => {
   db.transaction(
     () => {
       const current = db.select().from(accounts).where(eq(accounts.id, id)).get();
-      requireValue(current, "Account not found.");
+      requireValue(current, "Account not found.", "account_not_found");
       if (
         body.broker !== undefined &&
         body.broker !== current.broker &&

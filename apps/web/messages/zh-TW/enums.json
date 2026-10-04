@@ -1,0 +1,69 @@
+{
+  "enums": {
+    "direction": {
+      "long": "多頭",
+      "short": "空頭"
+    },
+    "status": {
+      "closed": "已平倉",
+      "open": "未平倉",
+      "win": "獲利",
+      "loss": "虧損",
+      "breakeven": "損益兩平"
+    },
+    "reviewed": {
+      "yes": "是",
+      "no": "否"
+    },
+    "assetClass": {
+      "equity": "股票",
+      "futures": "期貨",
+      "forex": "外匯",
+      "option": "選擇權",
+      "crypto": "加密貨幣",
+      "cfd": "CFD",
+      "other": "其他"
+    },
+    "costBasis": {
+      "fifo": "先進先出（FIFO）",
+      "lifo": "後進先出（LIFO）",
+      "wavg": "加權平均"
+    },
+    "priceBasis": {
+      "raw": "原始價",
+      "split": "分割調整價",
+      "adjusted": "複權價",
+      "midpoint": "中間價",
+      "bid": "買價",
+      "ask": "賣價"
+    },
+    "prop": {
+      "values": {
+        "evaluation": "考核",
+        "verification": "驗證",
+        "funded": "已注資",
+        "instantFunded": "即時注資",
+        "live": "實盤",
+        "active": "活躍",
+        "passed": "已通過",
+        "breached": "已違規",
+        "closed": "已關閉",
+        "requested": "已申請",
+        "approved": "已核准",
+        "completed": "已完成",
+        "rejected": "已拒絕",
+        "cancelled": "已取消",
+        "reset": "重置",
+        "activation": "啟用",
+        "subscription": "訂閱",
+        "platform": "平台",
+        "marketData": "行情資料",
+        "transfer": "轉帳",
+        "other": "其他",
+        "expense": "費用",
+        "refund": "退款",
+        "payout": "出金分潤"
+      }
+    }
+  }
+}

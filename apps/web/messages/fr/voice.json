@@ -1,0 +1,38 @@
+{
+  "voice": {
+    "state": {
+      "idle": "Dicter",
+      "starting": "Démarrage…",
+      "listening": "Écoute · Arrêter"
+    },
+    "title": {
+      "idle": "Dicter votre note",
+      "active": "Arrêter la dictée"
+    },
+    "language": {
+      "label": "Langue de dictée",
+      "follow": "Suivre la langue de l’interface"
+    },
+    "popover": {
+      "label": "Aide à la dictée",
+      "useKeyboard": "Utiliser la dictée au clavier",
+      "dismiss": "Fermer"
+    },
+    "help": {
+      "keyboard": "La dictée au clavier saisit directement du texte dans votre note. Utilisez la touche micro de votre clavier ou le raccourci de dictée de votre système. Sur Mac, activez la dictée dans Réglages Système → Clavier."
+    },
+    "status": {
+      "ready": "Note prête. Appuyez sur la touche micro de votre clavier ou sur le raccourci de dictée pour parler."
+    },
+    "error": {
+      "notAllowed": "L’accès au micro ou à la voix a été bloqué. Autorisez l’accès au micro dans le navigateur et les réglages du système, puis réessayez.",
+      "audioCapture": "Aucun micro n’est disponible. Connectez ou activez un micro, puis réessayez.",
+      "noSpeech": "Aucune voix n’a été détectée. Réessayez et parlez une fois que le bouton affiche « Écoute ».",
+      "network": "Ce navigateur n’a pas pu joindre son service de reconnaissance vocale. Essayez Chrome avec une connexion internet, ou utilisez la dictée au clavier ci-dessous.",
+      "languageNotSupported": "Ce navigateur ne prend pas en charge la dictée dans votre langue actuelle. Utilisez la dictée au clavier ci-dessous.",
+      "timeout": "La reconnaissance vocale n’a pas pu démarrer dans ce navigateur. Essayez Chrome, ou utilisez la dictée au clavier ci-dessous.",
+      "start": "La reconnaissance vocale n’a pas pu démarrer dans ce navigateur. Essayez Chrome, ou utilisez la dictée au clavier ci-dessous.",
+      "unsupported": "Ce navigateur ne prend pas en charge la reconnaissance vocale. Ouvrez le journal dans Chrome, ou utilisez la dictée au clavier ci-dessous."
+    }
+  }
+}

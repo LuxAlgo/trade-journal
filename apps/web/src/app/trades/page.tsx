@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   createSortedRowModel,
   rowSelectionFeature,
@@ -25,8 +26,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import Loading from "@/app/loading";
+import { formatLocale, type Locale } from "@/i18n/config";
+import { formatApiError } from "@/lib/api-error";
 import { postJson, useApi } from "@/lib/use-api";
-import { cn, fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
+import { cn, fmtDurationLocalized, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
 
 interface TradeRow {
   key: string;
@@ -69,8 +72,15 @@ export default function TradesPage() {
 }
 
 function Trades() {
+  const t = useTranslations("trades");
+  const te = useTranslations("enums");
+  const tc = useTranslations("controls");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
   const { query } = useFilters();
-  const { data, error, refresh } = useApi<{
+  const { data, error, errorInfo, refresh } = useApi<{
     trades: TradeRow[];
     metrics: TradeMetrics;
     timeZone: string;
@@ -98,7 +108,7 @@ function Trades() {
                   : false
             }
             onCheckedChange={(value) => table.toggleAllRowsSelected(value === true)}
-            aria-label="Select all matching trades"
+            aria-label={t("selectAll")}
           />
         ),
         cell: ({ row }) => (
@@ -106,40 +116,44 @@ function Trades() {
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(value === true)}
             onClick={(event) => event.stopPropagation()}
-            aria-label="Select trade"
+            aria-label={t("selectTrade")}
           />
         ),
       },
       {
         id: "closedAt",
         accessorKey: "closedAt",
-        header: "Close date",
+        header: t("colCloseDate"),
         cell: ({ getValue }) => (
           <span className="text-muted-foreground">
-            {getValue<string | null>() ? dayKeyOf(getValue<string>(), timeZone) : "open"}
+            {getValue<string | null>() ? dayKeyOf(getValue<string>(), timeZone) : t("openState")}
           </span>
         ),
       },
       {
         id: "symbol",
         accessorKey: "symbol",
-        header: "Symbol",
+        header: t("colSymbol"),
         cell: ({ row, getValue }) => (
           <span className="flex items-center gap-2 font-medium">
             {getValue<string>()}
-            <span className="text-xs text-muted-foreground">{row.original.direction}</span>
+            <span className="text-xs text-muted-foreground">
+              {te.has(`direction.${row.original.direction}`)
+                ? te(`direction.${row.original.direction}`)
+                : row.original.direction}
+            </span>
           </span>
         ),
       },
       {
         id: "status",
         accessorKey: "status",
-        header: "Status",
+        header: t("colStatus"),
         cell: ({ getValue }) => {
           const status = getValue<string>();
           return (
             <Badge variant={status === "win" ? "profit" : status === "loss" ? "loss" : "secondary"}>
-              {status.toUpperCase()}
+              {te.has(`status.${status}`) ? te(`status.${status}`) : status.toUpperCase()}
             </Badge>
           );
         },
@@ -147,27 +161,29 @@ function Trades() {
       {
         id: "quantity",
         accessorKey: "quantity",
-        header: "Volume",
-        cell: ({ getValue }) => <span className="tnum">{fmtNumber(getValue<number>(), 4)}</span>,
+        header: t("colVolume"),
+        cell: ({ getValue }) => (
+          <span className="tnum">{fmtNumber(getValue<number>(), 4, tag)}</span>
+        ),
       },
       {
         id: "avgEntry",
         accessorKey: "avgEntry",
-        header: "Entry",
+        header: t("colEntry"),
         cell: ({ getValue }) => (
           <span className="tnum">
-            <MonetaryValue>{fmtNumber(getValue<number>())}</MonetaryValue>
+            <MonetaryValue>{fmtNumber(getValue<number>(), 2, tag)}</MonetaryValue>
           </span>
         ),
       },
       {
         id: "avgExit",
         accessorKey: "avgExit",
-        header: "Exit",
+        header: t("colExit"),
         cell: ({ getValue }) => (
           <span className="tnum">
             <MonetaryValue>
-              {getValue<number | null>() === null ? "–" : fmtNumber(getValue<number>()!)}
+              {getValue<number | null>() === null ? "–" : fmtNumber(getValue<number>()!, 2, tag)}
             </MonetaryValue>
           </span>
         ),
@@ -175,38 +191,42 @@ function Trades() {
       {
         id: "netPnl",
         accessorKey: "netPnl",
-        header: "Net P&L",
-        cell: ({ getValue }) => <Pnl value={getValue<number>()} />,
+        header: t("colNetPnl"),
+        cell: ({ getValue }) => <Pnl value={getValue<number>()} locale={tag} />,
       },
       {
         id: "roi",
         accessorFn: (row) =>
           row.avgEntry * row.quantity > 0 ? row.netPnl / (row.avgEntry * row.quantity) : 0,
-        header: "Net ROI",
-        cell: ({ getValue }) => <span className="tnum">{fmtPercent(getValue<number>(), 2)}</span>,
+        header: t("colNetRoi"),
+        cell: ({ getValue }) => (
+          <span className="tnum">{fmtPercent(getValue<number>(), 2, tag)}</span>
+        ),
       },
       {
         id: "fees",
         accessorKey: "fees",
-        header: "Fees",
+        header: t("colFees"),
         cell: ({ getValue }) => (
           <span className="tnum text-muted-foreground">
-            <MonetaryValue>{fmtMoney(getValue<number>())}</MonetaryValue>
+            <MonetaryValue>{fmtMoney(getValue<number>(), "USD", tag)}</MonetaryValue>
           </span>
         ),
       },
       {
         id: "durationMs",
         accessorKey: "durationMs",
-        header: "Duration",
+        header: t("colDuration"),
         cell: ({ getValue }) => (
-          <span className="text-muted-foreground">{fmtDuration(getValue<number | null>())}</span>
+          <span className="text-muted-foreground">
+            {fmtDurationLocalized(getValue<number | null>(), tc)}
+          </span>
         ),
       },
       {
         id: "executionCount",
         accessorKey: "executionCount",
-        header: "Execs",
+        header: t("colExecs"),
         cell: ({ getValue }) => (
           <span className="tnum text-muted-foreground">{getValue<number>()}</span>
         ),
@@ -215,12 +235,12 @@ function Trades() {
         id: "tags",
         accessorKey: "tags",
         enableSorting: false,
-        header: "Tags",
+        header: t("colTags"),
         cell: ({ getValue }) => (
           <span className="flex max-w-40 flex-wrap gap-1">
-            {getValue<string[]>().map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-[10px]">
-                {tag}
+            {getValue<string[]>().map((tag2) => (
+              <Badge key={tag2} variant="secondary" className="text-[10px]">
+                {tag2}
               </Badge>
             ))}
           </span>
@@ -229,7 +249,7 @@ function Trades() {
       {
         id: "rating",
         accessorKey: "rating",
-        header: "Rating",
+        header: t("colRating"),
         cell: ({ getValue }) => {
           const rating = getValue<number | null>();
           return (
@@ -242,7 +262,7 @@ function Trades() {
       {
         id: "reviewed",
         accessorKey: "reviewed",
-        header: "Reviewed",
+        header: t("colReviewed"),
         cell: ({ getValue }) =>
           getValue<boolean>() ? (
             <Check className="h-4 w-4 text-profit" />
@@ -251,7 +271,7 @@ function Trades() {
           ),
       },
     ],
-    [timeZone],
+    [timeZone, tag, t, te, tc],
   );
 
   const table = useTable({
@@ -280,18 +300,18 @@ function Trades() {
   return (
     <div>
       <FilterBar
-        title="Trades"
+        title={t("title")}
         actions={
           <div className="flex items-center gap-2">
             <a href={`/api/export?format=csv&${query}`} download>
               <Button variant="outline" size="sm">
                 <Download />
-                CSV
+                {t("csv")}
               </Button>
             </a>
             <Button variant="outline" size="sm" onClick={() => setShowColumns((value) => !value)}>
               <Columns3 />
-              Columns
+              {t("columns")}
             </Button>
           </div>
         }
@@ -301,16 +321,18 @@ function Trades() {
           <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
             <Card>
               <CardHeader>
-                <CardTitle>Net cumulative P&L</CardTitle>
+                <CardTitle>{t("netCumulativePnl")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <Pnl value={m.netPnl} className="text-xl font-semibold" />
-                <span className="ml-2 text-xs text-muted-foreground">{m.closedTrades} trades</span>
+                <Pnl value={m.netPnl} locale={tag} className="text-xl font-semibold" />
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {t("tradesCount", { count: m.closedTrades })}
+                </span>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Profit factor</CardTitle>
+                <CardTitle>{t("profitFactor")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <span className="text-xl font-semibold tnum">
@@ -318,25 +340,25 @@ function Trades() {
                     ? "∞"
                     : m.profitFactor === null
                       ? "–"
-                      : fmtNumber(m.profitFactor)}
+                      : fmtNumber(m.profitFactor, 2, tag)}
                 </span>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Trade win %</CardTitle>
+                <CardTitle>{t("tradeWinPercent")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <span className="text-xl font-semibold tnum">{fmtPercent(m.winRate)}</span>
+                <span className="text-xl font-semibold tnum">{fmtPercent(m.winRate, 1, tag)}</span>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Avg win / loss</CardTitle>
+                <CardTitle>{t("avgWinLoss")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <span className="text-xl font-semibold tnum">
-                  {m.avgWinLossRatio === null ? "–" : fmtNumber(m.avgWinLossRatio)}
+                  {m.avgWinLossRatio === null ? "–" : fmtNumber(m.avgWinLossRatio, 2, tag)}
                 </span>
               </CardContent>
             </Card>
@@ -367,19 +389,21 @@ function Trades() {
         {selectedKeys.length > 0 && (
           <Card>
             <CardContent className="flex flex-wrap items-center gap-2 py-2">
-              <span className="text-sm text-muted-foreground">{selectedKeys.length} selected</span>
+              <span className="text-sm text-muted-foreground">
+                {t("selectedCount", { count: selectedKeys.length })}
+              </span>
               <Button variant="outline" size="sm" onClick={() => bulk("review")}>
                 <Check />
-                Mark reviewed
+                {t("markReviewed")}
               </Button>
               <Button variant="outline" size="sm" onClick={() => bulk("unreview")}>
-                Unreview
+                {t("unreview")}
               </Button>
               <div className="flex max-w-full flex-wrap items-center gap-1">
                 <Input
                   value={tagInput}
                   onChange={(event) => setTagInput(event.target.value)}
-                  placeholder="tag"
+                  placeholder={t("tagPlaceholder")}
                   className="h-8 w-28 text-xs"
                 />
                 <Button
@@ -392,23 +416,19 @@ function Trades() {
                   }}
                 >
                   <Tag />
-                  Tag
+                  {t("tag")}
                 </Button>
               </div>
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={() => {
-                  if (
-                    confirm(
-                      `Delete ${selectedKeys.length} trades and their executions? This cannot be undone.`,
-                    )
-                  )
+                  if (confirm(t("deleteConfirm", { count: selectedKeys.length })))
                     void bulk("delete");
                 }}
               >
                 <Trash2 />
-                Delete
+                {t("delete")}
               </Button>
             </CardContent>
           </Card>
@@ -416,9 +436,9 @@ function Trades() {
 
         {error ? (
           <div role="alert" className="space-y-2 text-sm text-destructive">
-            <p>{error}</p>
+            <p>{formatApiError(tErrors, errorInfo ?? error)}</p>
             <Button variant="outline" onClick={refresh}>
-              Try again
+              {t("tryAgain")}
             </Button>
           </div>
         ) : !data ? (
@@ -481,11 +501,13 @@ function Trades() {
                         colSpan={columns.length}
                         className="py-16 text-center text-muted-foreground"
                       >
-                        No trades match these filters.{" "}
-                        <Link href="/import" className="underline">
-                          Import some
-                        </Link>
-                        .
+                        {t.rich("empty", {
+                          link: (chunks) => (
+                            <Link href="/import" className="underline">
+                              {chunks}
+                            </Link>
+                          ),
+                        })}
                       </td>
                     </tr>
                   )}
@@ -495,9 +517,11 @@ function Trades() {
             {sortedRows.length > pageSize && (
               <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
                 <span>
-                  {currentPage * pageSize + 1}–
-                  {Math.min((currentPage + 1) * pageSize, sortedRows.length)} of{" "}
-                  {fmtNumber(sortedRows.length, 0)} trades
+                  {t("pageRange", {
+                    from: currentPage * pageSize + 1,
+                    to: Math.min((currentPage + 1) * pageSize, sortedRows.length),
+                    count: sortedRows.length,
+                  })}
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
@@ -506,18 +530,16 @@ function Trades() {
                     disabled={currentPage === 0}
                     onClick={() => setPage(currentPage - 1)}
                   >
-                    Previous
+                    {t("previous")}
                   </Button>
-                  <span>
-                    Page {currentPage + 1} of {pageCount}
-                  </span>
+                  <span>{t("pageOf", { page: currentPage + 1, pages: pageCount })}</span>
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={currentPage + 1 === pageCount}
                     onClick={() => setPage(currentPage + 1)}
                   >
-                    Next
+                    {t("next")}
                   </Button>
                 </div>
               </div>

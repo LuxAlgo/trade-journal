@@ -1,0 +1,33 @@
+{
+  "progress": {
+    "title": "進捗",
+    "addRoutine": "ルーティンを追加",
+    "addRoutineTitle": "毎日のルーティンを追加",
+    "intro": "繰り返し可能なトレード日を作りましょう。ルーティンはトレードフィルターや損益とは独立して記録されます。",
+    "dailyCompletion": "今日の完了率",
+    "completedOf": "ルーティン{total, plural, other {#件}}のうち{completed}件が完了",
+    "reviewDate": "確認する日付",
+    "progressDate": "進捗の日付",
+    "exportTitle": "ルーティン確認 · {date}",
+    "exportCompleted": "完了：{completed}/{total}",
+    "exportDone": "[完了]",
+    "exportPending": "[ ]",
+    "exportRoutineLine": "{marker} {stage}：{title}",
+    "stage": {
+      "before": "取引前",
+      "during": "取引中",
+      "after": "取引後"
+    },
+    "archive": "アーカイブ",
+    "archiveConfirm": "「{title}」をアーカイブしますか？過去の日はそのまま残ります。",
+    "noRoutines": "予定されているルーティンはありません。",
+    "recentWeeks": "直近13週間",
+    "dayHint": "ルーティン{total, plural, other {#件}}のうち{completed}件が完了",
+    "dayAria": "{date}：{completed}/{total} 完了",
+    "heatmapLegend": "明るいマスほど完了率が高くなります。灰色は予定されているルーティンがない日です。日をクリックするとその日を確認できます。新しいルーティンは今日から始まります。",
+    "routineLabel": "ルーティン",
+    "routinePlaceholder": "経済カレンダーを確認",
+    "whenLabel": "時間帯",
+    "saveFailed": "保存できませんでした。"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "shell": {
+    "nav": {
+      "dashboard": "ダッシュボード",
+      "calendar": "カレンダー",
+      "dailyJournal": "毎日のジャーナル",
+      "trades": "トレード",
+      "reports": "レポート",
+      "propFirms": "プロップファーム",
+      "notebook": "ノート",
+      "playbooks": "プレイブック",
+      "progress": "進捗",
+      "missedTrades": "見送りトレード",
+      "import": "インポート",
+      "accounts": "アカウント",
+      "settings": "設定"
+    },
+    "navigationLabel": "ジャーナルナビゲーション",
+    "openNavigation": "ナビゲーションを開く",
+    "closeNavigation": "ナビゲーションを閉じる",
+    "sidebar": {
+      "expand": "サイドバーを展開",
+      "collapse": "サイドバーを折りたたむ",
+      "expandTitle": "サイドバーを展開（⌘B）",
+      "collapseTitle": "サイドバーを折りたたむ（⌘B）"
+    },
+    "footer": {
+      "openSource": "オープンソース",
+      "notInvestmentAdvice": "投資助言ではありません。"
+    }
+  }
+}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useTranslations } from "next-intl";
+import { formatApiError } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -30,10 +32,14 @@ export function AccountPicker({
   onChange: (id: string) => void;
   kind: "import" | "manual";
 }) {
+  const t = useTranslations("accounts");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
   const {
     data,
     refresh,
     error: accountError,
+    errorInfo: accountErrorInfo,
   } = useApi<{ accounts: AccountRow[] }>("/api/accounts");
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -47,11 +53,11 @@ export function AccountPicker({
     <div className="flex min-w-0 flex-wrap items-end gap-2">
       <div className="min-w-0 flex-[1_1_180px]">
         <Label htmlFor={`${fieldId}-account`} className="mb-1 block text-xs text-muted-foreground">
-          Into account
+          {t("intoAccount")}
         </Label>
         <Select value={value} onValueChange={onChange}>
           <SelectTrigger id={`${fieldId}-account`}>
-            <SelectValue placeholder="Choose an account" />
+            <SelectValue placeholder={t("chooseAccount")} />
           </SelectTrigger>
           <SelectContent>
             {accounts.map((account) => (
@@ -69,11 +75,11 @@ export function AccountPicker({
         disabled={saving}
         onClick={() => setCreating(!creating)}
       >
-        {creating ? "Cancel new account" : "New account"}
+        {creating ? t("cancelNewAccount") : t("newAccount")}
       </Button>
       {accountError && (
         <p role="alert" className="w-full text-sm text-destructive">
-          {accountError}
+          {formatApiError(tErrors, accountErrorInfo ?? accountError)}
         </p>
       )}
       {creating && (

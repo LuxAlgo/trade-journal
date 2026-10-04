@@ -2,7 +2,9 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { NextIntlClientProvider } from "next-intl";
 import { listBrokers } from "@luxalgo/broker-sdk";
+import { loadMessages } from "./helpers/i18n";
 
 const state = vi.hoisted(() => ({
   post: vi.fn(),
@@ -71,7 +73,19 @@ beforeEach(async () => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root.render(createElement(ImportPage)));
+  // The connect flow renders localized components (account picker now, the
+  // import page after T26), so the page must render under the messages
+  // provider; "en" keeps every existing assertion's copy unchanged.
+  await act(async () =>
+    root.render(
+      createElement(NextIntlClientProvider, {
+        locale: "en",
+        messages: loadMessages("en"),
+        timeZone: "UTC",
+        children: createElement(ImportPage),
+      }),
+    ),
+  );
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -161,7 +175,9 @@ it("shows the effective IBKR timezone, reports skipped fills and surfaces connec
     sync: { skipped: 2, skippedReasons: ["Ambiguous daylight-saving times"] },
   });
   await act(async () => connectButton().click());
-  expect(alert).toHaveBeenCalledWith(expect.stringContaining("2 broker record(s) were skipped"));
+  // Match both the current "record(s)" copy and the ICU-pluralized "records"
+  // the import page adopts when its strings move into messages (T26).
+  expect(alert).toHaveBeenCalledWith(expect.stringContaining("2 broker record"));
   expect(state.push).toHaveBeenCalledWith("/?accounts=corrected");
 });
 it("blocks IBKR connection when its effective timezone cannot be loaded", async () => {

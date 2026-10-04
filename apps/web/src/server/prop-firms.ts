@@ -230,7 +230,7 @@ export function mutateProp(body: Record<string, unknown>) {
     }
     if (body.action === "account.archive") {
       const old = db.select().from(propAccounts).where(eq(propAccounts.id, id)).get();
-      requireValue(old, "Account not found.");
+      requireValue(old, "Account not found.", "prop_account_not_found");
       checkRevision(old, body.revision);
       requireValue(typeof body.archived === "boolean", "Choose archive or restore.");
       const updated = {
@@ -250,7 +250,7 @@ export function mutateProp(body: Record<string, unknown>) {
         account = accountId
           ? db.select().from(propAccounts).where(eq(propAccounts.id, accountId)).get()
           : null;
-      requireValue(!accountId || account, "Prop account not found.");
+      requireValue(!accountId || account, "Prop account not found.", "prop_account_not_found");
       const code = currency(body.currency),
         kind = choice(body.kind, ["expense", "refund", "payout"] as const, "an entry type");
       const amountMinor = money(body.amount, code),
@@ -399,7 +399,7 @@ export function mutateProp(body: Record<string, unknown>) {
     }
     if (body.action === "entry.void") {
       const old = db.select().from(propEntries).where(eq(propEntries.id, id)).get();
-      requireValue(old, "Entry not found.");
+      requireValue(old, "Entry not found.", "prop_entry_not_found");
       checkRevision(old, body.revision);
       requireValue(typeof body.voided === "boolean", "Choose void or restore.");
       const refunds = db

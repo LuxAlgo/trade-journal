@@ -1,0 +1,111 @@
+{
+  "controls": {
+    "close": "Close",
+    "about": "About {heading}",
+    "clear": "Clear",
+    "today": "Today",
+    "loadingCalendar": "Loading calendar",
+    "chooseDate": "Choose {field} date",
+    "calendarFor": "{field} calendar",
+    "dateError": {
+      "invalid": "Enter a valid date (YYYY-MM-DD).",
+      "max": "Enter a valid date (YYYY-MM-DD) on or before {max}.",
+      "min": "Enter a valid date (YYYY-MM-DD) on or after {min}.",
+      "minMax": "Enter a valid date (YYYY-MM-DD) on or before {max} and on or after {min}."
+    },
+    "theme": {
+      "toLight": "Switch to light mode",
+      "toDark": "Switch to dark mode",
+      "light": "Light mode",
+      "dark": "Dark mode",
+      "storageError": "Appearance changed, but your browser could not save it for next time."
+    },
+    "privacy": {
+      "title": "Privacy mode",
+      "short": "Privacy",
+      "on": "On",
+      "off": "Off",
+      "ariaOn": "Privacy mode on",
+      "ariaOff": "Privacy mode off",
+      "hideHint": "Hide balances, P&L and trade prices across the journal",
+      "readError": "Could not read your privacy preference.",
+      "saveError": "Privacy changed for this page, but could not be saved in this browser.",
+      "hiddenValue": "Monetary value hidden",
+      "editHint": "Turn off privacy mode to edit this value"
+    },
+    "timezone": {
+      "choose": "Choose a timezone",
+      "triggerAria": "{label}: {value}",
+      "optionsAria": "{label} options",
+      "search": "Search timezones",
+      "searchPlaceholder": "Search city or timezone…",
+      "list": "Timezones",
+      "count": "{count, plural, one {# timezone} other {# timezones}}",
+      "noMatch": "No matching timezone. Try a city or a full timezone name."
+    },
+    "currency": {
+      "select": "Select a currency"
+    },
+    "notice": {
+      "converted": "Trading P&L in {currency} · saved baseline conversion rates.",
+      "editRates": "Edit rates",
+      "setupTitle": "Set up conversion to see your combined dashboard",
+      "missing": "Save conversion rates for {currencies} to use the reporting currency. Amounts below remain in their original currencies.",
+      "sources": "These accounts use {currencies}. Set your conversion rates to combine their performance.",
+      "setupCta": "Set up currency conversion"
+    },
+    "attachments": {
+      "add": "Add attachment",
+      "uploading": "Uploading…",
+      "hint": "Images or PDF · up to 8 MB each",
+      "uploadAria": "Upload attachment",
+      "failed": "Upload failed.",
+      "remove": "Remove {name}",
+      "removeConfirm": "Remove {name}?"
+    },
+    "editor": {
+      "edit": "Edit",
+      "preview": "Preview",
+      "bold": "Bold",
+      "italic": "Italic",
+      "heading": "Heading",
+      "bulletList": "Bullet list",
+      "list": "List",
+      "checklist": "Checklist",
+      "checklistShort": "Checklist",
+      "linkTrade": "Link trade",
+      "insertTemplate": "Insert template…",
+      "insertTemplateAria": "Insert note template",
+      "templatesAria": "Note templates",
+      "saveTemplate": "Save template",
+      "namePrompt": "Name this note template",
+      "placeholder": "Write your review…",
+      "findAria": "Find trade by symbol, date or account",
+      "findPlaceholder": "Search symbol, date or account",
+      "loadingTrades": "Loading trades…",
+      "noMatches": "No matching trades.",
+      "showingLatest": "Showing the latest 50 matches. Search by date or account to find older trades.",
+      "empty": "Nothing written yet.",
+      "notesAria": "Review notes",
+      "templates": {
+        "pre": "Pre-market plan",
+        "preContent": "## Market context\n\n## Setups to watch\n\n## Risk limits\n- [ ] Confirm daily risk limit\n- [ ] Check scheduled events\n\n## My intention\n",
+        "review": "Trade review",
+        "reviewContent": "## Setup and thesis\n\n## Execution\n\n## What worked\n\n## What I will change\n",
+        "weekly": "Weekly review",
+        "weeklyContent": "## Wins this week\n\n## Repeated mistakes\n\n## Rules I followed\n\n## One improvement for next week\n"
+      }
+    },
+    "duration": {
+      "belowMinute": "< 1m",
+      "minutes": "{count}m",
+      "hoursMinutes": "{hours}h {minutes}m",
+      "daysHours": "{days}d {hours}h"
+    },
+    "autosave": {
+      "saving": "Saving…",
+      "saved": "Saved",
+      "notSaved": "Not saved: {message}"
+    }
+  }
+}

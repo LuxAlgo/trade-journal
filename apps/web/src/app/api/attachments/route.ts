@@ -37,7 +37,7 @@ export const GET = handler((request: Request) => {
   const p = new URL(request.url).searchParams;
   const type = p.get("type") ?? "",
     id = p.get("id") ?? "";
-  requireValue(owner(type, id), "Attachment owner not found.");
+  requireValue(owner(type, id), "Attachment owner not found.", "attachment_owner_not_found");
   return ok({
     attachments: db
       .select({
@@ -60,7 +60,7 @@ export const POST = handler(async (request: Request) => {
   const type = String(form.get("type") ?? ""),
     ownerId = String(form.get("id") ?? ""),
     file = form.get("file");
-  requireValue(owner(type, ownerId), "Attachment owner not found.");
+  requireValue(owner(type, ownerId), "Attachment owner not found.", "attachment_owner_not_found");
   requireValue(
     file instanceof File && file.size > 0 && file.size <= MAX_ATTACHMENT_SIZE,
     "Choose a file up to 8 MB.",

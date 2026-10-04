@@ -1,4 +1,8 @@
 "use client";
+import { useLocale, useTranslations } from "next-intl";
+import { formatLocale, type Locale } from "@/i18n/config";
+import { fmtNumber, fmtPercent } from "@/lib/utils";
+import { formatApiError } from "@/lib/api-error";
 import { useApi } from "@/lib/use-api";
 import { useFilters } from "@/components/filter-bar";
 import { MonetaryValue } from "./privacy";
@@ -21,45 +25,53 @@ interface Adherence {
     broken: GroupSummary;
   }[];
 }
-const pct = (n: number | null) => (n === null ? "-" : `${Math.round(n * 100)}%`);
 export function AdherenceReport({ bookId }: { bookId: string }) {
+  const t = useTranslations("playbooks");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tErrors = useTranslations();
+  const locale = useLocale() as Locale;
+  const fmtLocale = formatLocale(locale);
+  const pct = (n: number | null) => (n === null ? "-" : fmtPercent(n, 0, fmtLocale));
   const { query } = useFilters();
-  const { data, error } = useApi<{ books: Adherence[] }>(`/api/adherence?${query}`);
+  const { data, error, errorInfo } = useApi<{ books: Adherence[] }>(`/api/adherence?${query}`);
   const b = data?.books.find((b) => b.id === bookId);
   if (error)
     return (
       <p role="alert" className="text-xs text-destructive">
-        {error}
+        {formatApiError(tErrors, errorInfo ?? error)}
       </p>
     );
   if (!b) return null;
   return (
     <div className="space-y-3 border-t pt-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">Rule adherence</span>
+        <span className="text-xs text-muted-foreground">{t("adherence.ruleAdherence")}</span>
         <strong className="text-lg">{pct(b.rate)}</strong>
       </div>
       <p className="text-xs text-muted-foreground">
-        {b.evaluated}/{b.possible} rule assessments across {b.total} filtered closed trades.{" "}
-        {b.unassessed} trades still need assessment.
+        {t("adherence.assessments", {
+          evaluated: b.evaluated,
+          possible: b.possible,
+          total: b.total,
+        })}{" "}
+        {t("adherence.unassessed", { count: b.unassessed })}
       </p>
       <div className="grid grid-cols-2 gap-3 text-xs">
-        {[
-          ["All rules followed", b.followed],
-          ["At least one broken", b.broken],
-        ].map(([title, stats]) => {
+        {(
+          [
+            ["allFollowed", b.followed],
+            ["oneBroken", b.broken],
+          ] as const
+        ).map(([messageKey, stats]) => {
           const s = stats as GroupSummary;
           return (
-            <div key={String(title)} className="rounded-md bg-muted/40 p-2">
-              <p className="mb-1 font-medium">{String(title)}</p>
-              <p>
-                {s.trades} trades · {pct(s.winRate)} win
-              </p>
+            <div key={messageKey} className="rounded-md bg-muted/40 p-2">
+              <p className="mb-1 font-medium">{t(`adherence.${messageKey}`)}</p>
+              <p>{t("adherence.tradesWin", { count: s.trades, win: pct(s.winRate) })}</p>
               {b.currencies.length <= 1 && (
                 <p className={s.netPnl >= 0 ? "text-profit" : "text-loss"}>
                   <MonetaryValue>
-                    {s.netPnl.toLocaleString(undefined, { maximumFractionDigits: 2 })}{" "}
-                    {b.currencies[0] ?? ""}
+                    {fmtNumber(s.netPnl, 2, fmtLocale)} {b.currencies[0] ?? ""}
                   </MonetaryValue>
                 </p>
               )}
@@ -68,26 +80,36 @@ export function AdherenceReport({ bookId }: { bookId: string }) {
         })}
       </div>
       {b.currencies.length > 1 && (
-        <p className="text-xs text-muted-foreground">P&L hidden for mixed currencies.</p>
+        <p className="text-xs text-muted-foreground">{t("adherence.mixedCurrencies")}</p>
       )}
       <details className="text-xs">
-        <summary className="cursor-pointer text-muted-foreground">Performance by rule</summary>
+        <summary className="cursor-pointer text-muted-foreground">
+          {t("adherence.performanceByRule")}
+        </summary>
         <div className="mt-2 space-y-3">
           {b.rules.map((r) => (
             <div key={r.rule} className="border-t pt-2">
               <p className="font-medium">{r.rule}</p>
               <p className="text-muted-foreground">
-                {pct(r.rate)} followed · {r.evaluated} assessments
+                {t("adherence.ruleRate", { rate: pct(r.rate), count: r.evaluated })}
               </p>
               <p>
-                Followed: {r.followed.trades} trades / {pct(r.followed.winRate)} win · Broken:{" "}
-                {r.broken.trades} / {pct(r.broken.winRate)} win
+                {t("adherence.ruleFollowedBroken", {
+                  followedTrades: r.followed.trades,
+                  followedWin: pct(r.followed.winRate),
+                  brokenTrades: r.broken.trades,
+                  brokenWin: pct(r.broken.winRate),
+                })}
               </p>
               {b.currencies.length <= 1 && (
                 <p>
-                  Net P&L: <MonetaryValue>{r.followed.netPnl.toFixed(2)}</MonetaryValue> followed /{" "}
-                  <MonetaryValue>{r.broken.netPnl.toFixed(2)}</MonetaryValue> broken{" "}
-                  {b.currencies[0] ?? ""}
+                  {t.rich("adherence.ruleNetPnl", {
+                    followedValue: fmtNumber(r.followed.netPnl, 2, fmtLocale),
+                    brokenValue: fmtNumber(r.broken.netPnl, 2, fmtLocale),
+                    currency: b.currencies[0] ?? "",
+                    followed: (chunks) => <MonetaryValue>{chunks}</MonetaryValue>,
+                    broken: (chunks) => <MonetaryValue>{chunks}</MonetaryValue>,
+                  })}
                 </p>
               )}
             </div>

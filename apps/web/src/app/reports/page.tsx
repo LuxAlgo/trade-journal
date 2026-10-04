@@ -3,6 +3,7 @@ import { OptionSelect } from "@/components/ui/option-select";
 
 import { HoverHint } from "@/components/ui/tooltip";
 import { Suspense, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import {
   DIMENSIONS,
@@ -19,29 +20,31 @@ import { MonetaryValue, usePrivacy } from "@/components/privacy";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { formatApiError } from "@/lib/api-error";
 import { useApi } from "@/lib/use-api";
 import { describeFilters } from "@/lib/filter-description";
-import { fmtDuration } from "@/lib/utils";
+import { fmtDurationLocalized, fmtPercent } from "@/lib/utils";
+import { formatLocale, type Locale } from "@/i18n/config";
 const TradeExplorer = dynamic(
   () => import("@/components/trade-explorer").then((module) => module.TradeExplorer),
   {
-    loading: () => (
-      <p role="status" className="py-6 text-sm text-muted-foreground">
-        Loading trade explorer…
-      </p>
-    ),
+    loading: () => <LoadingNote noteKey="loadingExplorer" />,
   },
 );
 const PerformanceTrendsReport = dynamic(
   () => import("@/components/performance-trends").then((module) => module.PerformanceTrendsReport),
   {
-    loading: () => (
-      <p role="status" className="py-6 text-sm text-muted-foreground">
-        Loading performance trends…
-      </p>
-    ),
+    loading: () => <LoadingNote noteKey="loadingTrends" />,
   },
 );
+function LoadingNote({ noteKey }: { noteKey: "loadingExplorer" | "loadingTrends" }) {
+  const t = useTranslations("reports");
+  return (
+    <p role="status" className="py-6 text-sm text-muted-foreground">
+      {t(noteKey)}
+    </p>
+  );
+}
 interface Group extends GroupSummary {
   row: string;
   column: string;
@@ -54,29 +57,42 @@ interface Analysis {
   currencies: string[];
   timeZone: string;
 }
-const number = (n: number | null) =>
-  n === null ? "-" : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-const percent = (n: number | null) => (n === null ? "-" : `${(n * 100).toFixed(1)}%`);
-const money = (n: number, currency: string) => `${number(n)} ${currency}`;
+// Server weekday keys are stable English abbreviations; this canonical order is
+// only used for sorting, display goes through the localized weekday labels.
+const WEEKDAY_ORDER = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const weekdayIndex = (key: string) => {
+  const index = WEEKDAY_ORDER.indexOf(key);
+  return index === -1 ? WEEKDAY_ORDER.length : index;
+};
 function Summary({ data }: { data: Analysis }) {
+  const t = useTranslations("reports");
+  const tControls = useTranslations("controls");
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
   const s = data.summary;
+  const number = (n: number | null) =>
+    n === null ? "-" : n.toLocaleString(tag, { maximumFractionDigits: 2 });
+  const percent = (n: number | null) => fmtPercent(n, 1, tag);
+  const money = (n: number, currency: string) => `${number(n)} ${currency}`;
   return (
     <div className="report-summary">
       <div className="report-summary-grid grid grid-cols-2 gap-4">
-        {[
-          ["Closed trades", String(s.trades)],
-          ["Net P&L", money(s.netPnl, data.currencies[0] ?? "USD")],
-          ["Win rate", percent(s.winRate)],
-          ["Profit factor", s.noLosses ? "∞" : number(s.profitFactor)],
-          ["Entry volume", number(s.volume)],
-          ["Avg holding time", fmtDuration(s.avgDurationMs)],
-          ["Avg planned R", number(s.avgPlannedR)],
-          ["Avg realized R", number(s.avgRealizedR)],
-        ].map(([label, value]) => (
-          <div key={label}>
-            <p className="text-xs text-muted-foreground">{label}</p>
+        {(
+          [
+            ["closedTrades", String(s.trades)],
+            ["netPnl", money(s.netPnl, data.currencies[0] ?? "USD")],
+            ["winRate", percent(s.winRate)],
+            ["profitFactor", s.noLosses ? "∞" : number(s.profitFactor)],
+            ["entryVolume", number(s.volume)],
+            ["avgHoldingTime", fmtDurationLocalized(s.avgDurationMs, tControls)],
+            ["avgPlannedR", number(s.avgPlannedR)],
+            ["avgRealizedR", number(s.avgRealizedR)],
+          ] as const
+        ).map(([id, value]) => (
+          <div key={id}>
+            <p className="text-xs text-muted-foreground">{t(`summary.${id}`)}</p>
             <p className="mt-1 break-words text-base font-semibold tabular-nums sm:text-lg">
-              {label === "Net P&L" ? <MonetaryValue>{value}</MonetaryValue> : value}
+              {id === "netPnl" ? <MonetaryValue>{value}</MonetaryValue> : value}
             </p>
           </div>
         ))}
@@ -93,6 +109,7 @@ function DimensionSelect({
   value: Dimension;
   onChange: (d: Dimension) => void;
 }) {
+  const t = useTranslations("reports");
   return (
     <Field label={label}>
       <OptionSelect
@@ -100,9 +117,9 @@ function DimensionSelect({
         value={value}
         onValueChange={(next) => onChange(next as Dimension)}
       >
-        {Object.entries(DIMENSIONS).map(([key, label]) => (
+        {Object.keys(DIMENSIONS).map((key) => (
           <option key={key} value={key}>
-            {label}
+            {t(`dimension.${key}`)}
           </option>
         ))}
       </OptionSelect>
@@ -129,16 +146,27 @@ function Breakdown({
   primary: Dimension;
   secondary: Dimension;
 }) {
-  const rowLabel = (k: string) => (primary === "playbook" ? labels(data, k) : k),
-    colLabel = (k: string) => (secondary === "playbook" ? labels(data, k) : k);
-  const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const t = useTranslations("reports");
+  const tControls = useTranslations("controls");
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
+  const number = (n: number | null) =>
+    n === null ? "-" : n.toLocaleString(tag, { maximumFractionDigits: 2 });
+  const percent = (n: number | null) => fmtPercent(n, 1, tag);
+  const money = (n: number, currency: string) => `${number(n)} ${currency}`;
+  // Playbook rows show playbook names; weekday rows show localized day names;
+  // every other dimension key is already display-ready text.
+  const displayKey = (dimension: Dimension, k: string) =>
+    dimension === "playbook" ? labels(data, k) : dimension === "weekday" ? t(`weekday.${k}`) : k;
+  const rowLabel = (k: string) => displayKey(primary, k),
+    colLabel = (k: string) => displayKey(secondary, k);
   const rows = [...new Set(data.groups.map((g) => g.row))],
     columns = [...new Set(data.groups.map((g) => g.column))].sort((a, b) =>
       secondary === "weekday"
-        ? weekdays.indexOf(a) - weekdays.indexOf(b)
+        ? weekdayIndex(a) - weekdayIndex(b)
         : a.localeCompare(b, undefined, { numeric: true }),
     );
-  if (primary === "weekday") rows.sort((a, b) => weekdays.indexOf(a) - weekdays.indexOf(b));
+  if (primary === "weekday") rows.sort((a, b) => weekdayIndex(a) - weekdayIndex(b));
   const max = data.groups.reduce((max, g) => Math.max(max, Math.abs(g.netPnl)), 1);
   const cells = new Map(data.groups.map((g) => [JSON.stringify([g.row, g.column]), g]));
   return (
@@ -149,7 +177,7 @@ function Breakdown({
             <thead>
               <tr>
                 <th className="p-3 text-left">
-                  {DIMENSIONS[primary]} / {DIMENSIONS[secondary]}
+                  {t(`dimension.${primary}`)} / {t(`dimension.${secondary}`)}
                 </th>
                 {columns.map((c) => (
                   <th key={c} className="min-w-24 p-2">
@@ -170,7 +198,9 @@ function Breakdown({
                       <HoverHint
                         key={c}
                         content={
-                          g ? `${g.trades} trades · Win rate ${percent(g.winRate)}` : "No trades"
+                          g
+                            ? t("cellTooltip", { trades: g.trades, percent: percent(g.winRate) })
+                            : t("noTrades")
                         }
                       >
                         <td
@@ -193,7 +223,7 @@ function Breakdown({
             </tbody>
           </table>
           <p className="mt-2 text-xs text-muted-foreground">
-            Cell values are net P&L in {data.currencies[0] ?? "account currency"}.
+            {t("cellNote", { currency: data.currencies[0] ?? t("accountCurrency") })}
           </p>
         </div>
       )}
@@ -202,15 +232,15 @@ function Breakdown({
           <thead className="text-xs text-muted-foreground">
             <tr>
               {[
-                DIMENSIONS[primary],
-                ...(cross ? [DIMENSIONS[secondary]] : []),
-                "Trades",
-                "Win %",
-                "Net P&L",
-                "Entry volume",
-                "Avg planned R",
-                "Avg realized R",
-                "Avg duration",
+                t(`dimension.${primary}`),
+                ...(cross ? [t(`dimension.${secondary}`)] : []),
+                t("th.trades"),
+                t("th.winPct"),
+                t("th.netPnl"),
+                t("th.entryVolume"),
+                t("th.avgPlannedR"),
+                t("th.avgRealizedR"),
+                t("th.avgDuration"),
               ].map((h) => (
                 <th key={h} className="whitespace-nowrap border-b px-3 py-3 text-left font-medium">
                   {h}
@@ -242,16 +272,16 @@ function Breakdown({
                 <td className="px-3">{number(g.volume)}</td>
                 <td className="px-3">{number(g.avgPlannedR)}</td>
                 <td className="px-3">{number(g.avgRealizedR)}</td>
-                <td className="whitespace-nowrap px-3">{fmtDuration(g.avgDurationMs)}</td>
+                <td className="whitespace-nowrap px-3">
+                  {fmtDurationLocalized(g.avgDurationMs, tControls)}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       {!data.groups.length && (
-        <p className="py-12 text-center text-sm text-muted-foreground">
-          No closed trades match these filters.
-        </p>
+        <p className="py-12 text-center text-sm text-muted-foreground">{t("noTradesMatch")}</p>
       )}
     </div>
   );
@@ -264,44 +294,48 @@ export default function ReportsPage() {
   );
 }
 function Reports() {
+  const t = useTranslations("reports");
+  const tControls = useTranslations("controls");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tRoot = useTranslations();
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
   const { query, values } = useFilters();
   const [mode, setMode] = useState<
       "overview" | "trends" | "explorer" | "breakdown" | "cross" | "compare"
     >("overview"),
     [primary, setPrimary] = useState<Dimension>("symbol"),
     [secondary, setSecondary] = useState<Dimension>("weekday");
-  const { data, error, loading } = useApi<Analysis>(
+  const { data, error, errorInfo, loading } = useApi<Analysis>(
     mode === "breakdown" || mode === "cross"
       ? `/api/analysis?${query}&primary=${primary}${mode === "cross" ? `&secondary=${secondary}` : ""}`
       : null,
   );
   const multi = (data?.currencies.length ?? 0) > 1;
+  const number = (n: number | null) =>
+    n === null ? "-" : n.toLocaleString(tag, { maximumFractionDigits: 2 });
+  const percent = (n: number | null) => fmtPercent(n, 1, tag);
+  const displayKey = (d: Analysis, dimension: Dimension, k: string) =>
+    dimension === "playbook" ? labels(d, k) : dimension === "weekday" ? t(`weekday.${k}`) : k;
   return (
     <div>
-      <FilterBar title="Reports" />
+      <FilterBar title={t("title")} />
       <div className="space-y-4 p-4">
         <AskJournal />
         <div className="flex flex-wrap items-center gap-2">
-          {(
-            [
-              ["overview", "Overview"],
-              ["trends", "Performance trends"],
-              ["explorer", "Trade explorer"],
-              ["breakdown", "Breakdowns"],
-              ["cross", "Cross-analysis"],
-              ["compare", "Compare groups"],
-            ] as const
-          ).map(([key, name]) => (
-            <Button
-              key={key}
-              size="sm"
-              variant={mode === key ? "default" : "outline"}
-              aria-pressed={mode === key}
-              onClick={() => setMode(key)}
-            >
-              {name}
-            </Button>
-          ))}
+          {(["overview", "trends", "explorer", "breakdown", "cross", "compare"] as const).map(
+            (key) => (
+              <Button
+                key={key}
+                size="sm"
+                variant={mode === key ? "default" : "outline"}
+                aria-pressed={mode === key}
+                onClick={() => setMode(key)}
+              >
+                {t(`mode.${key}`)}
+              </Button>
+            ),
+          )}
         </div>
         <div key={mode} className="journal-report-section space-y-4" data-report-section={mode}>
           {mode === "overview" ? (
@@ -318,10 +352,10 @@ function Reports() {
                 <CardHeader>
                   <div className="flex flex-wrap items-end justify-between gap-4">
                     <div className="flex flex-wrap gap-3">
-                      <DimensionSelect label="Group by" value={primary} onChange={setPrimary} />
+                      <DimensionSelect label={t("groupBy")} value={primary} onChange={setPrimary} />
                       {mode === "cross" && (
                         <DimensionSelect
-                          label="Then by"
+                          label={t("thenBy")}
                           value={secondary}
                           onChange={setSecondary}
                         />
@@ -333,16 +367,36 @@ function Reports() {
                         document={{
                           title:
                             mode === "cross"
-                              ? `${DIMENSIONS[primary]} by ${DIMENSIONS[secondary]}`
-                              : `${DIMENSIONS[primary]} performance`,
-                          subtitle: `${data.timeZone} · ${data.currencies[0] ?? "Account currency"}`,
+                              ? t("exportCrossTitle", {
+                                  primary: t(`dimension.${primary}`),
+                                  secondary: t(`dimension.${secondary}`),
+                                })
+                              : t("exportDimensionTitle", { dimension: t(`dimension.${primary}`) }),
+                          subtitle: t("exportSubtitle", {
+                            timeZone: data.timeZone,
+                            currency: data.currencies[0] ?? t("accountCurrencyTitle"),
+                          }),
                           lines: [
-                            `Filters: ${describeFilters(values, data.accounts, data.playbooks)}`,
-                            `Closed trades: ${data.summary.trades} | Net P&L: ${number(data.summary.netPnl)} | Win rate: ${percent(data.summary.winRate)}`,
+                            t("exportFilters", {
+                              filters: describeFilters(values, data.accounts, data.playbooks),
+                            }),
+                            t("exportSummary", {
+                              trades: data.summary.trades,
+                              pnl: number(data.summary.netPnl),
+                              winRate: percent(data.summary.winRate),
+                            }),
                             "",
-                            ...data.groups.map(
-                              (g) =>
-                                `${labels(data, g.row)}${g.column ? ` / ${labels(data, g.column)}` : ""}: ${g.trades} trades | P&L ${number(g.netPnl)} | Win ${percent(g.winRate)} | Planned ${number(g.avgPlannedR)}R | Realized ${number(g.avgRealizedR)}R | Volume ${number(g.volume)} | Holding time ${fmtDuration(g.avgDurationMs)}`,
+                            ...data.groups.map((g) =>
+                              t("exportGroupLine", {
+                                group: `${displayKey(data, primary, g.row)}${g.column ? ` / ${displayKey(data, secondary, g.column)}` : ""}`,
+                                trades: g.trades,
+                                pnl: number(g.netPnl),
+                                win: percent(g.winRate),
+                                planned: number(g.avgPlannedR),
+                                realized: number(g.avgRealizedR),
+                                volume: number(g.volume),
+                                duration: fmtDurationLocalized(g.avgDurationMs, tControls),
+                              }),
                             ),
                           ],
                         }}
@@ -353,14 +407,15 @@ function Reports() {
                 <CardContent>
                   {error ? (
                     <p role="alert" className="text-destructive">
-                      {error}
+                      {formatApiError(tRoot, errorInfo ?? error)}
                     </p>
                   ) : loading ? (
-                    <p className="text-sm text-muted-foreground">Loading report…</p>
+                    <p className="text-sm text-muted-foreground">{t("loadingReport")}</p>
                   ) : multi ? (
                     <p className="text-sm">
-                      These accounts use different currencies ({data?.currencies.join(", ")}).
-                      Select accounts with the same currency in Filters to compare monetary results.
+                      {t("multiCurrency", {
+                        currencies: data ? data.currencies.join(", ") : "",
+                      })}
                     </p>
                   ) : data ? (
                     <Summary data={data} />
@@ -372,8 +427,11 @@ function Reports() {
                   <CardHeader>
                     <CardTitle>
                       {mode === "cross"
-                        ? `${DIMENSIONS[primary]} × ${DIMENSIONS[secondary]}`
-                        : `Performance by ${DIMENSIONS[primary].toLowerCase()}`}
+                        ? t("crossTitle", {
+                            primary: t(`dimension.${primary}`),
+                            secondary: t(`dimension.${secondary}`),
+                          })
+                        : t("byTitle", { dimension: t(`dimension.${primary}`).toLowerCase() })}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -387,12 +445,7 @@ function Reports() {
                 </Card>
               )}
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Closed trades only. Dates use the closing day; weekday and entry time use the
-                opening time in {data?.timeZone ?? "your journal timezone"}. Volume is total entry
-                quantity. R uses weighted entry and total entry quantity; missing or invalid risk
-                inputs are excluded from R averages. Derivatives require a configured multiplier for
-                realized R. Multiple tags or mistakes can place a trade in more than one group, so
-                those group totals can overlap.
+                {t("footnote", { timeZone: data?.timeZone ?? t("journalTimezone") })}
               </p>
             </>
           )}
@@ -402,31 +455,46 @@ function Reports() {
   );
 }
 function Comparison({ initial }: { initial: AnalysisFilters }) {
+  const t = useTranslations("reports");
+  const tControls = useTranslations("controls");
+  // Root-level translator: formatApiError looks up "errors.<code>" itself.
+  const tRoot = useTranslations();
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
   const privateMode = usePrivacy();
   const [a, setA] = useState<AnalysisFilters>({ ...initial, direction: "long" }),
     [b, setB] = useState<AnalysisFilters>({ ...initial, direction: "short" }),
-    [nameA, setNameA] = useState("Long trades"),
-    [nameB, setNameB] = useState("Short trades"),
+    [nameA, setNameA] = useState(t("compare.longTrades")),
+    [nameB, setNameB] = useState(t("compare.shortTrades")),
     [editing, setEditing] = useState<"a" | "b" | null>(null),
     [draft, setDraft] = useState<AnalysisFilters>({});
   const aa = useApi<Analysis>(`/api/analysis?${new URLSearchParams(a).toString()}`),
     bb = useApi<Analysis>(`/api/analysis?${new URLSearchParams(b).toString()}`);
   const currencies = new Set([...(aa.data?.currencies ?? []), ...(bb.data?.currencies ?? [])]),
     multi = currencies.size > 1;
+  const number = (n: number | null) =>
+    n === null ? "-" : n.toLocaleString(tag, { maximumFractionDigits: 2 });
+  const percent = (n: number | null) => fmtPercent(n, 1, tag);
+  const money = (n: number, currency: string) => `${number(n)} ${currency}`;
   const metricLines = (name: string, d: Analysis) => [
     name,
-    `Trades: ${d.summary.trades} | P&L: ${number(d.summary.netPnl)} ${d.currencies[0] ?? ""}`,
-    `Win rate: ${percent(d.summary.winRate)} | Planned R: ${number(d.summary.avgPlannedR)} | Realized R: ${number(d.summary.avgRealizedR)}`,
+    t("compare.exportMetricTrades", {
+      trades: d.summary.trades,
+      pnl: number(d.summary.netPnl),
+      currency: d.currencies[0] ?? "",
+    }),
+    t("compare.exportMetricRates", {
+      winRate: percent(d.summary.winRate),
+      planned: number(d.summary.avgPlannedR),
+      realized: number(d.summary.avgRealizedR),
+    }),
   ];
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Each group has its own filters. Compare strategies, accounts, periods, or trade
-        characteristics. Groups may overlap.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("compare.intro")}</p>
       {multi && (
         <p role="alert" className="rounded-md border p-3 text-sm">
-          Select accounts with the same currency in both groups. Currency conversion is not applied.
+          {t("compare.currencyWarning")}
         </p>
       )}
       <div className="grid gap-4 lg:grid-cols-2">
@@ -440,10 +508,12 @@ function Comparison({ initial }: { initial: AnalysisFilters }) {
             <CardHeader>
               <div className="flex flex-wrap items-center gap-3">
                 <input
-                  aria-label={`Group ${group.key.toUpperCase()} name`}
+                  aria-label={t("compare.nameAria", { group: group.key.toUpperCase() })}
                   className={`${fieldClass} min-w-32 flex-1 font-semibold`}
                   value={group.name}
-                  onChange={(e) => group.setName(e.target.value)}
+                  onChange={(e) =>
+                    group.key === "a" ? setNameA(e.target.value) : setNameB(e.target.value)
+                  }
                 />
                 <Button
                   size="sm"
@@ -453,7 +523,7 @@ function Comparison({ initial }: { initial: AnalysisFilters }) {
                     setEditing(group.key);
                   }}
                 >
-                  Edit filters
+                  {t("compare.editFilters")}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground break-words">
@@ -468,10 +538,10 @@ function Comparison({ initial }: { initial: AnalysisFilters }) {
             <CardContent>
               {group.result.error ? (
                 <p role="alert" className="text-destructive">
-                  {group.result.error}
+                  {formatApiError(tRoot, group.result.errorInfo ?? group.result.error)}
                 </p>
               ) : group.result.loading ? (
-                <p>Loading…</p>
+                <p>{t("loading")}</p>
               ) : group.result.data && !multi ? (
                 <Summary data={group.result.data} />
               ) : null}
@@ -483,24 +553,32 @@ function Comparison({ initial }: { initial: AnalysisFilters }) {
         <Card>
           <CardContent className="space-y-4 pt-5">
             <p className="text-sm">
-              {nameB} minus {nameA}:{" "}
-              <strong>
-                <MonetaryValue>
-                  {money(
-                    bb.data.summary.netPnl - aa.data.summary.netPnl,
-                    [...currencies][0] ?? "USD",
-                  )}
-                </MonetaryValue>
-              </strong>{" "}
-              net P&L · {number(bb.data.summary.trades - aa.data.summary.trades)} trades
+              {t.rich("compare.difference", {
+                b: nameB,
+                a: nameA,
+                amount: money(
+                  bb.data.summary.netPnl - aa.data.summary.netPnl,
+                  [...currencies][0] ?? "USD",
+                ),
+                trades: number(bb.data.summary.trades - aa.data.summary.trades),
+                strong: (chunks) => (
+                  <strong>
+                    <MonetaryValue>{chunks}</MonetaryValue>
+                  </strong>
+                ),
+              })}
             </p>
             <ReviewExport
               containsFinancialData
               document={{
-                title: `${nameA} vs ${nameB}`,
+                title: t("compare.exportTitle", { a: nameA, b: nameB }),
                 lines: [
-                  `Group A: ${describeFilters(a, aa.data.accounts, aa.data.playbooks)}`,
-                  `Group B: ${describeFilters(b, bb.data.accounts, bb.data.playbooks)}`,
+                  t("compare.exportGroupA", {
+                    filters: describeFilters(a, aa.data.accounts, aa.data.playbooks),
+                  }),
+                  t("compare.exportGroupB", {
+                    filters: describeFilters(b, bb.data.accounts, bb.data.playbooks),
+                  }),
                   "",
                   ...metricLines(nameA, aa.data),
                   "",
@@ -519,12 +597,14 @@ function Comparison({ initial }: { initial: AnalysisFilters }) {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Group {editing?.toUpperCase()} filters</DialogTitle>
+            <DialogTitle>
+              {t("compare.groupFiltersTitle", { group: editing?.toUpperCase() ?? "" })}
+            </DialogTitle>
           </DialogHeader>
           <FilterFields value={draft} onChange={setDraft} />
           <div className="flex justify-between">
             <Button variant="ghost" onClick={() => setDraft({})}>
-              Clear
+              {tControls("clear")}
             </Button>
             <Button
               onClick={() => {
@@ -533,7 +613,7 @@ function Comparison({ initial }: { initial: AnalysisFilters }) {
                 setEditing(null);
               }}
             >
-              Apply to group
+              {t("compare.applyToGroup")}
             </Button>
           </div>
         </DialogContent>

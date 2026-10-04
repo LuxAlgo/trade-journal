@@ -2,7 +2,9 @@
 
 import { useMemo, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useLocale, useTranslations } from "next-intl";
 import type { EChartsOption } from "echarts";
+import { formatLocale, type Locale } from "@/i18n/config";
 import { fmtMoney, fmtNumber } from "@/lib/utils";
 import { usePrivacy } from "../privacy";
 import { useVizTokens } from "./tokens";
@@ -19,6 +21,10 @@ export interface HourBucket {
  * Time-of-day performance (ECharts — the heavy plot). Two aligned rows:
  * P&L per opening hour as diverging columns, trade count as a muted line.
  * One value axis per pane — never dual-axis on one grid.
+ *
+ * The option is rebuilt whenever the interface locale changes (axis names,
+ * series names and tooltip formatters all live inside it), and the EChart is
+ * re-keyed on locale so no stale tooltip text survives a language switch.
  */
 export function TimeHeatmap({
   hours,
@@ -29,7 +35,10 @@ export function TimeHeatmap({
   height?: number;
   currency?: string;
 }) {
-  const t = useVizTokens();
+  const t = useTranslations("charts");
+  const locale = useLocale();
+  const tag = formatLocale(locale as Locale);
+  const viz = useVizTokens();
   const privateMode = usePrivacy();
   const host = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -52,8 +61,9 @@ export function TimeHeatmap({
     return () => observer.disconnect();
   }, []);
   const option = useMemo<EChartsOption | null>(() => {
-    if (!t) return null;
+    if (!viz) return null;
     const categories = hours.map((h) => `${h.key}:00`);
+    const pnlAxisName = privateMode ? t("pnlAxisHidden") : t("pnlAxis", { currency });
     return {
       backgroundColor: "transparent",
       grid: [
@@ -63,13 +73,13 @@ export function TimeHeatmap({
       tooltip: {
         confine: true,
         trigger: "axis",
-        backgroundColor: t.card,
-        borderColor: t.border,
+        backgroundColor: viz.card,
+        borderColor: viz.border,
         borderWidth: 1,
         padding: [12, 14],
         extraCssText:
           "border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.1);line-height:1.6;",
-        textStyle: { color: t.foreground, fontSize: 13 },
+        textStyle: { color: viz.foreground, fontSize: 13 },
       },
       axisPointer: { link: [{ xAxisIndex: "all" }] },
       xAxis: [
@@ -77,7 +87,7 @@ export function TimeHeatmap({
           type: "category",
           data: categories,
           gridIndex: 0,
-          axisLine: { lineStyle: { color: t.baseline } },
+          axisLine: { lineStyle: { color: viz.baseline } },
           axisLabel: { show: false },
           axisTick: { show: false },
         },
@@ -85,8 +95,8 @@ export function TimeHeatmap({
           type: "category",
           data: categories,
           gridIndex: 1,
-          axisLine: { lineStyle: { color: t.baseline } },
-          axisLabel: { color: t.inkMuted, fontSize: 11 },
+          axisLine: { lineStyle: { color: viz.baseline } },
+          axisLabel: { color: viz.inkMuted, fontSize: 11 },
           axisTick: { show: false },
         },
       ],
@@ -94,37 +104,38 @@ export function TimeHeatmap({
         {
           type: "value",
           gridIndex: 0,
-          name: privateMode ? "Net P&L (hidden)" : `Net P&L (${currency})`,
-          nameTextStyle: { color: t.inkMuted, fontSize: 11 },
-          splitLine: { lineStyle: { color: t.gridline } },
+          name: pnlAxisName,
+          nameTextStyle: { color: viz.inkMuted, fontSize: 11 },
+          splitLine: { lineStyle: { color: viz.gridline } },
           axisLabel: {
-            color: t.inkMuted,
+            color: viz.inkMuted,
             fontSize: 11,
-            formatter: (value: number) => (privateMode ? "••••" : fmtNumber(value, 0)),
+            formatter: (value: number) => (privateMode ? "••••" : fmtNumber(value, 0, tag)),
           },
         },
         {
           type: "value",
           gridIndex: 1,
-          name: "Trades",
-          nameTextStyle: { color: t.inkMuted, fontSize: 11 },
+          name: t("seriesTrades"),
+          nameTextStyle: { color: viz.inkMuted, fontSize: 11 },
           splitLine: { show: false },
-          axisLabel: { color: t.inkMuted, fontSize: 11 },
+          axisLabel: { color: viz.inkMuted, fontSize: 11 },
         },
       ],
       series: [
         {
           type: "bar",
-          name: "Net P&L",
+          name: t("seriesNetPnl"),
           tooltip: {
-            valueFormatter: (value) => (privateMode ? "Hidden" : fmtMoney(Number(value), currency)),
+            valueFormatter: (value) =>
+              privateMode ? t("hidden") : fmtMoney(Number(value), currency, tag),
           },
           xAxisIndex: 0,
           yAxisIndex: 0,
           data: hours.map((h) => ({
             value: h.netPnl,
             itemStyle: {
-              color: h.netPnl >= 0 ? t.profitFill : t.loss,
+              color: h.netPnl >= 0 ? viz.profitFill : viz.loss,
               borderRadius: h.netPnl >= 0 ? [4, 4, 0, 0] : [0, 0, 4, 4],
             },
           })),
@@ -132,22 +143,24 @@ export function TimeHeatmap({
         },
         {
           type: "line",
-          name: "Trades",
-          tooltip: { valueFormatter: (value) => fmtNumber(Number(value), 0) },
+          name: t("seriesTrades"),
+          tooltip: { valueFormatter: (value) => fmtNumber(Number(value), 0, tag) },
           xAxisIndex: 1,
           yAxisIndex: 1,
           data: hours.map((h) => h.trades),
-          lineStyle: { color: t.inkMuted, width: 2 },
-          itemStyle: { color: t.inkMuted },
+          lineStyle: { color: viz.inkMuted, width: 2 },
+          itemStyle: { color: viz.inkMuted },
           symbolSize: 6,
         },
       ],
     };
-  }, [hours, t, privateMode, currency]);
+  }, [hours, viz, privateMode, currency, tag, t]);
 
   return (
     <div ref={host} style={{ height }}>
-      {visible && option && <EChart key={String(privateMode)} option={option} height={height} />}
+      {visible && option && (
+        <EChart key={`${privateMode}:${tag}`} option={option} height={height} />
+      )}
     </div>
   );
 }

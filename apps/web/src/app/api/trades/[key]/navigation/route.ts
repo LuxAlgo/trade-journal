@@ -6,7 +6,7 @@ export const GET = handler(
   async (request: Request, { params }: { params: Promise<{ key: string }> }) => {
     const { key } = await params;
     const row = getTradeByKey(key);
-    if (!row) return bad("Trade not found", 404);
+    if (!row) return bad("Trade not found", 404, "trade_not_found");
     const search = new URL(request.url).searchParams;
     return ok(
       getAdjacentTradeKeys(

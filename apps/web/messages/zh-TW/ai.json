@@ -1,0 +1,85 @@
+{
+  "ai": {
+    "scope": {
+      "allAccounts": "全部帳戶"
+    },
+    "recapInstruction": "以第一人稱（「我」）為 {date} 撰寫複盤摘要，120-200 字，使用 markdown，結尾提供簡短的「**保持**」與「**改進**」兩組清單。",
+    "recap": {
+      "button": "AI 複盤摘要",
+      "writing": "產生中…"
+    },
+    "ask": {
+      "title": "向交易日誌提問",
+      "hint": "使用所選帳戶與日誌篩選條件。變更篩選條件會清除回答。",
+      "inputAriaLabel": "向交易日誌提出問題",
+      "placeholder": "為什麼我週一的做空總是失敗？",
+      "thinking": "思考中…",
+      "submit": "提問",
+      "suggestionMistake": "我最昂貴的錯誤是什麼？",
+      "suggestionWeekday": "我應該在週幾停止交易？",
+      "suggestionDirection": "我更擅長做多還是做空？"
+    },
+    "tryAgain": "重試",
+    "dismiss": "關閉 AI 通知",
+    "action": {
+      "setUp": "設定 AI",
+      "reviewSettings": "檢查 AI 設定",
+      "importTrades": "匯入交易",
+      "signIn": "登入"
+    },
+    "feedback": {
+      "noMatchingTrades": {
+        "title": "沒有符合的交易",
+        "description": "目前選擇中沒有可供分析的交易。請調整帳戶、日期或其他日誌篩選條件。"
+      },
+      "checkFilters": {
+        "title": "檢查日誌篩選條件",
+        "description": "所選範圍已失效。請先更新帳戶與篩選條件，再重試。"
+      },
+      "refreshJournal": {
+        "title": "重新整理交易日誌",
+        "description": "日誌時區已變更。請重新整理本頁面，讓顯示日期與 AI 分析保持一致。"
+      },
+      "setUpAi": {
+        "title": "先設定 AI 再繼續",
+        "description": "在設定中連結 Anthropic 或 OpenAI API 金鑰，即可提問、產生複盤摘要並複盤交易。"
+      },
+      "checkConnection": {
+        "title": "檢查 AI 連線",
+        "description": "AI 服務商無法驗證你的金鑰或權限。請在設定中檢查後再試。"
+      },
+      "billing": {
+        "title": "AI 帳戶需要處理",
+        "description": "請檢查 AI 服務商帳戶的帳單、餘額或配額，然後再試一次。"
+      },
+      "checkModel": {
+        "title": "檢查 AI 模型",
+        "description": "請在設定中檢查模型 ID 與你的服務商帳戶存取權限。"
+      },
+      "rateLimit": {
+        "title": "AI 目前繁忙",
+        "description": "請稍候再試。你的日誌資料沒有變更。"
+      },
+      "emptyJournal": {
+        "title": "先新增交易再開始",
+        "description": "AI 洞察來自你的日誌歷史。先匯入交易，再重新提問。"
+      },
+      "noRecap": {
+        "title": "當天還沒有可複盤的交易",
+        "description": "產生複盤摘要需要當天至少一筆已平倉交易。你仍然可以撰寫自己的當日筆記。"
+      },
+      "signIn": {
+        "title": "請重新登入",
+        "description": "你的工作階段可能已過期。請登入後繼續使用交易日誌。"
+      },
+      "connection": {
+        "title": "無法連線 AI",
+        "description": "請檢查網路連線後再試。你的日誌資料沒有變更。"
+      },
+      "fallback": {
+        "title": "無法完成 AI 請求",
+        "description": "請稍後重試。如果持續失敗，請檢查你的 AI 設定。"
+      }
+    }
+  }
+}

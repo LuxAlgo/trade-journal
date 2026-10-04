@@ -1,0 +1,85 @@
+{
+  "ai": {
+    "scope": {
+      "allAccounts": "全部账户"
+    },
+    "recapInstruction": "以第一人称（「我」）为 {date} 写一篇复盘摘要，120-200 字，使用 markdown，结尾给出简短的「**保持**」与「**改进**」两组列表。",
+    "recap": {
+      "button": "AI 复盘摘要",
+      "writing": "生成中…"
+    },
+    "ask": {
+      "title": "向交易日志提问",
+      "hint": "使用所选账户和日志筛选条件。更改筛选条件会清除回答。",
+      "inputAriaLabel": "向交易日志提出问题",
+      "placeholder": "为什么我周一的做空总是失败？",
+      "thinking": "思考中…",
+      "submit": "提问",
+      "suggestionMistake": "我最昂贵的错误是什么？",
+      "suggestionWeekday": "我应该在周几停止交易？",
+      "suggestionDirection": "我更擅长做多还是做空？"
+    },
+    "tryAgain": "重试",
+    "dismiss": "关闭 AI 提示",
+    "action": {
+      "setUp": "设置 AI",
+      "reviewSettings": "检查 AI 设置",
+      "importTrades": "导入交易",
+      "signIn": "登录"
+    },
+    "feedback": {
+      "noMatchingTrades": {
+        "title": "没有匹配的交易",
+        "description": "当前选择中没有可供分析的交易。请调整账户、日期或其他日志筛选条件。"
+      },
+      "checkFilters": {
+        "title": "检查日志筛选条件",
+        "description": "所选范围已失效。请先更新账户和筛选条件，再重试。"
+      },
+      "refreshJournal": {
+        "title": "刷新交易日志",
+        "description": "日志时区已更改。请刷新本页面，使显示日期与 AI 分析保持一致。"
+      },
+      "setUpAi": {
+        "title": "先设置 AI 再继续",
+        "description": "在设置中连接 Anthropic 或 OpenAI API 密钥，即可提问、生成复盘摘要并复盘交易。"
+      },
+      "checkConnection": {
+        "title": "检查 AI 连接",
+        "description": "AI 服务商无法验证你的密钥或权限。请在设置中检查后重试。"
+      },
+      "billing": {
+        "title": "AI 账户需要处理",
+        "description": "请检查 AI 服务商账户的账单、余额或配额，然后再试。"
+      },
+      "checkModel": {
+        "title": "检查 AI 模型",
+        "description": "请在设置中检查模型 ID 和你的服务商账户访问权限。"
+      },
+      "rateLimit": {
+        "title": "AI 暂时繁忙",
+        "description": "请稍候再试。你的日志数据没有变化。"
+      },
+      "emptyJournal": {
+        "title": "先添加交易再开始",
+        "description": "AI 洞察基于你的日志历史。先导入交易，再重新提问。"
+      },
+      "noRecap": {
+        "title": "当天还没有可复盘的交易",
+        "description": "生成复盘摘要需要当天至少一笔已平仓交易。你仍然可以撰写自己的当日笔记。"
+      },
+      "signIn": {
+        "title": "请重新登录",
+        "description": "你的会话可能已过期。请登录后继续使用交易日志。"
+      },
+      "connection": {
+        "title": "无法连接 AI",
+        "description": "请检查网络连接后重试。你的日志数据没有变化。"
+      },
+      "fallback": {
+        "title": "无法完成 AI 请求",
+        "description": "请稍后重试。如果持续失败，请检查你的 AI 设置。"
+      }
+    }
+  }
+}

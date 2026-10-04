@@ -1,7 +1,13 @@
 import { hasHeaders, parseCsv, pick, toRecords, type Row } from "../csv";
 import { parseTimestamp, parseDateAndTime } from "../dates";
 import { parseMoney, parseQuantity } from "../numbers";
-import type { ImportFormat, ImportOptions, ImportedExecution, ParsedImport } from "../types";
+import type {
+  ImportDiagnostic,
+  ImportFormat,
+  ImportOptions,
+  ImportedExecution,
+  ParsedImport,
+} from "../types";
 import { parsePositionAction, positionGroup } from "../position-fills";
 
 export interface FillsColumnMap {
@@ -60,6 +66,9 @@ export const rowsToFills = (
   const executions: ImportedExecution[] = [];
   let skippedRows = 0;
   const errors: string[] = [];
+  const diagnostics: ImportDiagnostic[] = [];
+  const note = (code: string, params?: Record<string, string | number>) =>
+    diagnostics.push({ code, ...(params ? { params } : {}) });
   const activeRows = records.filter((row) => !spec.rowFilter || spec.rowFilter(row));
   const action = (row: Row) =>
     spec.positionActions ? parsePositionAction(pick(row, columns.side)) : undefined;
@@ -86,10 +95,12 @@ export const rowsToFills = (
         ? "buy"
         : "sell"
       : parseSide(pick(row, columns.side));
-    if (!position && positionSymbols.has(symbol))
+    if (!position && positionSymbols.has(symbol)) {
       errors.push(
         `${symbol}: this file mixes Open/Close position labels with other actions. Export explicit Open/Close Long/Short labels for every fill of this contract.`,
       );
+      note("mixed_position_labels", { symbol });
+    }
     const quantity = parseQuantity(pick(row, columns.quantity));
     const price = parseMoney(pick(row, columns.price));
     // Try the single timestamp column first; fall back to separate date+time
@@ -114,10 +125,12 @@ export const rowsToFills = (
       !Number.isFinite(price)
     ) {
       skippedRows++;
-      if (position)
+      if (position) {
         errors.push(
           `${symbol || "Position row"}: an Open/Close fill needs a symbol, positive quantity, price and valid timestamp.`,
         );
+        note("invalid_position_fill", { symbol });
+      }
       continue;
     }
 
@@ -129,10 +142,12 @@ export const rowsToFills = (
     const fill: ImportedExecution = { symbol, side, quantity, price, fee, executedAt };
     if (position) {
       const contract = optional(row, columns.contract ?? ["contract", "contractname"]);
-      if (contract.present && (!contract.value || contract.value.length > 500))
+      if (contract.present && (!contract.value || contract.value.length > 500)) {
         errors.push(
           `${symbol}: Contract must be present on every position row and no longer than 500 characters.`,
         );
+        note("position_field_invalid", { symbol, field: "contract" });
+      }
       if (contract.value) position.contract = contract.value.trim().toUpperCase();
       const positionId = optional(row, columns.positionId ?? ["positionid"]);
       const executionId = optional(row, columns.executionId ?? ["executionid", "fillid"]);
@@ -144,24 +159,35 @@ export const rowsToFills = (
         ["Position ID", positionId],
         ["Execution ID", executionId],
       ] as const)
-        if (field.present && (!field.value || field.value.length > 500))
+        if (field.present && (!field.value || field.value.length > 500)) {
           errors.push(
             `${symbol}: ${label} must be present on every position row and no longer than 500 characters.`,
           );
+          note("position_field_invalid", {
+            symbol,
+            field: label === "Position ID" ? "position_id" : "execution_id",
+          });
+        }
       if (positionId.value) position.positionId = positionId.value;
       if (executionId.value) position.executionId = executionId.value;
       if (sequence.present) {
         const value = Number(sequence.value);
-        if (!sequence.value || !/^\d+$/.test(sequence.value) || !Number.isSafeInteger(value))
+        if (!sequence.value || !/^\d+$/.test(sequence.value) || !Number.isSafeInteger(value)) {
           errors.push(
             `${symbol}: Sequence must be a non-negative whole number on every position row.`,
           );
-        else position.sequence = value;
+          note("position_field_invalid", { symbol, field: "sequence" });
+        } else position.sequence = value;
       }
       const feeValues = (columns.fees ?? []).map((aliases) => pick(row, aliases));
-      if (feeValues.some((value) => value !== undefined && !Number.isFinite(parseMoney(value))))
+      if (feeValues.some((value) => value !== undefined && !Number.isFinite(parseMoney(value)))) {
         errors.push(`${symbol}: invalid fee on an Open/Close fill.`);
-      if (!Number.isFinite(fee)) errors.push(`${symbol}: total fees are too large.`);
+        note("position_field_invalid", { symbol, field: "fee" });
+      }
+      if (!Number.isFinite(fee)) {
+        errors.push(`${symbol}: total fees are too large.`);
+        note("position_field_invalid", { symbol, field: "fee" });
+      }
       fill.importMetadata = {
         id: position.executionId ? `execution:${position.executionId}` : position.effect,
         group: positionGroup(position),
@@ -174,10 +200,13 @@ export const rowsToFills = (
     }
     executions.push(fill);
   }
-  if (sourceAccounts.size > 1)
+  if (sourceAccounts.size > 1) {
     errors.push(
       "These position rows contain multiple source accounts. Export and import one account at a time.",
     );
+    note("multiple_source_accounts", { count: sourceAccounts.size });
+  }
+  if (positionSymbols.size) note("position_labels_used");
   return {
     executions,
     skippedRows,
@@ -187,6 +216,13 @@ export const rowsToFills = (
         ]
       : [],
     ...(errors.length ? { errors: [...new Set(errors)] } : {}),
+    ...(diagnostics.length
+      ? {
+          diagnostics: [
+            ...new Map(diagnostics.map((d) => [JSON.stringify([d.code, d.params]), d])).values(),
+          ],
+        }
+      : {}),
   };
 };
 

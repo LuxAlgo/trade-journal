@@ -1,0 +1,27 @@
+{
+  "playbooks": {
+    "title": "Playbooks",
+    "new": "Nouveau playbook",
+    "empty": "Un playbook est une configuration que vous tradez intentionnellement\u00a0: nommez-la, écrivez ses règles, marquez ensuite vos transactions avec, et laissez les rapports vous dire si elle rapporte vraiment.",
+    "tradeCount": "{count, plural, one {# transaction} other {# transactions}}",
+    "deleteConfirm": "Supprimer «\u00a0{name}\u00a0»\u00a0? Les transactions conservent leurs données, seul le lien est supprimé.",
+    "deleteAria": "Supprimer le playbook {name}",
+    "namePlaceholder": "Nom (ex.\u00a0: cassure du range d'ouverture)",
+    "descriptionPlaceholder": "Description en une ligne",
+    "rulesPlaceholder": "Une règle par ligne\u00a0:\nUniquement les configurations A+\nRisque max 1R\nPas d'entrée après 11h30",
+    "create": "Créer",
+    "adherence": {
+      "ruleAdherence": "Conformité aux règles",
+      "assessments": "{evaluated}/{possible} évaluations de règles sur {total} transactions clôturées filtrées.",
+      "unassessed": "{count, plural, one {# transaction doit encore être évaluée.} other {# transactions doivent encore être évaluées.}}",
+      "allFollowed": "Toutes les règles respectées",
+      "oneBroken": "Au moins une enfreinte",
+      "tradesWin": "{count, plural, one {# transaction} other {# transactions}} · {win} de réussite",
+      "mixedCurrencies": "P&L masqué pour des devises mixtes.",
+      "performanceByRule": "Performance par règle",
+      "ruleRate": "{rate} respectée · {count, plural, one {# évaluation} other {# évaluations}}",
+      "ruleFollowedBroken": "Respectée\u00a0: {followedTrades, plural, one {# transaction} other {# transactions}} / {followedWin} de réussite · Enfreinte\u00a0: {brokenTrades, plural, one {# transaction} other {# transactions}} / {brokenWin} de réussite",
+      "ruleNetPnl": "P&L net\u00a0: <followed>{followedValue}</followed> respectée / <broken>{brokenValue}</broken> enfreinte {currency}"
+    }
+  }
+}

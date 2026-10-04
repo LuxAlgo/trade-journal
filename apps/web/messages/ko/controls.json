@@ -1,0 +1,111 @@
+{
+  "controls": {
+    "close": "닫기",
+    "about": "{heading} 정보",
+    "clear": "지우기",
+    "today": "오늘",
+    "loadingCalendar": "달력을 불러오는 중",
+    "chooseDate": "{field} 날짜 선택",
+    "calendarFor": "{field} 달력",
+    "dateError": {
+      "invalid": "유효한 날짜(YYYY-MM-DD)를 입력하세요.",
+      "max": "{max} 이전의 유효한 날짜(YYYY-MM-DD)를 입력하세요.",
+      "min": "{min} 이후의 유효한 날짜(YYYY-MM-DD)를 입력하세요.",
+      "minMax": "{min} 이후 {max} 이전의 유효한 날짜(YYYY-MM-DD)를 입력하세요."
+    },
+    "theme": {
+      "toLight": "라이트 모드로 전환",
+      "toDark": "다크 모드로 전환",
+      "light": "라이트 모드",
+      "dark": "다크 모드",
+      "storageError": "모양이 변경되었지만 브라우저에 저장하지 못해 다음에는 유지되지 않습니다."
+    },
+    "privacy": {
+      "title": "프라이버시 모드",
+      "short": "프라이버시",
+      "on": "켜짐",
+      "off": "꺼짐",
+      "ariaOn": "프라이버시 모드 켜짐",
+      "ariaOff": "프라이버시 모드 꺼짐",
+      "hideHint": "저널 전체에서 잔액, 손익, 거래 가격을 숨깁니다",
+      "readError": "프라이버시 설정을 읽을 수 없습니다.",
+      "saveError": "이 페이지의 프라이버시 설정은 변경되었지만 이 브라우저에 저장되지 않았습니다.",
+      "hiddenValue": "금액 숨김",
+      "editHint": "이 값을 편집하려면 프라이버시 모드를 끄세요"
+    },
+    "timezone": {
+      "choose": "시간대 선택",
+      "triggerAria": "{label}: {value}",
+      "optionsAria": "{label} 옵션",
+      "search": "시간대 검색",
+      "searchPlaceholder": "도시 또는 시간대 검색…",
+      "list": "시간대 목록",
+      "count": "{count, plural, other {시간대 #개}}",
+      "noMatch": "일치하는 시간대가 없습니다. 도시 또는 전체 시간대 이름으로 시도해 보세요."
+    },
+    "currency": {
+      "select": "통화 선택"
+    },
+    "notice": {
+      "converted": "거래 손익은 {currency} 기준 · 저장된 기준 환율을 사용합니다.",
+      "editRates": "환율 편집",
+      "setupTitle": "변환을 설정하여 통합 대시보드 보기",
+      "missing": "보고 통화를 사용하려면 {currencies}의 환율을 저장하세요. 아래 금액은 원래 통화로 유지됩니다.",
+      "sources": "이 계좌들은 {currencies}을(를) 사용합니다. 환율을 설정하면 성과를 합산할 수 있습니다.",
+      "setupCta": "통화 변환 설정"
+    },
+    "attachments": {
+      "add": "첨부 파일 추가",
+      "uploading": "업로드 중…",
+      "hint": "이미지 또는 PDF · 파일당 최대 8 MB",
+      "uploadAria": "첨부 파일 업로드",
+      "failed": "업로드에 실패했습니다.",
+      "remove": "{name} 삭제",
+      "removeConfirm": "{name}을(를) 삭제하시겠습니까?"
+    },
+    "editor": {
+      "edit": "편집",
+      "preview": "미리보기",
+      "bold": "굵게",
+      "italic": "기울임꼴",
+      "heading": "제목",
+      "bulletList": "글머리 기호 목록",
+      "list": "목록",
+      "checklist": "체크리스트",
+      "checklistShort": "목록",
+      "linkTrade": "매매 연결",
+      "insertTemplate": "템플릿 삽입…",
+      "insertTemplateAria": "노트 템플릿 삽입",
+      "templatesAria": "노트 템플릿",
+      "saveTemplate": "템플릿 저장",
+      "namePrompt": "이 노트 템플릿의 이름을 지정하세요",
+      "placeholder": "리뷰를 작성하세요…",
+      "findAria": "종목, 날짜 또는 계좌로 매매 찾기",
+      "findPlaceholder": "종목, 날짜 또는 계좌 검색",
+      "loadingTrades": "매매를 불러오는 중…",
+      "noMatches": "일치하는 매매가 없습니다.",
+      "showingLatest": "최근 50개 일치 항목을 표시합니다. 더 오래된 매매는 날짜 또는 계좌로 검색하세요.",
+      "empty": "아직 작성된 내용이 없습니다.",
+      "notesAria": "리뷰 노트",
+      "templates": {
+        "pre": "프리마켓 계획",
+        "preContent": "## 시장 환경\n\n## 주목할 셋업\n\n## 리스크 한도\n- [ ] 일일 리스크 한도 확인\n- [ ] 예정된 이벤트 확인\n\n## 오늘의 의도\n",
+        "review": "매매 리뷰",
+        "reviewContent": "## 셋업과 시나리오\n\n## 실행\n\n## 잘된 점\n\n## 다음에 바꿀 점\n",
+        "weekly": "주간 리뷰",
+        "weeklyContent": "## 이번 주의 승\n\n## 반복된 실수\n\n## 지킨 규칙\n\n## 다음 주의 한 가지 개선\n"
+      }
+    },
+    "duration": {
+      "belowMinute": "1분 미만",
+      "minutes": "{count}분",
+      "hoursMinutes": "{hours}시간 {minutes}분",
+      "daysHours": "{days}일 {hours}시간"
+    },
+    "autosave": {
+      "saving": "저장 중…",
+      "saved": "저장됨",
+      "notSaved": "저장되지 않음: {message}"
+    }
+  }
+}

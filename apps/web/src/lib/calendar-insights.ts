@@ -20,8 +20,21 @@ export function calendarScope(filters: AnalysisFilters, year: number, month: num
 
 export const closingWeekday = (date: string) => new Date(`${date}T12:00:00Z`).getUTCDay();
 
+const weekdayLongFormatter = new Map<string, Intl.DateTimeFormat>();
+
+/** Long weekday name for a 0–6 (Sunday-first) index, in the requested locale. */
+export const weekdayLabel = (index: number, locale = "en"): string => {
+  let formatter = weekdayLongFormatter.get(locale);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" });
+    weekdayLongFormatter.set(locale, formatter);
+  }
+  // 2023-01-01 is a Sunday; adding the index keeps labels locale-correct.
+  return formatter.format(new Date(Date.UTC(2023, 0, 1 + index)));
+};
+
 /** Calendar cells already contain filtered, timezone-bucketed CLOSED trades. */
-export function calendarInsights(calendar: CalendarMonth) {
+export function calendarInsights(calendar: CalendarMonth, locale = "en") {
   const days = calendar.weeks
     .flatMap((week) => week.days)
     .filter((day): day is DayStats => day !== null && day.trades > 0)
@@ -33,19 +46,11 @@ export function calendarInsights(calendar: CalendarMonth) {
   const losses = days.reduce((sum, d) => sum + d.losses, 0);
   const breakevens = days.reduce((sum, d) => sum + d.breakevens, 0);
   const netPnl = days.reduce((sum, d) => sum + d.netPnl, 0);
-  const weekdays = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-  ].map((label, index) => {
+  const weekdays = [0, 1, 2, 3, 4, 5, 6].map((index) => {
     const matching = days.filter((day) => closingWeekday(day.date) === index);
     return {
       index,
-      label,
+      label: weekdayLabel(index, locale),
       days: matching,
       trades: matching.reduce((sum, d) => sum + d.trades, 0),
       netPnl: matching.reduce((sum, d) => sum + d.netPnl, 0),

@@ -1,0 +1,11 @@
+{
+  "common": {
+    "loading": {
+      "page": "加载页面…"
+    },
+    "language": {
+      "switch": "切换语言",
+      "error": "语言保存失败，请重试。"
+    }
+  }
+}

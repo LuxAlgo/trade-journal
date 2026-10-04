@@ -49,7 +49,7 @@ const days = [100, -40, 0, 60, -20, 10, 20, 30].map((pnl, index) =>
 describe("calendar performance calculations", () => {
   it("reconciles totals with the calendar and distinguishes trade/day denominators", () => {
     const calendar = calendarMonthFromDays(days, 2026, 9);
-    const i = calendarInsights(calendar);
+    const i = calendarInsights(calendar, "en");
     expect(i.netPnl).toBe(calendar.monthNetPnl);
     expect(i.trades).toBe(calendar.monthTrades);
     expect(i.tradingDays).toBe(calendar.tradingDays);
@@ -75,6 +75,20 @@ describe("calendar performance calculations", () => {
     expect(i.weekdays.reduce((sum, bucket) => sum + bucket.trades, 0)).toBe(i.trades);
     expect(i.mostProfitableWeekday?.label).toBe("Tuesday");
     expect(i.trend.map((d) => d.average)).toEqual([null, null, null, null, 20, 2, 14, 20]);
+  });
+  it("localizes weekday labels without changing bucketing or totals", () => {
+    const ja = calendarInsights(calendarMonthFromDays(days, 2026, 9), "ja");
+    expect(ja.netPnl).toBe(160);
+    expect(ja.mostProfitableWeekday?.label).toBe("火曜日");
+    expect(ja.weekdays.map((bucket) => bucket.label)).toEqual([
+      "日曜日",
+      "月曜日",
+      "火曜日",
+      "水曜日",
+      "木曜日",
+      "金曜日",
+      "土曜日",
+    ]);
   });
   it("does not pad trading-day averages with no-trade days or other months", () => {
     const i = calendarInsights(
@@ -183,7 +197,10 @@ describe("calendar scope and drill-down", () => {
     ];
     const filters = calendarScope({ accounts: "a", symbol: "TEST", direction: "long" }, 2026, 8);
     const ny = trades.filter((t) => matchesFilters(t, filters, "America/New_York"));
-    const i = calendarInsights(calendarMonthFromDays(dailyStats(ny, "America/New_York"), 2026, 8));
+    const i = calendarInsights(
+      calendarMonthFromDays(dailyStats(ny, "America/New_York"), 2026, 8),
+      "en",
+    );
     expect(i).toMatchObject({ trades: 1, netPnl: 96 });
     expect(i.bestDay?.date).toBe("2026-08-31");
     expect(calendarRunningPnl(ny, "America/New_York")["2026-08-31"]?.at(-1)?.cumNetPnl).toBe(

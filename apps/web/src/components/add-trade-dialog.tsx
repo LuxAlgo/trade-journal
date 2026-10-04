@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Plus } from "lucide-react";
 import { ManualTradeEntry } from "./manual-trade-entry";
 import { Button } from "./ui/button";
@@ -14,6 +15,7 @@ import {
 } from "./ui/dialog";
 
 export function AddTradeDialog({ onSaved }: { onSaved: () => void }) {
+  const t = useTranslations("manual-entry");
   const [open, setOpen] = useState(false);
 
   return (
@@ -21,16 +23,13 @@ export function AddTradeDialog({ onSaved }: { onSaved: () => void }) {
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="h-3.5 w-3.5" />
-          Add trade
+          {t("addTrade")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Add trade</DialogTitle>
-          <DialogDescription>
-            Choose an account and enter your buys and sells. Save an entry alone for an open
-            position, or include the exit to record a closed trade.
-          </DialogDescription>
+          <DialogTitle>{t("addTrade")}</DialogTitle>
+          <DialogDescription>{t("addTradeDescription")}</DialogDescription>
         </DialogHeader>
         <ManualTradeEntry
           onSaved={() => {
