@@ -2,6 +2,8 @@ export interface FeeRule {
   id: string;
   accountId: string;
   symbol: string;
+  /** Empty or absent matches every asset class; a fill with no asset class matches only those. */
+  assetClass?: string;
   amount: number;
   mode: "execution" | "unit";
 }
@@ -26,12 +28,14 @@ export const EMPTY_DEFAULTS: JournalDefaults = {
   riskRules: [],
 };
 export const matchesRule = (
-  rule: { accountId: string; symbol: string },
+  rule: { accountId: string; symbol: string; assetClass?: string },
   accountId: string,
   symbol: string,
+  assetClass?: string | null,
 ) =>
   (!rule.accountId || rule.accountId === accountId) &&
-  (!rule.symbol || rule.symbol.toUpperCase() === symbol.toUpperCase());
+  (!rule.symbol || rule.symbol.toUpperCase() === symbol.toUpperCase()) &&
+  (!rule.assetClass || rule.assetClass === assetClass);
 /** Explicitly opted-in zero-fee defaults; original source fill hashes are retained for deduplication. */
 export function defaultFee(
   fee: number,
@@ -39,9 +43,10 @@ export function defaultFee(
   accountId: string,
   symbol: string,
   defaults: JournalDefaults,
+  assetClass?: string | null,
 ) {
   if (fee !== 0) return fee;
-  const rule = defaults.feeRules.find((r) => matchesRule(r, accountId, symbol));
+  const rule = defaults.feeRules.find((r) => matchesRule(r, accountId, symbol, assetClass));
   return rule ? rule.amount * (rule.mode === "unit" ? quantity : 1) : fee;
 }
 export function defaultRisk(
@@ -63,7 +68,16 @@ const isText = (s: unknown, max: number): s is string => typeof s === "string" &
 const onlyKeys = (value: object, allowed: readonly string[]) =>
   Object.keys(value).every((k) => allowed.includes(k));
 const DEFAULT_KEYS = ["breakeven", "breakevenMode", "feeRules", "riskRules"] as const;
-const FEE_KEYS = ["id", "accountId", "symbol", "amount", "mode"] as const;
+const FEE_KEYS = ["id", "accountId", "symbol", "assetClass", "amount", "mode"] as const;
+export const FEE_ASSET_CLASSES = [
+  "equity",
+  "option",
+  "futures",
+  "forex",
+  "crypto",
+  "cfd",
+  "other",
+] as const;
 const RISK_KEYS = ["id", "accountId", "symbol", "stop", "target", "mode"] as const;
 export const MAX_DEFAULT_RULES = 100;
 
@@ -112,6 +126,12 @@ export function parseJournalDefaults(
           !["unit", "execution"].includes(rule.mode as string)
         )
           return { error: "Fees must be nonnegative." };
+        if (
+          rule.assetClass !== undefined &&
+          rule.assetClass !== "" &&
+          !(FEE_ASSET_CLASSES as readonly string[]).includes(rule.assetClass as string)
+        )
+          return { error: "Invalid fee asset class." };
       } else if (
         !isFinite(rule.stop) ||
         rule.stop <= 0 ||
@@ -126,6 +146,7 @@ export function parseJournalDefaults(
     id: r.id as string,
     accountId: r.accountId as string,
     symbol: r.symbol as string,
+    ...(r.assetClass ? { assetClass: r.assetClass as string } : {}),
     amount: r.amount as number,
     mode: r.mode as FeeRule["mode"],
   }));

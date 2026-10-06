@@ -164,7 +164,7 @@ export const insertExecutions = (
           fee:
             row.importMetadata?.preserveFee || options.preserveFees
               ? row.fee
-              : defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults),
+              : defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults, row.assetClass),
           executedAt: row.executedAt,
           assetClass: row.assetClass ?? null,
           source,
