@@ -7,6 +7,11 @@ export interface HistoryRequest {
   from: number;
   to: number;
   signal?: AbortSignal;
+  /**
+   * Keep the candle still forming (a live chart's current price). Off by default: estimates
+   * and reviews use finished candles only.
+   */
+  forming?: boolean;
 }
 
 /** Adapters supply data only. Chart rendering and analytics do not depend on an adapter. */
@@ -19,3 +24,13 @@ export interface MarketDataProvider {
 }
 
 export class MarketDataError extends Error {}
+
+/**
+ * An adapter's name for a candle size it serves directly. Other sizes never reach an
+ * adapter: `withAggregation` builds them from a finer size first.
+ */
+export function nativeInterval(map: Record<string, string>, resolution: string): string {
+  const interval = map[resolution];
+  if (!interval) throw new MarketDataError(`This source does not serve ${resolution} candles.`);
+  return interval;
+}

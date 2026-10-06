@@ -8,14 +8,18 @@ import { binance, coinbase } from "./public-crypto";
 import { oanda } from "./oanda";
 import { csvDatasets, marketCsv } from "./csv";
 import { MarketDataError, type MarketDataProvider } from "./provider";
+import { withAggregation } from "./aggregate";
 const providers: MarketDataProvider[] = [
   londonStrategicEdge,
   alpaca,
-  binance,
+  // Binance klines for these sizes open on UTC multiples, so they are fetched directly.
+  withAggregation(binance, ["3m", "30m", "2h", "4h"]),
   coinbase,
   oanda,
   marketCsv,
-].sort((a, b) => a.name.localeCompare(b.name));
+]
+  .map((provider) => (provider.id === "binance" ? provider : withAggregation(provider)))
+  .sort((a, b) => a.name.localeCompare(b.name));
 export const providerFor = (id: string) => {
   const provider = providers.find((entry) => entry.id === id);
   if (!provider) throw new MarketDataError("Choose an available market data provider.");

@@ -1,6 +1,6 @@
 import { RESOLUTIONS } from "@/lib/market-data";
 import type { MarketBar } from "@/lib/market-data";
-import { MarketDataError, type MarketDataProvider } from "./provider";
+import { MarketDataError, nativeInterval, type MarketDataProvider } from "./provider";
 import {
   array,
   boundedSignal,
@@ -35,9 +35,10 @@ export const alpaca: MarketDataProvider = {
       throw new MarketDataError("Use AAPL for stocks, or BTC/USD with the Crypto dataset.");
     const step = RESOLUTIONS[request.resolution];
     const query = new URLSearchParams({
-      timeframe: { "1m": "1Min", "5m": "5Min", "15m": "15Min", "1h": "1Hour", "1d": "1Day" }[
-        request.resolution
-      ],
+      timeframe: nativeInterval(
+        { "1m": "1Min", "5m": "5Min", "15m": "15Min", "1h": "1Hour", "1d": "1Day" },
+        request.resolution,
+      ),
       start: new Date(Math.max(0, Math.floor(request.from / step) * step - step)).toISOString(),
       end: new Date(request.to).toISOString(),
       limit: "1000",
