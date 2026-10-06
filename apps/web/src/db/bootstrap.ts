@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS folders (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   kind TEXT NOT NULL DEFAULT 'user',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  deleted_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS notes (
