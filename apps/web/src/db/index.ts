@@ -16,6 +16,10 @@ const createDb = () => {
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
   sqlite.exec(BOOTSTRAP_SQL);
+  const folderColumns = sqlite.pragma("table_info(folders)") as { name: string }[];
+  if (!folderColumns.some((column) => column.name === "deleted_at")) {
+    sqlite.exec("ALTER TABLE folders ADD COLUMN deleted_at TEXT");
+  }
   sqlite
     .transaction(() => {
       const columns = sqlite.pragma("table_info(accounts)") as { name: string }[];
