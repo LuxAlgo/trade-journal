@@ -60,3 +60,26 @@ describe("journal defaults are validated before they are saved", () => {
     expect(parseJournalDefaults("defaults", knows).error).toBeDefined();
   });
 });
+
+describe("a fee default can be scoped to an asset class", () => {
+  it("keeps a known asset class and drops an empty one", () => {
+    const scoped = {
+      ...valid,
+      feeRules: [
+        { id: "o", accountId: "", symbol: "", assetClass: "option", amount: 0.65, mode: "unit" },
+        { id: "a", accountId: "", symbol: "", assetClass: "", amount: 1, mode: "unit" },
+      ],
+    };
+    const parsed = parseJournalDefaults(scoped, knows);
+    expect(parsed.error).toBeUndefined();
+    if (parsed.error === undefined) {
+      expect(parsed.defaults.feeRules[0]!.assetClass).toBe("option");
+      expect("assetClass" in parsed.defaults.feeRules[1]!).toBe(false);
+    }
+  });
+
+  it("rejects an asset class the journal does not know", () => {
+    const bad = { ...valid, feeRules: [{ ...valid.feeRules[0], assetClass: "bonds" }] };
+    expect(parseJournalDefaults(bad, knows).error).toMatch(/asset class/);
+  });
+});

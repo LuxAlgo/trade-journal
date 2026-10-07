@@ -19,6 +19,20 @@ describe("journal defaults are opt-in and scoped", () => {
     expect(defaultFee(0, 2, "b", "ES", defaults)).toBe(0);
     expect(defaultFee(0, 2, "a", "NQ", defaults)).toBe(0);
   });
+  it("an asset-class rule charges only fills of that class", () => {
+    const scoped: JournalDefaults = {
+      ...EMPTY_DEFAULTS,
+      feeRules: [
+        { id: "f", accountId: "", symbol: "MNQ", amount: 0.31, mode: "unit" },
+        { id: "o", accountId: "", symbol: "", assetClass: "option", amount: 0.65, mode: "unit" },
+      ],
+    };
+    expect(defaultFee(0, 2, "a", "MNQ", scoped)).toBeCloseTo(0.62);
+    expect(defaultFee(0, 2, "a", "CRDO  261030P00170000", scoped, "option")).toBeCloseTo(1.3);
+    // An equity fill, classified or not, matches neither rule: no fee is invented.
+    expect(defaultFee(0, 833, "a", "RSKD", scoped, "equity")).toBe(0);
+    expect(defaultFee(0, 833, "a", "RSKD", scoped)).toBe(0);
+  });
   it("derives direction-aware percentage stop and target prices", () => {
     expect(defaultRisk(200, "long", "a", "ES", defaults)).toEqual({
       stopLoss: 198,

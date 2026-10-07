@@ -233,7 +233,8 @@ function planImport(
       },
     };
     const effectiveFee =
-      input.reportedFee ?? defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults);
+      input.reportedFee ??
+      defaultFee(row.fee, row.quantity, accountId, row.symbol, defaults, row.assetClass);
     if (input.reportedFee === undefined) missingFees++;
     const fill: Execution = {
       ...row,
