@@ -398,10 +398,32 @@ export const genericCsvAdapter: SourceAdapter = {
   id: "generic-csv",
   label: "Generic trade-history CSV (column mapping by header aliases)",
 
-  // The generic adapter never claims a file; the orchestrator uses it as the
-  // designated fallback and grades confidence from the mapping coverage.
-  detect(): AdapterMatch | null {
-    return null;
+  // Claim a table whose headers fully resolve through the alias dictionary into
+  // a complete trade shape (NT8 Strategy Analyzer exports, broker round-trip
+  // reports). Everything else keeps the old behavior: designated fallback.
+  detect(table: CsvTable): AdapterMatch | null {
+    const { mapping, unmapped, matched } = mapHeaders(table.header, table.records);
+    if (mapping.symbol === undefined || mapping.direction === undefined) return null;
+    if (
+      mapping.entryTime === undefined ||
+      mapping.exitTime === undefined ||
+      mapping.entryPrice === undefined ||
+      mapping.exitPrice === undefined ||
+      mapping.quantity === undefined ||
+      mapping.pnl === undefined
+    ) {
+      return null;
+    }
+    if (matched.length < 5) return null;
+    return {
+      confidence: "exact",
+      signals: [
+        `headers resolve to a complete trade shape: ${matched.join(", ")}`,
+        ...(unmapped.length
+          ? [`unmapped (ignored): ${unmapped.join(", ")}`]
+          : []),
+      ],
+    };
   },
 
   parse(table: CsvTable, ctx: AdapterContext): AdapterParseResult {

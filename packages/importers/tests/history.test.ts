@@ -23,13 +23,32 @@ const parse = (text: string, options?: ImportOptions) => {
   expect(result?.errors).toBeUndefined();
   return result!;
 };
-/** The generic alias mapper is never an automatic route; it is only reachable by explicit choice. */
-const parseGeneric = (text: string, options?: ImportOptions) => {
-  expect(parseAuto(text, options)).toBeNull();
+const parseExplicitGeneric = (text: string, options?: ImportOptions) => {
   const result = parseHistory(text, { ...options, adapterId: "generic-csv" });
   expect(result).not.toBeNull();
   expect(result?.errors).toBeUndefined();
   return result!;
+};
+/**
+ * A generic CSV whose headers do NOT resolve to a complete trade is never an
+ * automatic route; the alias mapper is reachable only by explicit choice.
+ */
+const parseGeneric = (text: string, options?: ImportOptions) => {
+  expect(parseAuto(text, options)).toBeNull();
+  return parseExplicitGeneric(text, options);
+};
+/**
+ * A generic CSV whose headers resolve to a complete trade (symbol, direction,
+ * both times, both prices, quantity and P&L: NT8 Strategy Analyzer exports,
+ * broker round-trip reports) is claimed automatically, and the automatic route
+ * must import exactly what the explicit adapter does.
+ */
+const parseClaimedGeneric = (text: string, options?: ImportOptions) => {
+  const explicit = parseExplicitGeneric(text, options);
+  const auto = parseAuto(text, options);
+  expect(auto?.format).toBe("history-generic-csv");
+  expect(auto).toEqual(explicit);
+  return auto!;
 };
 const TV = `Trade number,Type,Date and time,Signal,Price USD,Size (qty),Net PnL USD,Return %,Commission USD
 1,Exit long,2026-01-05 10:00,close,110,2,19,9.5,1
@@ -90,7 +109,7 @@ describe("simulator history formats extend the journal import path", () => {
     ).toEqual([1, 2]);
   });
   it("keeps separately reported trades stable even when they open and close at the same timestamp", () => {
-    const result = parseGeneric(GENERIC);
+    const result = parseClaimedGeneric(GENERIC);
     const roundTrips = trips(result);
     expect(roundTrips).toHaveLength(2);
     expect(roundTrips.every((t) => t.direction === "long" && t.status === "win")).toBe(true);
@@ -127,7 +146,7 @@ describe("simulator history formats extend the journal import path", () => {
     expect(trade?.netPnl).toBe(23); // 20 profit - 2 commission + 5 swap credit
     // The same money through the generic mapper (Profit beside Commission and Swap).
     const generic =
-      parseGeneric(`Open Time,Close Time,Symbol,Direction,Quantity,Entry Price,Exit Price,Profit,Commission,Swap
+      parseClaimedGeneric(`Open Time,Close Time,Symbol,Direction,Quantity,Entry Price,Exit Price,Profit,Commission,Swap
 2026-01-05 09:00,2026-01-05 10:00,EURUSD,long,0.1,1.1,1.102,20,-2,5`);
     expect(generic.executions.every((e) => e.fee >= 0)).toBe(true);
     expect(trips(generic)[0]?.netPnl).toBe(23);
@@ -177,7 +196,7 @@ describe("simulator history formats extend the journal import path", () => {
   });
   it("reads generic quoted money without mistaking percentages or cumulative totals for P&L", () => {
     const result =
-      parseGeneric(`Open Time,Close Time,Symbol,Direction,Quantity,Entry Price,Exit Price,Net PnL USD,Return %,Cumulative PnL USD,Commission
+      parseClaimedGeneric(`Open Time,Close Time,Symbol,Direction,Quantity,Entry Price,Exit Price,Net PnL USD,Return %,Cumulative PnL USD,Commission
 2026-01-05 09:00,2026-01-05 10:00,AAPL,long,100,100,112.5,"1,247.50",12.475,9000,2.5`);
     expect(trips(result)[0]?.netPnl).toBe(1247.5);
     expect(trips(result)[0]?.grossPnl).toBe(1250);
@@ -222,7 +241,7 @@ describe("simulator history formats extend the journal import path", () => {
 describe("gross and net P&L are read from the header, never guessed", () => {
   it("a MetaTrader-style Commission column beside a bare Profit column means net = profit - commission", () => {
     const result =
-      parseGeneric(`Open Time,Close Time,Symbol,Direction,Quantity,Entry Price,Exit Price,Profit,Commission
+      parseClaimedGeneric(`Open Time,Close Time,Symbol,Direction,Quantity,Entry Price,Exit Price,Profit,Commission
 2026-01-05 09:00,2026-01-05 10:00,AAPL,long,1,100,110,10,2`);
     const [trade] = trips(result);
     expect(trade?.grossPnl).toBe(10);
@@ -232,7 +251,7 @@ describe("gross and net P&L are read from the header, never guessed", () => {
   });
   it("a Net P&L column stays net and the commission is only added back to the gross figure", () => {
     const result =
-      parseGeneric(`Opened At,Closed At,Symbol,Direction,Quantity,Entry Price,Exit Price,Net P&L,Commission
+      parseClaimedGeneric(`Opened At,Closed At,Symbol,Direction,Quantity,Entry Price,Exit Price,Net P&L,Commission
 2026-01-05 09:00,2026-01-05 10:00,AAPL,long,1,100,110,8,2`);
     const [trade] = trips(result);
     expect(trade?.netPnl).toBe(8);
@@ -241,7 +260,7 @@ describe("gross and net P&L are read from the header, never guessed", () => {
   });
   it("a bare P&L column with no commission column is used as net and the user is told so", () => {
     const result =
-      parseGeneric(`Open Time,Close Time,Symbol,Direction,Quantity,Entry Price,Exit Price,P&L
+      parseClaimedGeneric(`Open Time,Close Time,Symbol,Direction,Quantity,Entry Price,Exit Price,P&L
 2026-01-05 09:00,2026-01-05 10:00,AAPL,long,1,100,110,8`);
     expect(trips(result)[0]?.netPnl).toBe(8);
     expect(result.warnings.join(" ")).toContain("net or gross");
@@ -348,7 +367,7 @@ describe("history timestamps preserve journal timezone semantics", () => {
     );
     expect(parseImportTimestamp("1/5/26 09:31")).toBe(Date.parse("2026-01-05T09:31:00Z"));
     expect(parseImportTimestamp("1/5/99 09:31")).toBe(Date.parse("2099-01-05T09:31:00Z"));
-    const result = parseGeneric(
+    const result = parseClaimedGeneric(
       `Opened At,Closed At,Symbol,Direction,Quantity,Entry Price,Exit Price,Net PnL
 "Jan 5, 2026 09:31:00 EST","Jan 5, 2026 10:15:00 EST",AAPL,long,1,100,110,10`,
       { timeZone: "America/New_York" },
@@ -405,19 +424,31 @@ describe("new detection preserves existing import routes", () => {
     expect(detectFormat(MT5)?.id).toBe("trade-history");
     expect(parseAuto(MT5)?.format).toBe("history-metatrader");
   });
-  it("a CSV with generic headers is not imported silently and goes to the column mapper", () => {
-    expect(detectFormat(GENERIC)).toBeNull();
-    expect(parseAuto(GENERIC)).toBeNull();
+  it("a generic CSV is claimed only when its headers resolve to a complete trade", () => {
+    // A complete trade shape is imported automatically, exactly as by name.
+    expect(detectFormat(GENERIC)?.id).toBe("trade-history");
+    expect(parseAuto(GENERIC)?.format).toBe("history-generic-csv");
+    const direct = importTradeHistory(GENERIC);
+    expect(direct.ok).toBe(true);
+    expect(direct.trades).toHaveLength(2);
+    expect(direct.trades).toEqual(importTradeHistory(GENERIC, { adapterId: "generic-csv" }).trades);
+    // Anything less is not imported silently and goes to the column mapper:
+    // fills with no trade shape, and a trade shape missing its P&L column.
     const fills = `Timestamp,Ticker,Buy/Sell,Fill Quantity,Execution Price,Fees
 2026-01-05 09:00,AAPL,buy,10,100,1`;
-    expect(detectFormat(fills)).toBeNull();
-    expect(parseAuto(fills)).toBeNull();
-    const direct = importTradeHistory(GENERIC);
-    expect(direct.ok).toBe(false);
-    expect(direct.format.kind).toBe("unknown");
-    expect(direct.issues.map((i) => i.code)).toContain("unsupported-format");
-    // The adapter still works when a caller asks for it by name.
-    expect(importTradeHistory(GENERIC, { adapterId: "generic-csv" }).trades).toHaveLength(2);
+    const noPnl = GENERIC.split("\n")
+      .map((line) => line.split(",").slice(0, 8).join(","))
+      .join("\n");
+    for (const content of [fills, noPnl]) {
+      expect(detectFormat(content)).toBeNull();
+      expect(parseAuto(content)).toBeNull();
+      const result = importTradeHistory(content);
+      expect(result.ok).toBe(false);
+      expect(result.format.kind).toBe("unknown");
+      expect(result.issues.map((i) => i.code)).toContain("unsupported-format");
+    }
+    // The adapter still works on the incomplete shape when a caller asks for it by name.
+    expect(importTradeHistory(noPnl, { adapterId: "generic-csv" }).trades).toHaveLength(2);
   });
   it("keeps the explicit column mapper available and unchanged", () => {
     const content = "When,Ticker,Way,Amount,Cost\n2026-01-05 09:00,AAPL,bought,2,100";

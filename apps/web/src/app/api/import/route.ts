@@ -2,6 +2,7 @@ import {
   FORMATS,
   parseAuto,
   parseWithMapping,
+  parseHistory,
   readHeaders,
   type GenericMapping,
   type ImportedExecution,
@@ -75,7 +76,8 @@ export const POST = handler(async (request: Request) => {
       : readAiImportPreview(statement, body.aiPreviewToken!)
     : body.mapping
       ? parseWithMapping(body.content, body.mapping, { timeZone })
-      : parseAuto(body.content, { timeZone, fileName: body.fileName, symbol: body.symbol });
+      : (parseAuto(body.content, { timeZone, fileName: body.fileName, symbol: body.symbol }) ??
+        parseHistory(body.content, { timeZone, fileName: body.fileName, symbol: body.symbol }));
 
   if (!parsed) {
     return ok({
