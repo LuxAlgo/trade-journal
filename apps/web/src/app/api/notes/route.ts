@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, isNull } from "drizzle-orm";
 import { db, folders, notes } from "@/db";
 import { bad, handler, ok } from "@/server/api";
 import { newId, nowIso } from "@/server/ids";
@@ -38,7 +38,12 @@ export const GET = handler(async (request: Request) => {
         : b.updatedAt.localeCompare(a.updatedAt),
   );
 
-  const folderRows = db.select().from(folders).orderBy(asc(folders.createdAt)).all();
+  const folderRows = db
+    .select()
+    .from(folders)
+    .where(isNull(folders.deletedAt))
+    .orderBy(asc(folders.createdAt))
+    .all();
   return ok({ notes: rows, folders: folderRows });
 });
 
@@ -53,12 +58,15 @@ interface CreateNoteBody {
 
 export const POST = handler(async (request: Request) => {
   const body = (await request.json()) as CreateNoteBody;
+  const folderId = body.folderId ?? "my-notes";
+  const folder = db.select().from(folders).where(eq(folders.id, folderId)).get();
+  if (!folder || folder.deletedAt || folderId === "all") return bad("Folder not found", 404);
   const id = newId();
   const now = nowIso();
   db.insert(notes)
     .values({
       id,
-      folderId: body.folderId ?? "my-notes",
+      folderId,
       title: body.title ?? "",
       content: body.content ?? "",
       tagsJson: body.tags ? JSON.stringify(body.tags) : null,

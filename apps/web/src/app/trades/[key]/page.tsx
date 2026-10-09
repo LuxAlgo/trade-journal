@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { netReturnOnEntry } from "@luxalgo/journal-core";
 import { FilterBar } from "@/components/filter-bar";
 import { Pnl } from "@/components/pnl";
 import { MonetaryValue, MonetaryField } from "@/components/privacy";
@@ -38,7 +39,6 @@ import { ReviewExport } from "@/components/review-export";
 import { RuleChecklist } from "@/components/rule-checklist";
 import { useAutosave } from "@/lib/use-autosave";
 import { postJson, useApi } from "@/lib/use-api";
-import { netReturnOnNotional } from "@luxalgo/journal-core";
 import { fmtDuration, fmtMoney, fmtNumber, fmtPercent } from "@/lib/utils";
 import { tradeKeyFromSegment } from "@/lib/trade-links";
 import { formatTimestamp } from "@/lib/timezone";
@@ -190,10 +190,7 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
                 value={trade.avgExit === null ? "open" : fmtNumber(trade.avgExit)}
               />
               <Meta label="Duration" value={fmtDuration(trade.durationMs)} />
-              <Meta
-                label="Net / entry notional"
-                value={fmtPercent(netReturnOnNotional(trade), 2)}
-              />
+              <Meta label="Net / entry notional" value={fmtPercent(netReturnOnEntry(trade), 2)} />
               <Meta
                 label="Planned R"
                 value={trade.plannedR === null ? "–" : `${fmtNumber(trade.plannedR)}R`}

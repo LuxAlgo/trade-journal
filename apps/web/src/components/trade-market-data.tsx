@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Vela } from "@luxalgo/vela";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, SkipForward } from "lucide-react";
 import {
@@ -548,6 +548,8 @@ function ReplayChart({
   history: TradeMarketResult;
   nextFrame: ReturnType<typeof replayFrame<ChartExecution>>;
 }) {
+  // Chart-local identity also works on HTTP LAN origins without crypto.randomUUID.
+  const indicatorType = `replay-fills-${useId()}`;
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<Vela | null>(null);
   const frame = useRef(nextFrame);
@@ -565,7 +567,7 @@ function ReplayChart({
       const { Vela, registerNativeIndicator, unregisterNativeIndicator } =
         await import("@luxalgo/vela");
       if (disposed || !host.current) return;
-      const type = `replay-fills-${crypto.randomUUID()}`;
+      const type = indicatorType;
       registerNativeIndicator({
         type,
         title: "Recorded fills",
@@ -657,7 +659,7 @@ function ReplayChart({
       disposed = true;
       cleanup();
     };
-  }, [history]);
+  }, [history, indicatorType]);
   useEffect(() => {
     update.current?.();
   }, [nextFrame, history]);

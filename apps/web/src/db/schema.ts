@@ -164,6 +164,7 @@ export const folders = sqliteTable("folders", {
     .notNull()
     .default("user"),
   createdAt: text("created_at").notNull(),
+  deletedAt: text("deleted_at"),
 });
 
 export const notes = sqliteTable(
