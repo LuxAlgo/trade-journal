@@ -34,6 +34,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RichEditor, type RichEditorHandle } from "@/components/rich-editor";
+import {
+  AiChartsToggle,
+  AiChartsUsed,
+  useAiCharts,
+  type AiAnalysisUsed,
+} from "@/components/ai-charts-option";
 import { Attachments } from "@/components/attachments";
 import { ReviewExport } from "@/components/review-export";
 import { RuleChecklist } from "@/components/rule-checklist";
@@ -98,6 +104,8 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
   }>(`/api/trades/${encodeURIComponent(tradeKey)}`);
   const [aiBusy, setAiBusy] = useState(false);
   const [critique, setCritique] = useState<string | null>(null);
+  const [critiqueCharts, setCritiqueCharts] = useState<AiAnalysisUsed[]>([]);
+  const [aiCharts, setAiCharts] = useAiCharts();
   const [aiError, setAiError] = useState<string | null>(null);
 
   if (!data) {
@@ -149,8 +157,12 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
     setAiBusy(true);
     setAiError(null);
     try {
-      const result = await postJson<{ critique: string }>("/api/ai/critique", { key: tradeKey });
+      const result = await postJson<{ critique: string; analyses?: AiAnalysisUsed[] }>(
+        "/api/ai/critique",
+        { key: tradeKey, ...(aiCharts ? {} : { includeAnalyses: false }) },
+      );
       setCritique(result.critique);
+      setCritiqueCharts(result.analyses ?? []);
     } catch (error) {
       setAiError(error instanceof Error ? error.message : "AI critique failed");
     } finally {
@@ -271,6 +283,9 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
                 {aiBusy ? "Thinking…" : "Critique this trade"}
               </Button>
             </CardHeader>
+            <CardContent className="pb-0">
+              <AiChartsToggle checked={aiCharts} onChange={setAiCharts} />
+            </CardContent>
             {aiError && (
               <CardContent>
                 <AiNotice
@@ -281,8 +296,9 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
               </CardContent>
             )}
             {critique && (
-              <CardContent>
+              <CardContent className="space-y-2">
                 <p className="whitespace-pre-wrap text-sm leading-relaxed">{critique}</p>
+                <AiChartsUsed analyses={critiqueCharts} />
               </CardContent>
             )}
           </Card>

@@ -17,6 +17,7 @@ import {
   Settings,
   ListChecks,
   BookmarkPlus,
+  CandlestickChart,
   Wallet,
   Landmark,
   Menu,
@@ -28,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { LuxAlgoMark } from "@/components/luxalgo-mark";
 import { PrivacyToggle } from "./privacy";
 import { ThemeToggle } from "./theme";
+import { SignOutButton } from "./sign-out";
 import { PageTransition } from "./page-transition";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
@@ -36,6 +38,7 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/journal", label: "Daily journal", icon: NotebookPen },
+  { href: "/charts", label: "Charts", icon: CandlestickChart },
   { href: "/trades", label: "Trades", icon: ListOrdered },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/prop-firms", label: "Prop firms", icon: Landmark },
@@ -232,6 +235,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               {navigation()}
               <div className="border-t p-3">
                 <PrivacyToggle />
+                <SignOutButton />
               </div>
               {footer}
             </DialogPrimitive.Content>
@@ -282,6 +286,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className="w-full space-y-1">
             <ThemeToggle iconOnly={sidebarCollapsed} />
             <PrivacyToggle iconOnly={sidebarCollapsed} />
+            <SignOutButton iconOnly={sidebarCollapsed} />
           </div>
         </div>
         {footer}

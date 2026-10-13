@@ -66,15 +66,19 @@ export function result(
   quoteCurrency?: string,
 ): MarketHistory {
   const step = RESOLUTIONS[request.resolution];
+  const now = Date.now();
   const rows = validateBars(bars).filter(
     (bar) =>
-      bar.time < request.to && bar.time + step > request.from && bar.time + step <= Date.now(),
+      bar.time < request.to &&
+      bar.time + step > request.from &&
+      (request.forming ? bar.time <= now : bar.time + step <= now),
   );
   return {
     provider: name,
     symbol: request.symbol,
     resolution: request.resolution,
-    bars: rows.slice(0, MAX_BARS),
+    // Past the cap, the newest candles matter most (a chart's); estimates refuse it anyway.
+    bars: rows.slice(-MAX_BARS),
     fetchedAt: new Date().toISOString(),
     truncated: truncated || rows.length > MAX_BARS,
     quoteCurrency,

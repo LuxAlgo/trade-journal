@@ -8,6 +8,12 @@ services:
     environment:
       # Optional: require a password (recommended when exposed beyond localhost)
       # JOURNAL_PASSWORD: change-me
+      # Optional: single sign-on with an OpenID Connect provider (docs/authentication.md)
+      # JOURNAL_PUBLIC_URL: https://journal.example.com
+      # JOURNAL_OIDC_ISSUER: https://auth.example.com/application/o/trade-journal/
+      # JOURNAL_OIDC_CLIENT_ID: your-client-id
+      # JOURNAL_OIDC_CLIENT_SECRET: your-client-secret
+      # JOURNAL_OIDC_ALLOWED_GROUPS: traders
       # Optional: stable encryption secret for broker credentials at rest
       # JOURNAL_SECRET: change-me-too
       JOURNAL_DATA_DIR: /data

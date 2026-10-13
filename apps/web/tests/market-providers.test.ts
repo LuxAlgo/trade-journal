@@ -118,6 +118,27 @@ describe("market data adapters", () => {
       fetcher.mock.calls.every(([url]) => url.startsWith("https://data-api.binance.vision/")),
     ).toBe(true);
   });
+  it("keeps the candle still forming only for a live chart, never for estimates", async () => {
+    const now = Date.now();
+    const minute = Math.floor(now / 60_000) * 60_000;
+    const fetcher = vi.fn(async (url: string) =>
+      Response.json(
+        url.includes("exchangeInfo")
+          ? { symbols: [{ symbol: "BTCUSDT", quoteAsset: "USDT" }] }
+          : [
+              [minute - 60_000, "100", "105", "95", "102", "4"],
+              [minute, "102", "103", "101", "102.5", "1"],
+            ],
+      ),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    const window = { symbol: "BTCUSDT", resolution: "1m" as const, from: minute - 60_000, to: now };
+    const finished = await binance.history(window, "");
+    expect(finished.bars.map((b) => b.time)).toEqual([minute - 60_000]);
+    const live = await binance.history({ ...window, forming: true }, "");
+    expect(live.bars.map((b) => b.time)).toEqual([minute - 60_000, minute]);
+    expect(live.bars.at(-1)).toMatchObject({ open: 102, close: 102.5, volume: 1 });
+  });
   it("uses OANDA practice/live candle endpoints, midpoint prices and completed candles only", async () => {
     const fetcher = vi.fn(async () =>
       Response.json({

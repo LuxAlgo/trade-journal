@@ -1,7 +1,11 @@
 "use client";
 import { AiRecap } from "@/components/ai-recap";
+import { analysesUsedMarkdown } from "@/components/ai-charts-option";
+import { DayAnalyses } from "@/components/day-analyses";
+import { dayKeyOf } from "@luxalgo/journal-core";
 
 import Link from "next/link";
+import { CandlestickChart } from "lucide-react";
 import { Suspense, use, useRef, useState } from "react";
 import type { IntradayPoint, TradeMetrics } from "@luxalgo/journal-core";
 import { EquityArea } from "@/components/charts/equity-area";
@@ -177,12 +181,31 @@ function JournalDay({ date }: { date: string }) {
             </Card>
           )}
           {!data && <Skeleton className="h-64" />}
+          <DayAnalyses
+            date={date}
+            today={date === dayKeyOf(new Date().toISOString(), timeZone)}
+            note={noteValue}
+            onInsert={(markdown) => {
+              const current = latestNote.current;
+              scheduleSave(
+                current.trim()
+                  ? `${current.replace(/\s+$/, "")}\n\n${markdown}\n`
+                  : `${markdown}\n`,
+              );
+            }}
+          />
         </div>
 
         <Card className="h-fit">
           <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
             <CardTitle>Day note</CardTitle>
             <div className="flex items-center gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/charts?day=${date}`}>
+                  <CandlestickChart />
+                  Chart analysis
+                </Link>
+              </Button>
               <VoiceNote
                 onPrepare={() => noteEditor.current?.focus()}
                 onText={(text) =>
@@ -196,7 +219,8 @@ function JournalDay({ date }: { date: string }) {
           <CardContent>
             <p className="mb-3 text-xs text-muted-foreground">
               This note is shared across accounts. AI recaps use the selected filters and append a
-              labeled section. Shared notes are excluded from filtered AI context.
+              labeled section. Shared notes are excluded from filtered AI context. This day's chart
+              analyses are sent as they were that day.
             </p>
             <div className="mb-3">
               <AiRecap
@@ -205,9 +229,9 @@ function JournalDay({ date }: { date: string }) {
                 filters={filters}
                 timeZone={timeZone}
                 disabled={!data || !m?.closedTrades}
-                onRecap={({ recap, scope }) => {
+                onRecap={({ recap, scope, analyses }) => {
                   // Append to the current draft, including edits made while AI was running.
-                  const section = `## AI recap\n\n${scope.label.replace(/[\\`*_{}\[\]<>#]/g, "").replace(/[\r\n]+/g, " ")}\n\n${recap}`;
+                  const section = `## AI recap\n\n${scope.label.replace(/[\\`*_{}\[\]<>#]/g, "").replace(/[\r\n]+/g, " ")}\n\n${analysesUsedMarkdown(analyses)}${recap}`;
                   scheduleSave(
                     latestNote.current ? `${latestNote.current}\n\n---\n\n${section}` : section,
                   );
@@ -215,7 +239,12 @@ function JournalDay({ date }: { date: string }) {
               />
             </div>
             {data ? (
-              <RichEditor editorRef={noteEditor} value={noteValue} onChange={scheduleSave} />
+              <RichEditor
+                editorRef={noteEditor}
+                value={noteValue}
+                onChange={scheduleSave}
+                analysisDay={date}
+              />
             ) : error ? (
               <p role="alert" className="text-sm text-destructive">
                 {error}

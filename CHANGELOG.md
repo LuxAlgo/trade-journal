@@ -6,6 +6,31 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Sign in with an OpenID Connect provider such as Authentik, Keycloak or Zitadel (`JOURNAL_OIDC_*` settings, see [docs/authentication.md](docs/authentication.md)): authorization code flow with PKCE, state and nonce, ID token signature and claim validation, an allow-list of groups, verified emails or subjects, server-side sessions, **Sign out** in the sidebar (optionally ending the provider session too) and back-channel logout. Password sign-in keeps working and can be used alongside it
+- Chart analyses carry a trading plan: bias, playbook and scenarios with trigger, target and invalidation prices (a price can be taken from the selected line)
+- Journal days review each analysis: what price did against its levels and zones, the day type (trend or range, quiet or volatile, news), each scenario's grade suggested from the day's candles and confirmed by you, the day's trades linked to the plan or a scenario with on-plan and off-plan totals, and what changed since the previous day's version
+- Daily journal: a weekly AI review (trades, plan grades, trades from a plan, Keep and Fix lessons) and results by day type
+- AI recaps and critiques read chart analyses as numbers: every drawing's prices, the plan and its grades, the day's price action, changes since the previous day and, for unfiltered recaps, the day's trades and earlier days of the same type
+- Chart drawing toolbar can be hidden for more chart (remembered apart for full screen), with a small control on the chart to bring it back or leave full screen
+- Drawing templates, as in TradingView: save a tool's look (colours, line styles, text, Fibonacci levels and ratios, Elliott wave degree) under a name, apply it to selected drawings, and star one as the default for new drawings; built-in Fibonacci and Elliott templates included
+- Elliott wave degrees (Grand supercycle to Subminuette) that relabel a wave count in its notation, such as ①②③, (1)(2)(3) or (i)(ii)(iii)
+- Chart layers: drawings can sit inside other drawings (an Elliott wave holds its sub-waves), numbered like an outline, with draw inside, focus on a wave, hide what is inside, go to a wave, and duplicate or delete a whole tree
+- Chart sidebar cards (and the journal records and economic calendar blocks) fold to their title bar, with a short summary, remembered per browser
+- 32 more built-in indicators: WMA, Hull, VWMA, ALMA, SMA 50/200, Parabolic SAR, Ichimoku, linear regression, Aroon, Keltner, Bollinger bandwidth, standard deviation, historical volatility, Chandelier exit, Stochastic RSI, CCI, Williams %R, momentum, ROC, TSI, CMO, Awesome oscillator, volume with average, MFI, Chaikin money flow, accumulation/distribution, PVT, and signal scripts for golden/death crosses, MACD crosses, Bollinger breakouts, Supertrend flips and swing points
+- Chart multiview (optional): two to four full charts at once, each with its own symbol, candle size and analysis (drawings, layers, indicators, zones, alerts, autosave, day versions), with synced crosshair and time window. The page controls follow the chart you click.
+- Installable web app: install the journal from the browser (desktop, Android, iPhone) with its own window and icon
+- Background alerts: the server keeps watching an analysis's lines and zones with no page open and sends Web Push notifications to your browsers or installed app, or to a webhook such as ntfy
+- Chart appearance: chart type, colours, grid, crosshair, text, price scale mode, decimals per symbol and time axis zone; ready-made and saved looks; a look per symbol; symbol display names, colour tags and a watchlist; starting styles per drawing tool (remembered from the last used), custom ink colours; defaults for candle size, live, volume, magnet and stay-in-drawing mode; all saved on the server
+- Layers panel, docked beside the chart (also in full screen) with a toolbar toggle: drag and drop for layers, folders and drawings, find and filter drawings, check several for bulk show, hide, lock, move, restyle, reorder, duplicate or delete, drawing names, per-drawing visibility and lock, layer colours, show only one layer or folder, duplicate a layer with its drawings
+- Day versions of chart analyses: the analysis stays one live board, and each journal day you edit it keeps a frozen copy (drawings, zones, indicators, notes and picture) shown on that day's journal page, openable read-only over current candles and restorable as the live version; day notes and AI reviews use that day's version
+- Real-time charts for Binance and Coinbase: the server relays each exchange's public trade feed over Server-Sent Events, so the forming candle moves with every trade; other sources keep polling
+- Charts show your journal trades (fills, entry to exit with WIN/LOSS and P&L, open positions with stop and target; click to open the trade), with switches to hide all trades or only closed ones, and missed trades as violet diamonds logged straight from the chart
+- Support and resistance zones on Charts: price ranges with a role that follows price, counted touches and breaks, role flip on a break, zone alerts, saved with the analysis
+- Market session opens and closes (Sydney, Tokyo, London, Frankfurt, New York) and an opt-in economic calendar (ForexFactory weekly feed, stored locally, filtered by impact and currency) on the chart time axis
+- Configurable timeframe bar with 3m, 30m, 2h, 4h and 1w candles (4h shown by default); sizes a source lacks are built from finer candles
+- AI recaps and trade critiques include linked chart analyses, with their notes, drawings and zones as text and the snapshot as an image
+- Chart indicators in Pine Script, run by PineTS in a Web Worker: 15 built-ins (moving averages, VWAP, Bollinger, Donchian, Supertrend, ATR, RSI, MACD, Stochastic, ADX, OBV and signal scripts), a Pine editor with errors and line numbers, a "My indicators" library, settings and visibility saved with each analysis, and indicator `alert()` messages in chart alerts. Adds AGPL-3.0 dependencies (`pinets`, `@luxalgo/vela-pinets`) with reviewed license-gate exceptions
+- Charts: a live Vela chart for any symbol from your market-data source (latest candles on open, automatic updates, older history on scroll back), stylus drawing (pen, highlighter, hardware eraser, palm rejection), automatic saving per symbol, drawing layers grouped in folders, line-crossing alerts, and journal embeds that reopen the chart
 - Customizable dashboard: drag cards to rearrange, hide and restore them, save named layouts; responsive layout with a mobile navigation drawer
 - Privacy mode that masks monetary values across the app while keeping counts, ratios and chart shapes
 - Markdown notes with formatting toolbar, reusable templates, exact trade links, and image/PDF attachments on trades, days and notebook notes
@@ -23,6 +48,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Charts are faster with many drawings and live prices: the layers panel no longer slows down with deep wave counts, live ticks only redraw the price, bulk drawing edits refresh once, zone statistics and trade labels are not recomputed on every tick, and saved analyses, day versions and background alert checks read far less from the database
+- Vela upgraded to 0.7.7 (required by its Pine add-on)
 - Data loads render as React transitions, so a tab change paints progressively instead of freezing while every card and chart mounts at once
 - The development server runs on Turbopack, roughly halving first-visit compile times when switching tabs in `pnpm dev`
 - Removed the gradient accent bar and gradient Edge Score number; the active nav item and the score now use the solid brand blue
@@ -34,7 +61,28 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Duplicating or pasting a drawing keeps its source's look instead of restyling the copy with the tool's default template or ink
+- Pine scripts with very long expressions or condition chains no longer fail with "Maximum call stack size exceeded": a script too deep for the indicator worker runs on the page instead, and one too deep for both explains how to split it
+- Chart pattern tools: the Elliott impulse is placed on six points (0-1-2-3-4-5, five waves) and the correction on four (0-A-B-C, three waves), instead of Vela's five and three points; the Shark harmonic is labelled 0-X-A-B-C. Wave drawings made with the old point count keep their points and labels
 - Password protection now verifies the session signature on every API route. Previously, when `JOURNAL_PASSWORD` was set, any request carrying a cookie of the right name was accepted, so a forged cookie could read the journal.
+- Journal day reviews in time zones west of UTC: the "range against the average" no longer counts the day itself among the previous days, and a chart from a daily candle file describes the day by that day's candle instead of the next one
+- A journal day in a time zone whose clocks spring forward at midnight (Chile, Cuba, Paraguay) starts at 01:00 that day instead of 23:00 the evening before
+- AI "similar earlier days": each trade counts under the daily candle it closed in and the day being reviewed is typed from its own daily candle, so trades no longer land on the neighbouring day and days are compared like with like. "Results by day type" matches trades to candles the same way, which fixes sources whose daily candles open at the exchange's midnight
+- Day review trade times are shown in the journal's time zone (they were in the browser's), and the section is named "Trades opened this day" to say which trades it lists. Economic event times on charts and in the calendar list name their time zone
+- Plan grading: a scenario whose trigger candle also reached its target or invalidation is suggested as unclear. It was graded from the following candles only, so a stop hit in the trigger candle could read as played out, and a target reached there as still open
+- Line alerts (on the page and in the background) no longer fire "crossed above" when price only touches a line, and no longer miss the real break that follows; a sloped line passing through a flat price now counts as a crossing
+- Support/resistance zones and day review levels count a touch or break by the first candle they scan (judged from its open), so a level tested at the day's open no longer reads "held (0 rejections)"
+- The built-in Linear regression channel draws its bands from the spread of the closes around the fitted line, as TradingView does; they used the spread around the mean, which on a trend made them many times too wide
+- Built-in Williams %R, CCI and MFI show no reading on a flat market or without volume, instead of a fixed value that read as an extreme (%R 0, MFI 100)
+- Live charts show the candle still forming, as documented: the server dropped it from chart history, so polled sources (Alpaca, OANDA) showed the last finished close (up to a whole candle old, a day on 1d) and a Coinbase chart started today's candle at the first streamed trade, with the wrong open, high, low and volume. Background alerts on polled sources also follow the forming candle now. Estimates still use finished candles only
+- Coinbase live candles no longer count the last trade again on every reconnect (Coinbase re-sends it when subscribing)
+- A slow history answer for a chart or timeframe you already left no longer sets the price header, and so can no longer fire line alerts for every line between two symbols' prices. A chart that fails to open shows why and releases its data feed and indicator worker
+- Charts on built candle sizes (4h, 2h, 30m, 1w on most sources) no longer lose their newest candle, or on London Strategic Edge whole months, when scrolled to the deepest history: the finer candles asked for now always fit one request, and a capped answer keeps its newest candles
+- Charts no longer lose unsaved edits when you open another symbol or analysis while saving fails: the chart stays open with **Save and open** and **Open anyway**. A save asked for while another runs (leaving the page, **Add to journal**) now waits for the save that includes its edits, and a newer open always wins over a slower earlier one
+- If chart settings fail to load, changing a setting no longer overwrites your saved watchlist, symbol colours, looks and templates with the defaults; the page says the settings did not load
+- An indicator whose code fails when a chart reopens stays on the analysis with its error instead of being dropped by the next autosave
+- Smaller chart fixes: Title and Notes are read-only while viewing a day's version (typing there was discarded); an ink colour added from the colour picker is remembered after a reload; a script too deep for the indicator worker skips it on every chart, not only the one that found out; the day review shows when its plan or trades fail to load; a source that returns no candles says so instead of "Loading candles…"
+- The Template menu works from the keyboard: **D** stars the focused template and **Delete** deletes one of yours, and saving a look opens a small dialog (the name field inside the menu could not be reached with Tab)
 
 ## [0.1.0] - 2026-09-03
 
