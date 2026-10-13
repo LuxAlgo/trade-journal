@@ -31,7 +31,7 @@ _Dashboard with generated demo data. All screenshots below use synthetic records
 
 ## Quickstart
 
-> **Prefer not to self-host?** A free hosted journal is available inside [LuxAlgo](https://app.luxalgo.com), alongside Quant Charts. Everything below is for running your own copy; this README describes the code in this checkout. See the [platform announcement](https://www.luxalgo.com/blog/luxalgo-charting-platform/) for hosted product context.
+> **Prefer not to self-host?** A free hosted journal is available inside [LuxAlgo](https://app.luxalgo.com), alongside [Vela](https://vela.luxalgo.com/chart), LuxAlgo's next-generation charting platform. Everything below is for running your own copy; this README describes the code in this checkout. See the [platform announcement](https://www.luxalgo.com/blog/luxalgo-charting-platform/) for hosted product context.
 
 ```bash
 git clone https://github.com/LuxAlgo/trade-journal
