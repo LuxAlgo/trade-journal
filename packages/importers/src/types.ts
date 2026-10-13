@@ -74,7 +74,7 @@ export interface ImportFormat {
 }
 
 /** Turn a trade-level row into its two synthetic executions (fees on the exit). */
-export const tradeToExecutions = (trade: ImportedTrade): ImportedExecution[] => [
+export const tradeToExecutions = (trade: ImportedTrade): [ImportedExecution, ImportedExecution] => [
   {
     symbol: trade.symbol,
     side: trade.direction === "long" ? "buy" : "sell",

@@ -15,6 +15,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - PDF and PNG review exports; JSON export now includes folders, templates, rule assessments, routines and defaults
 - Configurable breakeven tolerance, default fees, and default stop/target distances per account and symbol
 - Importers: MetaTrader 5 deal reports and TradingView strategy exports
+- Importers: XTB xStation `.xlsx` account workbooks, with closed positions, open holdings and later closes of those holdings (contributed by @zahei, [#42](https://github.com/LuxAlgo/trade-journal/issues/42))
 - Realized R accounts for contract multipliers and scaled entries
 - Optional historical market data connections (London Strategic Edge, Alpaca, OANDA, Binance, Coinbase, or your own candle CSV) with estimated MAE/MFE and candle replay on closed trades
 - Prop firm tracker: evaluation and reset costs, refunds, payout requests, receipts, cash ROI, renewals, attachments, CSV import and export
