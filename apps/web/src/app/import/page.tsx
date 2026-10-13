@@ -403,8 +403,12 @@ function FileImport() {
               ) : (
                 <>
                   Auto-detected:{" "}
-                  {formatData?.formats.map((format) => format.label.split(" (")[0]).join(", ")} —
-                  anything else via column mapping.
+                  {[
+                    ...new Set(
+                      formatData?.formats.map((format) => format.label.split(" (")[0]) ?? [],
+                    ),
+                  ].join(", ")}{" "}
+                  — anything else via column mapping.
                 </>
               )}
             </span>
@@ -766,7 +770,7 @@ function BrokerConnect() {
                 {settingsError
                   ? "Could not load the import timezone. Refresh and try again."
                   : settingsData
-                    ? `Statement timezone: ${settingsData.importTimeZone}. Used for Flex timestamps without an offset. Change it in Settings → Journal before connecting.`
+                    ? `Statement timezone: ${settingsData.importTimeZone}. Used for Flex timestamps without an offset, and required for Flex XML files uploaded into this account. Change it in Settings → Journal before connecting.`
                     : "Loading statement timezone…"}
               </p>
             )}

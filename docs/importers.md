@@ -29,6 +29,7 @@ Two validation tiers:
 | MetaTrader 4 (HTML statement)      | trades → reconstructed fills | HTML + MetaTrader markers             | ☐             | ☐         |
 | Interactive Brokers (activity CSV) | fills                        | `Trades,Header` section rows          | ☐             | ☐         |
 | Interactive Brokers (Flex Query)   | fills                        | `ClientAccountID`/`Date/Time` headers | ✅¹           | ☐         |
+| Interactive Brokers (Flex XML)     | fills                        | `FlexQueryResponse` root element      | ☐ (fixtures)  | ☐         |
 | ThinkorSwim / Schwab (statement)   | fills                        | `Account Trade History` section       | ✅¹           | ☐         |
 | NinjaTrader                        | fills                        | `Instrument`/`Action` headers         | ✅¹           | ✅ (#10)  |
 | Tradovate                          | fills (Filled only)          | `Contract`/`B/S`/`Fill Time` headers  | ✅¹           | ☐         |
@@ -200,11 +201,31 @@ timezone of your Flex statement with IBKR. The instrument's exchange does not
 determine this setting. An explicit `Z` or numeric offset in a timestamp takes
 precedence. Display timezone still controls rendering and analytics only.
 
-This applies to broker sync. Direct Flex XML file upload is not supported; the
-IBKR file-upload formats are CSV. Date-only records retain the midnight fallback.
-Invalid timestamps, unsupported suffixes and ambiguous or nonexistent local times
-at daylight-saving transitions are skipped and counted in the sync warning.
-Check the source report for those records before relying on the resulting totals.
+Date-only records retain the midnight fallback. Invalid timestamps, unsupported
+suffixes and ambiguous or nonexistent local times at daylight-saving transitions
+are skipped and counted in the sync warning. Check the source report for those
+records before relying on the resulting totals.
+
+### IBKR Flex XML file upload
+
+**Import → File upload** also accepts a Flex Query XML statement (`.xml`). It is
+read by the same Broker SDK parser as broker sync, and the **Statement timezone**
+on the upload form applies to `dateTime` values without an explicit offset. The
+default Flex date and time formats (`yyyyMMdd`, `HHmmss`, `;` separator) are
+required; rows with other formats are skipped and counted in the preview warning.
+
+- Only execution rows are imported. Order, closed-lot and other summary rows
+  (`levelOfDetail` other than `EXECUTION`) are skipped so fills are not counted
+  twice.
+- Rows with a zero price, such as option expiries and assignments, are skipped
+  and counted, as in broker sync.
+- A file that contains more than one IBKR account is refused. Export one
+  account per Flex Query, or import each statement into its own journal account.
+- Uploading into an IBKR broker-sync account requires the statement timezone
+  that account syncs with: the recorded sync timezone, or the **Default import
+  timezone** if nothing has synced yet. Uploaded and synced copies of the same
+  fill then deduplicate. An upload in another timezone is refused before any
+  writes, because its fills would otherwise be stored twice.
 
 The first sync that stores executions records its statement timezone internally.
 Further syncs use the same timezone and existing deduplication. Accounts containing

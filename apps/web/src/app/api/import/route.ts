@@ -12,6 +12,12 @@ import { getImportTimeZone } from "@/server/settings";
 import { isTimeZone } from "@/lib/timezone";
 import type { ImportReviewOptions } from "@/lib/import-review";
 import { previewNinjaTraderImport, commitNinjaTraderImport } from "@/server/ninjatrader-import";
+import {
+  IBKR_FLEX_XML,
+  flexUploadSyncProblem,
+  looksLikeFlexXml,
+  parseFlexXmlImport,
+} from "@/server/ibkr-flex-xml-import";
 import type { AiImportOptions } from "@/lib/ai-import";
 import {
   createAiImportPreview,
@@ -75,7 +81,9 @@ export const POST = handler(async (request: Request) => {
       : readAiImportPreview(statement, body.aiPreviewToken!)
     : body.mapping
       ? parseWithMapping(body.content, body.mapping, { timeZone })
-      : parseAuto(body.content, { timeZone, fileName: body.fileName, symbol: body.symbol });
+      : looksLikeFlexXml(body.content)
+        ? parseFlexXmlImport(body.content, timeZone)
+        : parseAuto(body.content, { timeZone, fileName: body.fileName, symbol: body.symbol });
 
   if (!parsed) {
     return ok({
@@ -85,6 +93,12 @@ export const POST = handler(async (request: Request) => {
       needsMapping: true,
     });
   }
+
+  const syncProblem =
+    parsed.format === IBKR_FLEX_XML.id && body.accountId
+      ? flexUploadSyncProblem(body.accountId, timeZone)
+      : null;
+  const errors = [...(parsed.errors ?? []), ...(syncProblem ? [syncProblem] : [])];
 
   if (body.mode === "preview") {
     const symbols = [...new Set(parsed.executions.map((e) => e.symbol))];
@@ -113,7 +127,7 @@ export const POST = handler(async (request: Request) => {
         ),
       },
       warnings: parsed.warnings,
-      errors: parsed.errors,
+      errors: syncProblem ? errors : parsed.errors,
       needsSymbol: parsed.needsSymbol,
       reconciliation:
         parsed.format === "ninjatrader" && body.accountId
@@ -123,7 +137,7 @@ export const POST = handler(async (request: Request) => {
   }
 
   if (!body.accountId) return bad("accountId is required to commit");
-  if (parsed.errors?.length) return bad(parsed.errors.join(" "));
+  if (errors.length) return bad(errors.join(" "));
   if (parsed.executions.length === 0) return bad("No executions to import");
   const result =
     parsed.format === "ninjatrader"
@@ -148,4 +162,6 @@ export const POST = handler(async (request: Request) => {
 });
 
 /** The import page lists what auto-detection understands. */
-export const GET = handler(() => ok({ formats: FORMATS.map(({ id, label }) => ({ id, label })) }));
+export const GET = handler(() =>
+  ok({ formats: [...FORMATS, IBKR_FLEX_XML].map(({ id, label }) => ({ id, label })) }),
+);

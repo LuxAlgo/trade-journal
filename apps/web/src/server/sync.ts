@@ -1,9 +1,9 @@
 import { connect, listBrokers, type BrokerId } from "@luxalgo/broker-sdk";
 import { eq } from "drizzle-orm";
-import type { ImportedExecution } from "@luxalgo/journal-importers";
 import { accounts, db } from "@/db";
 import { decryptJson, encryptJson } from "./crypto";
 import { nowIso } from "./ids";
+import { brokerTradesToExecutions, untimedFillsReason } from "./broker-trades";
 import { insertExecutions, type InsertResult } from "./executions";
 import { getImportTimeZone } from "./settings";
 import { requireValue } from "./api";
@@ -52,20 +52,9 @@ export const syncAccount = async (accountId: string): Promise<SyncOutcome> => {
   const snapshot = await connection.fetchSnapshot();
   const syncedAt = nowIso();
 
-  const rows: ImportedExecution[] = snapshot.accounts.flatMap((brokerAccount) =>
-    brokerAccount.trades.map((trade) => ({
-      symbol: trade.symbol,
-      side: trade.side,
-      quantity: trade.quantity,
-      price: trade.price,
-      fee: trade.fee ?? 0,
-      // The SDK omits unparseable timestamps; a fill with no time can't be
-      // journaled meaningfully, so it is dropped rather than guessed at.
-      executedAt: trade.executedAt ?? "",
-    })),
+  const { timed, untimed } = brokerTradesToExecutions(
+    snapshot.accounts.flatMap((brokerAccount) => brokerAccount.trades),
   );
-  const timed = rows.filter((row) => row.executedAt !== "");
-  const untimed = rows.length - timed.length;
 
   const equity = snapshot.accounts.reduce((total, a) => total + a.equity, 0);
   const positions = snapshot.accounts.flatMap((a) => a.positions);
@@ -100,11 +89,7 @@ export const syncAccount = async (accountId: string): Promise<SyncOutcome> => {
   if (untimed > 0) {
     result.skipped += untimed;
     if (result.skippedReasons.length < 5)
-      result.skippedReasons.push(
-        statementTimeZone !== undefined
-          ? `${untimed} fill(s) had no usable timestamp. Check for missing or invalid dates, unsupported timezone suffixes, or ambiguous or nonexistent daylight-saving times.`
-          : `${untimed} fill(s) had no usable timestamp.`,
-      );
+      result.skippedReasons.push(untimedFillsReason(untimed, statementTimeZone !== undefined));
   }
 
   return { accountId, ...result, equity, positions: positions.length, syncedAt };
