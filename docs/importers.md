@@ -38,6 +38,7 @@ Two validation tiers:
 | DAS Trader Pro                     | fills                        | `Symb`/`B/S` headers                  | ☐             | ☐         |
 | MetaTrader 5 (deals report)        | fills                        | HTML/CSV deal table signature         | ☐ (fixtures)  | ☐         |
 | TradingView (strategy list)        | trades → reconstructed fills | `List of trades` headers              | ☐ (fixtures)  | ☐         |
+| XTB xStation (account `.xlsx`)     | closed trades + open lots    | Closed Positions header               | ☐ (fixtures)  | ✅ (#42)  |
 | Generic (column mapper)            | fills                        | user-mapped                           | n/a           | n/a       |
 
 ¹ [TradeNote community broker parsers](https://github.com/Eleven-Trading/TradeNote/blob/main/src/utils/brokers.js):
@@ -80,6 +81,38 @@ In **Import → File upload**, map the action column to **Side** if the format i
 Closes are checked against the selected account's saved fills and the new file together, after duplicate removal. Missing opens, excessive closes, mixed labelled/unlabelled histories, conflicting identities, and uncertain ordering stop the entire import. Identical fills need distinct execution IDs; different-price fills at the same timestamp need a reliable sequence or more precise timestamps. Repeating or reordering the same valid export does not add executions. Keep the export's identity columns consistent between uploads.
 
 If you previously imported the same contract after changing its actions to Buy/Sell, import the complete original history into a separate journal account and compare it before retiring the old one. The importer will not rewrite the old fills or silently combine the two representations. Export one source account at a time. Configure futures multipliers for the imported symbols in Settings; action labels do not establish a multiplier. AI parsing still does not support hedged position histories.
+
+## XTB account workbooks
+
+XTB xStation exports one `.xlsx` workbook per account, with Closed Positions,
+Open Positions and Cash Operations sheets. Upload it on **Import → File upload**
+with AI parsing off; the server reads the workbook directly.
+
+- Each closed position becomes an entry fill and an exit fill at the reported
+  prices. **Gross Profit** is kept as the trade's result, because XTB states it
+  in the account currency and a conversion rate can make price × volume a
+  different currency. When **Profit/Loss** is lower than Gross Profit, the
+  difference is the fee.
+- Each lot on Open Positions becomes an entry fill keyed by its XTB position id,
+  so it shows as an open position. The symbol rollup row is skipped, and its
+  category applies to the lots below it. Unrealized profit is not stored.
+- Cash operations (deposits, transfers, conversions and the cash legs of stock
+  trades) are counted and skipped; the positions already represent the trades.
+- Times labelled UTC are stored as UTC; the statement timezone does not shift them.
+
+**Closing a holding later.** Import a later workbook for the same XTB account
+into the same journal account. A closed position whose id matches a stored open
+lot reuses that lot's entry, so only the exit is added and the position closes.
+Rounding differences in the open time (under a second) or price are tolerated.
+If XTB reports a different size or side for that id, for example after a
+partial close, the import is refused before any writes, because the journal
+cannot tell which part was closed. Export one workbook whose date range covers
+both the opening and the close, and import it into a new journal account.
+
+Limits: `.xlsx` only (not legacy `.xls` or password-protected workbooks), up to
+5 MB, one XTB account per workbook and per journal account. Prices stay in the
+instrument currency, so for a position quoted in another currency the trade's
+result is in the account currency but its entry notional is not.
 
 ## NinjaTrader execution exports
 

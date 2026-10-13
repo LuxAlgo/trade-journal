@@ -21,7 +21,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { postJson, useApi } from "@/lib/use-api";
 import { decodeImportFile } from "@/lib/decode-import";
-import { xtbWorkbookToStatement } from "@luxalgo/journal-importers";
 import { formatTimestamp, isTimeZone } from "@/lib/timezone";
 import { dayKeyOf } from "@luxalgo/journal-core";
 import { ImportReconciliation } from "@/components/import-reconciliation";
@@ -34,6 +33,7 @@ import {
   AI_IMPORT_MAX_TEXT,
   type AiImportOptions as AiOptions,
 } from "@/lib/ai-import";
+import { XLSX_MAX_BYTES } from "@/lib/xlsx-import";
 import { Checkbox } from "@/components/ui/checkbox";
 
 interface BrokerInfo {
@@ -156,7 +156,7 @@ function FileImport() {
     model: AI_DEFAULT_MODELS.openai,
     apiKey: "",
   });
-  const [encoding, setEncoding] = useState<"text" | "pdf">("text");
+  const [encoding, setEncoding] = useState<"text" | "pdf" | "xlsx">("text");
   const [aiReviewed, setAiReviewed] = useState(false);
   const { data: formatData } = useApi<{ formats: { id: string; label: string }[] }>("/api/import");
   const { data: settingsData, error: settingsError } = useApi<
@@ -202,15 +202,16 @@ function FileImport() {
         );
       if (aiEnabled && file.size > AI_IMPORT_MAX_BYTES)
         throw new Error("AI uploads must be 8 MB or smaller.");
+      if (xlsx && file.size > XLSX_MAX_BYTES)
+        throw new Error("Excel uploads must be a .xlsx file of 5 MB or less.");
       if (aiEnabled && !/\.(csv|tsv|txt|html?|xml|pdf)$/i.test(file.name))
         throw new Error(
           "Choose a CSV, TSV, HTML, XML, TXT or PDF file. XTB Excel reports use the XTB importer with AI turned off.",
         );
       const buffer = await file.arrayBuffer();
       let text: string;
-      if (xlsx) {
-        text = await xtbWorkbookToStatement(buffer);
-      } else if (pdf) {
+      // Binary statements travel as base64; the server reads them.
+      if (pdf || xlsx) {
         const bytes = new Uint8Array(buffer);
         let binary = "";
         for (let i = 0; i < bytes.length; i += 8192)
@@ -223,7 +224,8 @@ function FileImport() {
             "Use a smaller export: AI text parsing supports up to 150,000 characters.",
           );
       }
-      setEncoding(pdf ? "pdf" : "text");
+      const fileEncoding = pdf ? "pdf" : xlsx ? "xlsx" : "text";
+      setEncoding(fileEncoding);
       setContent(text);
       // Choosing a file alone never sends it to an AI provider.
       if (aiEnabled) return;
@@ -235,6 +237,7 @@ function FileImport() {
           review: {},
           fileName: file.name,
           timeZone,
+          ...(fileEncoding === "xlsx" ? { encoding: fileEncoding } : {}),
         }),
       );
     } catch (cause) {
@@ -312,6 +315,7 @@ function FileImport() {
         symbol,
         // Commit with the exact parsing zone used by the reviewed preview.
         timeZone: preview.timeZone,
+        ...(encoding === "xlsx" ? { encoding } : {}),
         ...(preview.aiPreviewToken
           ? {
               ai: { provider: aiOptions.provider, model: aiOptions.model },

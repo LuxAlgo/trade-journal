@@ -124,6 +124,12 @@ const positionGroup = (
   openedAt: string,
 ) => `xtb:${account ?? "account"}:${positionId || `${symbol}:${openedAt}`}`;
 
+/**
+ * A row with a type other than BUY or SELL is a trade this importer does not
+ * understand. Rows without a type are layout: totals, symbol rollups, notes.
+ */
+const isUnknownTrade = (row: Row): boolean => (pick(row, ["type"]) ?? "").trim() !== "";
+
 const splitSections = (table: string[][]): { closed: string[][]; open: string[][] } => {
   const marker = table.findIndex((row) => row[0] === SECTION);
   if (marker === -1) return { closed: table, open: [] };
@@ -167,7 +173,7 @@ export const xtb: ImportFormat = {
       if (row[Object.keys(row)[0] ?? ""] === NOTE || Object.values(row).includes(NOTE)) continue;
       const parsed = closedRow(row, account, accounts);
       if (parsed === "skip") {
-        if (Object.values(row).some((value) => value !== "")) skippedRows++;
+        if (isUnknownTrade(row)) skippedRows++;
         continue;
       }
       if (parsed === "invalid") {
@@ -183,10 +189,17 @@ export const xtb: ImportFormat = {
       accountFrom(openHeader === -1 ? open : open.slice(0, openHeader)) ?? account;
     if (openAccount) accounts.add(openAccount);
     const openRecords = openHeader === -1 ? [] : toRecords(open.slice(openHeader));
+    // Lot rows leave Category empty; the ticker's rollup row above them carries it.
+    const categories = new Map<string, string>();
     for (const row of openRecords) {
-      const holding = openRow(row, openAccount, accounts);
+      const ticker = pick(row, ["ticker"])?.trim().toUpperCase();
+      const category = pick(row, ["category"])?.trim();
+      if (ticker && category && !categories.has(ticker)) categories.set(ticker, category);
+    }
+    for (const row of openRecords) {
+      const holding = openRow(row, openAccount, accounts, categories);
       if (holding === "skip") {
-        if (Object.values(row).some((value) => value !== "")) skippedRows++;
+        if (isUnknownTrade(row)) skippedRows++;
         continue;
       }
       if (holding === "invalid") {
@@ -288,6 +301,7 @@ const openRow = (
   row: Row,
   account: string | undefined,
   accounts: Set<string>,
+  categories: Map<string, string>,
 ): ImportedExecution | "skip" | "invalid" => {
   const type = (pick(row, ["type"]) ?? "").trim().toLowerCase();
   if (type !== "buy" && type !== "sell") return "skip";
@@ -315,7 +329,7 @@ const openRow = (
     price,
     fee: Number.isFinite(commission) ? Math.abs(commission) : 0,
     executedAt: openedAt,
-    assetClass: assetClassOf(pick(row, ["category"])),
+    assetClass: assetClassOf(pick(row, ["category"])?.trim() || categories.get(symbol)),
     importMetadata: {
       id: "entry",
       group: positionGroup(rowAccount, positionId, symbol, openedAt),

@@ -58,67 +58,116 @@ const columnIndex = (cellRef: string): number => {
 
 const rowNumber = (cellRef: string): number => Number(/\d+$/.exec(cellRef)?.[0] ?? 0);
 
+/** Account statements are small; a workbook far beyond these limits is not one. */
+const MAX_ENTRIES = 1_000;
+const MAX_ENTRY_BYTES = 32 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
+
+const NOT_XLSX = "This file is not an .xlsx workbook.";
+function fail(message = NOT_XLSX): never {
+  throw new Error(message);
+}
+
 interface ZipEntry {
   name: string;
   method: number;
   compressedSize: number;
+  uncompressedSize: number;
   dataOffset: number;
 }
 
 const findEocd = (bytes: Uint8Array): number => {
   const start = Math.max(0, bytes.length - 22 - 65_535);
   for (let offset = bytes.length - 22; offset >= start; offset--) {
-    if (
-      bytes[offset] === 0x50 &&
-      bytes[offset + 1] === 0x4b &&
-      bytes[offset + 2] === 0x05 &&
-      bytes[offset + 3] === 0x06
-    )
-      return offset;
+    if (u32(bytes, offset) === 0x06054b50) return offset;
   }
-  throw new Error("This file is not an .xlsx workbook.");
+  return fail();
 };
 
+/** Central directory entries, with every offset and size checked against the file. */
 const zipEntries = (bytes: Uint8Array): ZipEntry[] => {
   const eocd = findEocd(bytes);
+  if (u16(bytes, eocd + 4) !== 0 || u16(bytes, eocd + 6) !== 0)
+    fail("Multi-part .xlsx archives are not supported.");
   const count = u16(bytes, eocd + 10);
   let cursor = u32(bytes, eocd + 16);
+  if (count === 0xffff || cursor === 0xffffffff)
+    fail("ZIP64 workbooks are not supported. Save the file again in Excel.");
+  if (count > MAX_ENTRIES) fail("This workbook is too large to be an account statement.");
   const entries: ZipEntry[] = [];
   for (let index = 0; index < count; index++) {
-    if (u32(bytes, cursor) !== 0x02014b50) throw new Error("This file is not an .xlsx workbook.");
+    if (cursor + 46 > bytes.length || u32(bytes, cursor) !== 0x02014b50) fail();
+    const flags = u16(bytes, cursor + 8);
     const method = u16(bytes, cursor + 10);
     const compressedSize = u32(bytes, cursor + 20);
+    const uncompressedSize = u32(bytes, cursor + 24);
     const nameLength = u16(bytes, cursor + 28);
     const extraLength = u16(bytes, cursor + 30);
     const commentLength = u16(bytes, cursor + 32);
     const localOffset = u32(bytes, cursor + 42);
+    if (flags & 0x1)
+      fail(
+        "Password-protected workbooks are not supported. Export the report again without a password.",
+      );
+    if ([compressedSize, uncompressedSize, localOffset].includes(0xffffffff))
+      fail("ZIP64 workbooks are not supported. Save the file again in Excel.");
+    if (uncompressedSize > MAX_ENTRY_BYTES)
+      fail("This workbook is too large to be an account statement.");
+    if (cursor + 46 + nameLength > bytes.length) fail();
+    if (localOffset + 30 > bytes.length || u32(bytes, localOffset) !== 0x04034b50) fail();
     const name = new TextDecoder().decode(bytes.subarray(cursor + 46, cursor + 46 + nameLength));
-    const localNameLength = u16(bytes, localOffset + 26);
-    const localExtraLength = u16(bytes, localOffset + 28);
-    entries.push({
-      name,
-      method,
-      compressedSize,
-      dataOffset: localOffset + 30 + localNameLength + localExtraLength,
-    });
+    const dataOffset =
+      localOffset + 30 + u16(bytes, localOffset + 26) + u16(bytes, localOffset + 28);
+    if (dataOffset + compressedSize > bytes.length) fail();
+    entries.push({ name, method, compressedSize, uncompressedSize, dataOffset });
     cursor += 46 + nameLength + extraLength + commentLength;
   }
   return entries;
 };
 
-const inflateRaw = async (data: Uint8Array): Promise<Uint8Array> => {
+/** Inflate, stopping as soon as the output passes the size the archive declared. */
+const inflateRaw = async (data: Uint8Array, limit: number): Promise<Uint8Array> => {
   if (data.length === 0) return new Uint8Array();
-  const stream = new Blob([data.slice()])
+  const reader = new Blob([data.slice()])
     .stream()
-    .pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+    .pipeThrough(new DecompressionStream("deflate-raw"))
+    .getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > limit) {
+      await reader.cancel();
+      fail("This workbook is damaged: a part is larger than the archive declares.");
+    }
+    chunks.push(value);
+  }
+  const output = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return output;
 };
 
 const readEntry = async (bytes: Uint8Array, entry: ZipEntry): Promise<string> => {
   const compressed = bytes.subarray(entry.dataOffset, entry.dataOffset + entry.compressedSize);
-  if (entry.method === 0) return new TextDecoder().decode(compressed);
-  if (entry.method === 8) return new TextDecoder().decode(await inflateRaw(compressed));
-  throw new Error(`Unsupported Excel compression (method ${entry.method}).`);
+  if (entry.method === 0) {
+    if (compressed.length > entry.uncompressedSize) fail();
+    return new TextDecoder().decode(compressed);
+  }
+  if (entry.method !== 8) fail(`Unsupported Excel compression (method ${entry.method}).`);
+  let inflated: Uint8Array;
+  try {
+    inflated = await inflateRaw(compressed, entry.uncompressedSize);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("This workbook")) throw error;
+    return fail("This .xlsx workbook is damaged and could not be read.");
+  }
+  return new TextDecoder().decode(inflated);
 };
 
 const sharedStrings = (xml: string): string[] =>
@@ -196,17 +245,25 @@ const sheetRows = (
 /** Read every worksheet. Dates become UTC ISO strings; other numbers stay plain decimals. */
 export const readXlsx = async (data: ArrayBuffer | Uint8Array): Promise<XlsxSheet[]> => {
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-  if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b)
-    throw new Error("This file is not an .xlsx workbook.");
+  // Legacy .xls files and password-protected .xlsx files are OLE compound documents.
+  if (u32(bytes, 0) === 0xe011cfd0)
+    fail(
+      "This is a legacy .xls or password-protected workbook. Export the report again as .xlsx without a password.",
+    );
+  if (bytes.length < 22 || u32(bytes, 0) !== 0x04034b50) fail();
   const entries = zipEntries(bytes);
   const byName = new Map(entries.map((entry) => [entry.name.replace(/\\/g, "/"), entry]));
+  let expanded = 0;
   const read = async (name: string): Promise<string | null> => {
     const entry = byName.get(name) ?? byName.get(`xl/${name.replace(/^xl\//, "")}`);
-    return entry ? readEntry(bytes, entry) : null;
+    if (!entry) return null;
+    expanded += entry.uncompressedSize;
+    if (expanded > MAX_TOTAL_BYTES) fail("This workbook is too large to be an account statement.");
+    return readEntry(bytes, entry);
   };
   const workbook = await read("xl/workbook.xml");
   const rels = await read("xl/_rels/workbook.xml.rels");
-  if (!workbook || !rels) throw new Error("This file is not an .xlsx workbook.");
+  if (!workbook || !rels) fail();
   const strings = sharedStrings((await read("xl/sharedStrings.xml")) ?? "");
   const dates = dateStyleIndexes((await read("xl/styles.xml")) ?? "");
   const epochMs = /date1904="(?:1|true)"/.test(workbook) ? Date.UTC(1904, 0, 1) : EXCEL_EPOCH_MS;
@@ -227,6 +284,6 @@ export const readXlsx = async (data: ArrayBuffer | Uint8Array): Promise<XlsxShee
     if (!xml) continue;
     sheets.push({ name: decodeXml(name), rows: sheetRows(xml, strings, dates, epochMs) });
   }
-  if (sheets.length === 0) throw new Error("This workbook has no sheets.");
+  if (sheets.length === 0) fail("This workbook has no sheets.");
   return sheets;
 };
