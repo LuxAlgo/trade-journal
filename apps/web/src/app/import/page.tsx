@@ -21,6 +21,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { postJson, useApi } from "@/lib/use-api";
 import { decodeImportFile } from "@/lib/decode-import";
+import { xtbWorkbookToStatement } from "@luxalgo/journal-importers";
 import { formatTimestamp, isTimeZone } from "@/lib/timezone";
 import { dayKeyOf } from "@luxalgo/journal-core";
 import { ImportReconciliation } from "@/components/import-reconciliation";
@@ -193,16 +194,23 @@ function FileImport() {
     setBusy(true);
     try {
       const pdf = /\.pdf$/i.test(file.name);
+      const xlsx = /\.xlsx$/i.test(file.name);
       if (pdf && !aiEnabled) throw new Error("Enable AI parsing to upload a PDF statement.");
+      if (xlsx && aiEnabled)
+        throw new Error(
+          "Turn off AI parsing for an XTB Excel report. The XTB importer reads it directly.",
+        );
       if (aiEnabled && file.size > AI_IMPORT_MAX_BYTES)
         throw new Error("AI uploads must be 8 MB or smaller.");
       if (aiEnabled && !/\.(csv|tsv|txt|html?|xml|pdf)$/i.test(file.name))
         throw new Error(
-          "Choose a CSV, TSV, HTML, XML, TXT or PDF file. Export spreadsheets as CSV first.",
+          "Choose a CSV, TSV, HTML, XML, TXT or PDF file. XTB Excel reports use the XTB importer with AI turned off.",
         );
       const buffer = await file.arrayBuffer();
       let text: string;
-      if (pdf) {
+      if (xlsx) {
+        text = await xtbWorkbookToStatement(buffer);
+      } else if (pdf) {
         const bytes = new Uint8Array(buffer);
         let binary = "";
         for (let i = 0; i < bytes.length; i += 8192)
@@ -395,7 +403,7 @@ function FileImport() {
               {fileName ||
                 (aiEnabled
                   ? "Choose a statement for AI parsing"
-                  : "Choose a CSV / HTML / XML statement")}
+                  : "Choose a CSV / HTML / XML statement or an XTB Excel report")}
             </span>
             <span className="text-xs text-muted-foreground">
               {aiEnabled ? (
@@ -408,14 +416,17 @@ function FileImport() {
                       formatData?.formats.map((format) => format.label.split(" (")[0]) ?? [],
                     ),
                   ].join(", ")}{" "}
-                  — anything else via column mapping.
+                  — anything else via column mapping. XTB: one .xlsx per account. Closed positions
+                  and open holdings are imported; cash operations are left out.
                 </>
               )}
             </span>
             <input
               type="file"
               accept={
-                aiEnabled ? ".csv,.txt,.htm,.html,.tsv,.xml,.pdf" : ".csv,.txt,.htm,.html,.tsv,.xml"
+                aiEnabled
+                  ? ".csv,.txt,.htm,.html,.tsv,.xml,.pdf"
+                  : ".csv,.txt,.htm,.html,.tsv,.xml,.xlsx"
               }
               disabled={busy || !settingsData || !validTimeZone}
               className="hidden"
