@@ -49,6 +49,7 @@ export const tradovate = makeFillsFormat({
   columns: {
     // Prefer Product (the root symbol, "ES") over Contract ("ESU6").
     symbol: ["product", "contract"],
+    contract: ["contract"],
     side: ["bs", "side"],
     quantity: ["filledqty", "fillqty", "qty"],
     price: ["avgfillprice", "avgprice", "price"],

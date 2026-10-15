@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db, notes } from "@/db";
+import { db, folders, notes } from "@/db";
 import { bad, handler, ok } from "@/server/api";
 import { nowIso } from "@/server/ids";
 
@@ -17,6 +17,10 @@ export const PATCH = handler(async (request: Request, { params }: Params) => {
   const existing = db.select().from(notes).where(eq(notes.id, id)).get();
   if (!existing) return bad("Note not found", 404);
   const body = (await request.json()) as PatchNoteBody;
+  if (body.folderId !== undefined) {
+    const folder = db.select().from(folders).where(eq(folders.id, body.folderId)).get();
+    if (!folder || folder.deletedAt || body.folderId === "all") return bad("Folder not found", 404);
+  }
   db.update(notes)
     .set({
       title: body.title ?? existing.title,

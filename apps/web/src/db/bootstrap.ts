@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   credentials_enc TEXT,
   auto_sync INTEGER NOT NULL DEFAULT 0,
   last_sync_at TEXT,
+  ibkr_sync_time_zone TEXT,
   snapshot_json TEXT,
   archived_at TEXT,
   created_at TEXT NOT NULL
@@ -103,7 +104,8 @@ CREATE TABLE IF NOT EXISTS folders (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   kind TEXT NOT NULL DEFAULT 'user',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  deleted_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS notes (

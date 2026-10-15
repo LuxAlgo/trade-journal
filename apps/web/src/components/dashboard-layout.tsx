@@ -16,6 +16,7 @@ import {
   MeasuringStrategy,
   PointerSensor,
   closestCenter,
+  defaultDropAnimation,
   defaultDropAnimationSideEffects,
   pointerWithin,
   useSensor,
@@ -24,9 +25,10 @@ import {
   type DragEndEvent,
   type DragMoveEvent,
   type DragStartEvent,
+  type DropAnimation,
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
-import { ArrowLeft, ArrowRight, GripVertical } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardCustomizer } from "@/components/dashboard-customizer";
 import { DashboardSavedLayouts } from "@/components/dashboard-saved-layouts";
@@ -63,13 +65,36 @@ const collisionDetection: CollisionDetection = (args) =>
   args.pointerCoordinates ? pointerWithin(args) : closestCenter(args);
 // Reorder the real grid while dragging, then animate its measured positions.
 const liveGridStrategy = () => null;
-const dropAnimation = {
+const dropAnimation: DropAnimation = {
   duration: 300,
   easing: DASHBOARD_MOVE_EASING,
-  sideEffects: defaultDropAnimationSideEffects({
-    styles: { active: { opacity: "0" } },
-    className: { dragOverlay: "dashboard-card-dropping" },
-  }),
+  // Explicit offsets keep the release effect alive even when the card has not moved.
+  keyframes: (args) =>
+    defaultDropAnimation.keyframes(args).map((frame, index, frames) => ({
+      ...frame,
+      offset: index / (frames.length - 1),
+    })),
+  sideEffects: (args) => {
+    const surfaces = Array.from(
+      args.dragOverlay.node.querySelectorAll(".dashboard-drag-lift, .dashboard-drag-swing"),
+      (node) => ({ node, transform: getComputedStyle(node).transform }),
+    );
+    const cleanup = defaultDropAnimationSideEffects({
+      styles: { active: { opacity: "0" } },
+      className: { dragOverlay: "dashboard-card-dropping" },
+    })(args);
+    // Bridge from the painted pickup frame, including a release before pickup finishes.
+    const animations = surfaces.map(({ node, transform }) =>
+      node.animate([{ transform }, { transform: "none" }], {
+        duration: 240,
+        easing: DASHBOARD_MOVE_EASING,
+      }),
+    );
+    return () => {
+      animations.forEach((animation) => animation.cancel());
+      cleanup?.();
+    };
+  },
 };
 
 export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
@@ -92,7 +117,7 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
   const lastReorder = useRef<{ x: number; y: number } | null>(null);
   const reducedMotion = useReducedDashboardMotion();
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -187,19 +212,6 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
   });
   const label = (id: string | number) => byId.get(String(id))?.label ?? "Card";
 
-  function move(from: string, to: string) {
-    update(
-      (previous) => ({
-        ...previous,
-        current: moveDashboardCard(normalizeArrangement(previous.current, ids), from, to),
-      }),
-      `${label(from)} moved. Layout saved.`,
-    );
-  }
-  function moveBy(id: string, delta: number) {
-    const target = visible[visible.indexOf(id) + delta];
-    if (target) move(id, target);
-  }
   function startDrag({ active, activatorEvent }: DragStartEvent) {
     const card = Array.from(gridRef.current?.children ?? []).find(
       (element) => element.getAttribute("data-dashboard-card") === String(active.id),
@@ -281,11 +293,11 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
             layouts={state.layouts}
             current={current}
             ids={ids}
-            onLoad={(name) =>
+            onLoad={(name, arrangement) =>
               update(
                 (previous) => ({
                   ...previous,
-                  current: normalizeArrangement(previous.layouts[name], ids),
+                  current: normalizeArrangement(arrangement, ids),
                 }),
                 `${name} loaded`,
               )
@@ -405,11 +417,7 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
                     tablet: tabletSpans[id]!,
                     desktop: desktopSpans[id]!,
                   }}
-                  edit={edit}
                   exiting={exiting.has(id)}
-                  first={visible.indexOf(id) === 0}
-                  last={visible.indexOf(id) === visible.length - 1}
-                  onMove={(delta) => moveBy(id, delta)}
                 />
               ))}
             </div>
@@ -432,19 +440,11 @@ export function DashboardLayout({ widgets }: { widgets: Widget[] }) {
 function SortableCard({
   widget,
   responsiveSpans,
-  edit,
   exiting,
-  first,
-  last,
-  onMove,
 }: {
   widget: Widget;
   responsiveSpans: { compact: number; tablet: number; desktop: number };
-  edit: boolean;
   exiting: boolean;
-  first: boolean;
-  last: boolean;
-  onMove(delta: number): void;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useSortable({
     id: widget.id,
@@ -488,36 +488,6 @@ function SortableCard({
           <GripVertical className="h-3.5 w-3.5" />
         </Button>
         <div className="min-w-0 flex-1 [&_[data-slot=card-header]]:pl-9">{widget.content}</div>
-        {edit && (
-          <div
-            data-dashboard-move-controls
-            className="mt-1 flex items-center justify-end gap-1 rounded border bg-card px-1 py-0.5 text-xs"
-          >
-            <span className="mr-auto pl-1 text-muted-foreground">Move card</span>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-6 w-6"
-              disabled={first}
-              aria-label={`Move ${widget.label} earlier`}
-              onClick={() => onMove(-1)}
-            >
-              <ArrowLeft className="h-3 w-3" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="h-6 w-6"
-              disabled={last}
-              aria-label={`Move ${widget.label} later`}
-              onClick={() => onMove(1)}
-            >
-              <ArrowRight className="h-3 w-3" />
-            </Button>
-          </div>
-        )}
       </div>
     </section>
   );

@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { accounts, db, executions, trades } from "@/db";
-import { bad, handler, ok } from "@/server/api";
+import { bad, handler, ok, requireValue } from "@/server/api";
 import { rebuildAccount } from "@/server/rebuild";
+import { hasSyncedExecutions, isIbkrSyncAccount } from "@/server/ibkr-sync-timezone";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -28,13 +29,30 @@ export const PATCH = handler(async (request: Request, { params }: Params) => {
   if (body.autoSync !== undefined) patch.autoSync = body.autoSync;
   if (body.profitCalcMethod !== undefined) patch.profitCalcMethod = body.profitCalcMethod;
 
-  if (Object.keys(patch).length > 0) {
-    db.update(accounts).set(patch).where(eq(accounts.id, id)).run();
-  }
-  // A new profit-calc method changes per-exit attribution — recompute.
-  if (body.profitCalcMethod && body.profitCalcMethod !== account.profitCalcMethod) {
-    rebuildAccount(id);
-  }
+  db.transaction(
+    () => {
+      const current = db.select().from(accounts).where(eq(accounts.id, id)).get();
+      requireValue(current, "Account not found.");
+      if (
+        body.broker !== undefined &&
+        body.broker !== current.broker &&
+        isIbkrSyncAccount(current)
+      ) {
+        requireValue(
+          !hasSyncedExecutions(id),
+          "An IBKR account with synced history cannot change brokers. Connect a separate account to preserve its timestamp history.",
+        );
+      }
+      if (Object.keys(patch).length > 0) {
+        db.update(accounts).set(patch).where(eq(accounts.id, id)).run();
+      }
+      // A new profit-calc method changes per-exit attribution — recompute.
+      if (body.profitCalcMethod && body.profitCalcMethod !== current.profitCalcMethod) {
+        rebuildAccount(id);
+      }
+    },
+    { behavior: "immediate" },
+  );
   return ok({ updated: true });
 });
 

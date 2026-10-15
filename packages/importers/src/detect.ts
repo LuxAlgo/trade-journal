@@ -13,6 +13,7 @@ import {
 } from "./formats/simple";
 import { thinkorswim } from "./formats/thinkorswim";
 import { tradezella } from "./formats/tradezella";
+import { xtb } from "./formats/xtb";
 import { historyFormat, parseHistory } from "./formats/history";
 import type { ImportFormat, ImportOptions, ParsedImport } from "./types";
 
@@ -33,6 +34,7 @@ const LEGACY_FORMATS: ImportFormat[] = [
   tradovate,
   webull,
   dastrader,
+  xtb,
 ];
 
 export const FORMATS: ImportFormat[] = [...LEGACY_FORMATS, historyFormat];
@@ -54,7 +56,8 @@ const route = (content: string, options: ImportOptions): Route | null => {
   const headers = parseCsv(content)[0] ?? [];
   const legacyFormat = LEGACY_FORMATS.find((candidate) => candidate.detect(headers, content));
   const legacy = legacyFormat ? legacyFormat.parse(content, options) : undefined;
-  if (legacyFormat && legacy?.executions.length) return { format: legacyFormat, parsed: legacy };
+  if (legacyFormat && legacy && (legacy.executions.length || legacy.errors?.length))
+    return { format: legacyFormat, parsed: legacy };
   const history = parseHistory(content, options);
   if (history) return { format: historyFormat, parsed: history };
   if (legacyFormat && legacy) return { format: legacyFormat, parsed: legacy };

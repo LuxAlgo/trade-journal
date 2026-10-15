@@ -11,6 +11,44 @@ export interface DashboardPreferences {
 
 export type DashboardCardSize = "small" | "medium" | "wide" | "full";
 
+/** Overview shows every card; focused presets keep the rest available in Customize. */
+export function dashboardLayoutPresets(ids: string[]) {
+  return [
+    {
+      name: "Overview",
+      description: "All cards in the original order.",
+      order: [],
+    },
+    {
+      name: "Trading day",
+      description: "Calendar and recent trades first, then daily results.",
+      order: [8, 9, 0, 1, 3, 7, 15],
+    },
+    {
+      name: "Performance",
+      description: "Returns, win rate, equity, and your trading edge.",
+      order: [0, 1, 2, 4, 6, 7, 5, 15],
+    },
+    {
+      name: "Risk review",
+      description: "Drawdown, streaks, expectancy, and daily swings.",
+      order: [10, 11, 12, 14, 6, 7],
+    },
+  ].map(({ order, ...preset }) => {
+    const selected = order.map((id) => `widget-${id}`);
+    return {
+      ...preset,
+      arrangement: normalizeArrangement(
+        {
+          order: selected,
+          hidden: selected.length ? ids.filter((id) => !selected.includes(id)) : [],
+        },
+        ids,
+      ),
+    };
+  });
+}
+
 /**
  * Fill each responsive grid row without changing card order. Any columns left
  * over before the next card are shared across the cards already in that row.

@@ -7,6 +7,8 @@ import type { CalendarMonth } from "@luxalgo/journal-core";
 import { cn, fmtMoney } from "@/lib/utils";
 import { Pnl } from "./pnl";
 import { MonetaryValue, usePrivacy } from "./privacy";
+import type { CalendarPnlPoint } from "@/lib/calendar-insights";
+import { CalendarDayPreview } from "./calendar-day-preview";
 
 const compactFormatters = new Map<string, Intl.NumberFormat>();
 const compactMoney = (value: number, currency: string) => {
@@ -33,10 +35,12 @@ export function CalendarPnl({
   calendar,
   currency = "USD",
   monetary = true,
+  runningPnl,
 }: {
   calendar: CalendarMonth;
   currency?: string;
   monetary?: boolean;
+  runningPnl?: Record<string, CalendarPnlPoint[]>;
 }) {
   const maxAbs = Math.max(
     1,
@@ -60,6 +64,7 @@ export function CalendarPnl({
             maxAbs={maxAbs}
             currency={currency}
             monetary={monetary}
+            runningPnl={runningPnl}
           />
         ))}
       </div>
@@ -85,11 +90,13 @@ function CalendarWeekRow({
   maxAbs,
   currency,
   monetary,
+  runningPnl,
 }: {
   week: CalendarMonth["weeks"][number];
   maxAbs: number;
   currency: string;
   monetary: boolean;
+  runningPnl?: Record<string, CalendarPnlPoint[]>;
 }) {
   const search = useSearchParams();
   const privacy = usePrivacy();
@@ -110,7 +117,19 @@ function CalendarWeekRow({
           <HoverHint
             key={day.date}
             heading={day.date}
-            content={`${!monetary ? "Multiple currencies" : privacy ? "P&L hidden" : fmtMoney(day.netPnl, currency)} · ${day.trades} trades`}
+            content={
+              runningPnl ? (
+                <CalendarDayPreview
+                  points={runningPnl[day.date] ?? []}
+                  total={day.netPnl}
+                  trades={day.trades}
+                  currency={currency}
+                  monetary={monetary}
+                />
+              ) : (
+                `${!monetary ? "Multiple currencies" : privacy ? "P&L hidden" : fmtMoney(day.netPnl, currency)} · ${day.trades} trades`
+              )
+            }
           >
             <Link
               key={day.date}

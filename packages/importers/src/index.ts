@@ -6,3 +6,5 @@ export { parseMoney, parseQuantity } from "./numbers";
 export { parseWithMapping, readHeaders, type GenericMapping } from "./formats/generic";
 export { makeFillsFormat, parseSide, type FillsFormatSpec } from "./formats/fills";
 export { parseHistory, type HistoryParseOptions } from "./formats/history";
+export { xtbWorkbookToStatement } from "./formats/xtb";
+export { positionFillProblem } from "./position-fills";

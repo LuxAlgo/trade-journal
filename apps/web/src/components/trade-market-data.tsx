@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Vela } from "@luxalgo/vela";
+import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, SkipForward } from "lucide-react";
 import {
   RESOLUTIONS,
   type MarketConnection,
@@ -345,7 +346,7 @@ export function TradeMarketData({
   );
 }
 
-function HistoricalReplay({
+export function HistoricalReplay({
   history,
   trade,
   executions,
@@ -382,7 +383,7 @@ function HistoricalReplay({
     [history, executions, count],
   );
   return (
-    <Card>
+    <Card className="journal-replay-enter">
       <CardHeader>
         <CardTitle>Historical candles</CardTitle>
       </CardHeader>
@@ -405,46 +406,75 @@ function HistoricalReplay({
               </p>
             )}
             <ReplayChart history={history} nextFrame={frame} />
-            <div className="flex flex-wrap items-center gap-2">
+            <div
+              className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2"
+              role="group"
+              aria-label="Candle replay controls"
+            >
               <Button
                 variant="outline"
+                size="icon"
+                aria-label="Restart replay"
                 onClick={() => {
                   setPlaying(false);
                   setCount(1);
                 }}
               >
-                Restart
+                <RotateCcw />
               </Button>
               <Button
+                variant="outline"
+                size="icon"
+                aria-label="Previous candle"
+                disabled={count <= 1}
+                onClick={() => {
+                  setPlaying(false);
+                  setCount((current) => Math.max(1, current - 1));
+                }}
+              >
+                <ChevronLeft />
+              </Button>
+              <Button
+                className="min-w-24"
+                disabled={history.bars.length <= 1}
                 onClick={() => {
                   if (complete) setCount(1);
                   setPlaying(!playing);
                 }}
               >
+                {playing ? <Pause /> : <Play />}
                 {playing ? "Pause" : "Play"}
               </Button>
               <Button
                 variant="outline"
+                size="icon"
+                aria-label="Next candle"
                 disabled={complete}
                 onClick={() => {
                   setPlaying(false);
                   setCount((current) => Math.min(current + 1, history.bars.length));
                 }}
               >
-                Next candle
+                <ChevronRight />
               </Button>
               <Button
                 variant="outline"
+                size="icon"
+                aria-label="Show all candles"
+                disabled={complete}
                 onClick={() => {
                   setPlaying(false);
                   setCount(history.bars.length);
                 }}
               >
-                Show all
+                <SkipForward />
               </Button>
+              <span className="mx-1 text-xs tabular-nums text-muted-foreground" aria-live="off">
+                {count.toLocaleString()} / {history.bars.length.toLocaleString()}
+              </span>
               <OptionSelect
                 aria-label="Replay speed"
-                className="w-24"
+                className="ml-auto w-20"
                 value={speed}
                 onValueChange={setSpeed}
               >
@@ -518,6 +548,8 @@ function ReplayChart({
   history: TradeMarketResult;
   nextFrame: ReturnType<typeof replayFrame<ChartExecution>>;
 }) {
+  // Chart-local identity also works on HTTP LAN origins without crypto.randomUUID.
+  const indicatorType = `replay-fills-${useId()}`;
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<Vela | null>(null);
   const frame = useRef(nextFrame);
@@ -525,15 +557,17 @@ function ReplayChart({
   latest.current = nextFrame;
   const update = useRef<(() => void) | null>(null);
   const [error, setError] = useState("");
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     let disposed = false;
     let cleanup = () => {};
     setError("");
+    setReady(false);
     void (async () => {
       const { Vela, registerNativeIndicator, unregisterNativeIndicator } =
         await import("@luxalgo/vela");
       if (disposed || !host.current) return;
-      const type = `replay-fills-${crypto.randomUUID()}`;
+      const type = indicatorType;
       registerNativeIndicator({
         type,
         title: "Recorded fills",
@@ -616,6 +650,8 @@ function ReplayChart({
         unregisterNativeIndicator(type);
         if (chart.current === instance) chart.current = null;
       };
+      await instance.ready();
+      if (!disposed) setReady(true);
     })().catch(() => {
       if (!disposed) setError("The historical chart could not be rendered.");
     });
@@ -623,7 +659,7 @@ function ReplayChart({
       disposed = true;
       cleanup();
     };
-  }, [history]);
+  }, [history, indicatorType]);
   useEffect(() => {
     update.current?.();
   }, [nextFrame, history]);
@@ -634,7 +670,20 @@ function ReplayChart({
           {error}
         </p>
       )}
-      <div ref={host} className="h-[420px] overflow-hidden rounded-lg border" />
+      <div
+        className="relative h-[420px] overflow-hidden rounded-lg border"
+        aria-busy={!ready && !error}
+      >
+        {!ready && !error && (
+          <div
+            className="absolute inset-0 flex items-center justify-center bg-muted/20 text-sm text-muted-foreground"
+            role="status"
+          >
+            Preparing candle replay…
+          </div>
+        )}
+        <div ref={host} className={`h-full ${ready ? "journal-replay-reveal" : "invisible"}`} />
+      </div>
     </>
   );
 }

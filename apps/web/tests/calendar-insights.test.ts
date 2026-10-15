@@ -7,7 +7,29 @@ import {
   type AnnotatedTrade,
   type DayStats,
 } from "@luxalgo/journal-core";
-import { calendarInsights, calendarScope, calendarTradeHref } from "../src/lib/calendar-insights";
+import {
+  calendarInsights,
+  calendarRunningPnl,
+  calendarScope,
+  calendarTradeHref,
+} from "../src/lib/calendar-insights";
+
+describe("calendar running P&L", () => {
+  it("orders closes, resets at the journal's midnight, and excludes open positions", () => {
+    const curves = calendarRunningPnl(
+      [
+        { status: "loss", closedAt: "2026-09-02T01:00:00Z", netPnl: -30 },
+        { status: "win", closedAt: "2026-09-02T05:00:00Z", netPnl: 40 },
+        { status: "win", closedAt: "2026-09-01T18:00:00Z", netPnl: 100 },
+        { status: "open", closedAt: undefined, netPnl: 999 },
+      ],
+      "America/Jamaica",
+    );
+    expect(curves["2026-09-01"]?.map((point) => point.cumNetPnl)).toEqual([100, 70]);
+    expect(curves["2026-09-02"]?.map((point) => point.cumNetPnl)).toEqual([40]);
+    expect(calendarRunningPnl([], "UTC")).toEqual({});
+  });
+});
 
 const day = (date: string, netPnl: number): DayStats => ({
   date,
@@ -164,6 +186,9 @@ describe("calendar scope and drill-down", () => {
     const i = calendarInsights(calendarMonthFromDays(dailyStats(ny, "America/New_York"), 2026, 8));
     expect(i).toMatchObject({ trades: 1, netPnl: 96 });
     expect(i.bestDay?.date).toBe("2026-08-31");
+    expect(calendarRunningPnl(ny, "America/New_York")["2026-08-31"]?.at(-1)?.cumNetPnl).toBe(
+      i.netPnl,
+    );
     expect(i.mostProfitableWeekday?.label).toBe("Monday");
     expect(
       calendarInsights(

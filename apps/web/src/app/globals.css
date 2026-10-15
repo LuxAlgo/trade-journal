@@ -197,9 +197,87 @@ body.dashboard-is-dragging .journal-hover-card {
     opacity: 0;
   }
 }
+.journal-calendar-pnl-preview {
+  animation: journal-hover-in 260ms ease-out both;
+}
+.journal-calendar-pnl-line {
+  stroke-dasharray: 1;
+  animation: journal-calendar-pnl-draw 550ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes journal-calendar-pnl-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .journal-hover-card {
+  .journal-hover-card,
+  .journal-calendar-pnl-preview,
+  .journal-calendar-pnl-line {
     animation: none !important;
+  }
+}
+.journal-rating-star {
+  transition:
+    transform 160ms ease,
+    color 160ms ease;
+}
+.journal-rating-star:hover,
+.journal-rating-star:focus-visible {
+  transform: translateY(-1px) scale(1.12);
+}
+.journal-rating-selected {
+  animation: journal-rating-pop 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes journal-rating-pop {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.28);
+  }
+}
+.journal-replay-enter {
+  animation: journal-replay-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.journal-replay-reveal {
+  animation: journal-replay-reveal 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes journal-replay-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes journal-replay-reveal {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .journal-rating-star {
+    transition: none;
+  }
+  .journal-rating-star:hover,
+  .journal-rating-star:focus-visible {
+    transform: none;
+  }
+  .journal-rating-selected,
+  .journal-replay-enter,
+  .journal-replay-reveal {
+    animation: none;
   }
 }
 .journal-chart-frame {
@@ -211,6 +289,9 @@ body.dashboard-is-dragging .journal-hover-card {
 }
 .journal-chart-frame .recharts-surface {
   overflow: hidden;
+}
+.journal-chart-frame .recharts-surface:focus:not(:focus-visible) {
+  outline: none;
 }
 .journal-edge-radar :focus {
   outline: none;
@@ -1241,7 +1322,7 @@ body.dashboard-is-dragging .journal-hover-card {
   transform-origin: var(--dashboard-grab-x) var(--dashboard-grab-y);
 }
 .dashboard-drag-lift {
-  transform: scale(1.025);
+  transform: scale(0.975);
   animation: dashboard-card-pickup 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -1269,7 +1350,7 @@ body.dashboard-is-dragging * {
     transform: scale(1);
   }
   to {
-    transform: scale(1.025);
+    transform: scale(0.975);
   }
 }
 @media (prefers-reduced-motion: reduce) {

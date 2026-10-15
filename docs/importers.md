@@ -29,6 +29,7 @@ Two validation tiers:
 | MetaTrader 4 (HTML statement)      | trades → reconstructed fills | HTML + MetaTrader markers             | ☐             | ☐         |
 | Interactive Brokers (activity CSV) | fills                        | `Trades,Header` section rows          | ☐             | ☐         |
 | Interactive Brokers (Flex Query)   | fills                        | `ClientAccountID`/`Date/Time` headers | ✅¹           | ☐         |
+| Interactive Brokers (Flex XML)     | fills                        | `FlexQueryResponse` root element      | ☐ (fixtures)  | ☐         |
 | ThinkorSwim / Schwab (statement)   | fills                        | `Account Trade History` section       | ✅¹           | ☐         |
 | NinjaTrader                        | fills                        | `Instrument`/`Action` headers         | ✅¹           | ✅ (#10)  |
 | Tradovate                          | fills (Filled only)          | `Contract`/`B/S`/`Fill Time` headers  | ✅¹           | ☐         |
@@ -37,6 +38,7 @@ Two validation tiers:
 | DAS Trader Pro                     | fills                        | `Symb`/`B/S` headers                  | ☐             | ☐         |
 | MetaTrader 5 (deals report)        | fills                        | HTML/CSV deal table signature         | ☐ (fixtures)  | ☐         |
 | TradingView (strategy list)        | trades → reconstructed fills | `List of trades` headers              | ☐ (fixtures)  | ☐         |
+| XTB xStation (account `.xlsx`)     | closed trades + open lots    | Closed Positions header               | ☐ (fixtures)  | ✅ (#42)  |
 | Generic (column mapper)            | fills                        | user-mapped                           | n/a           | n/a       |
 
 ¹ [TradeNote community broker parsers](https://github.com/Eleven-Trading/TradeNote/blob/main/src/utils/brokers.js):
@@ -69,6 +71,48 @@ selections beyond the defaults.
   the trader's old numbers to the cent (skipped when a contract multiplier makes the
   price-implied gross meaningless)
 - Content-hash dedup on insert: re-importing the same file with the same timezone is a no-op
+
+## CSVs with hedged long and short positions
+
+The CSV column mapper and the declarative fills importers recognize **Open Long**, **Close Long**, **Open Short**, and **Close Short** in the side/action column. Keep these original labels: replacing them with Buy/Sell discards which position a fill belongs to. Long and short positions are matched separately within the selected journal account and symbol, including a source contract when supplied. Optional Position IDs separate independent positions on the same side. Original fills, open positions, partial closes, fees, and the account's FIFO/LIFO/weighted-average method are preserved.
+
+In **Import → File upload**, map the action column to **Side** if the format is not detected. **Position identity and ordering (optional)** lets you map differently named Position ID, Execution ID and Sequence columns. The standard headers `Position ID`, `Execution ID`, `Fill ID`, and `Sequence` are recognized automatically. Use a fill's execution ID, not an order ID shared by several fills. Without Position IDs, same-side fills form the usual flat-to-flat cycle for that contract.
+
+Closes are checked against the selected account's saved fills and the new file together, after duplicate removal. Missing opens, excessive closes, mixed labelled/unlabelled histories, conflicting identities, and uncertain ordering stop the entire import. Identical fills need distinct execution IDs; different-price fills at the same timestamp need a reliable sequence or more precise timestamps. Repeating or reordering the same valid export does not add executions. Keep the export's identity columns consistent between uploads.
+
+If you previously imported the same contract after changing its actions to Buy/Sell, import the complete original history into a separate journal account and compare it before retiring the old one. The importer will not rewrite the old fills or silently combine the two representations. Export one source account at a time. Configure futures multipliers for the imported symbols in Settings; action labels do not establish a multiplier. AI parsing still does not support hedged position histories.
+
+## XTB account workbooks
+
+XTB xStation exports one `.xlsx` workbook per account, with Closed Positions,
+Open Positions and Cash Operations sheets. Upload it on **Import → File upload**
+with AI parsing off; the server reads the workbook directly.
+
+- Each closed position becomes an entry fill and an exit fill at the reported
+  prices. **Gross Profit** is kept as the trade's result, because XTB states it
+  in the account currency and a conversion rate can make price × volume a
+  different currency. When **Profit/Loss** is lower than Gross Profit, the
+  difference is the fee.
+- Each lot on Open Positions becomes an entry fill keyed by its XTB position id,
+  so it shows as an open position. The symbol rollup row is skipped, and its
+  category applies to the lots below it. Unrealized profit is not stored.
+- Cash operations (deposits, transfers, conversions and the cash legs of stock
+  trades) are counted and skipped; the positions already represent the trades.
+- Times labelled UTC are stored as UTC; the statement timezone does not shift them.
+
+**Closing a holding later.** Import a later workbook for the same XTB account
+into the same journal account. A closed position whose id matches a stored open
+lot reuses that lot's entry, so only the exit is added and the position closes.
+Rounding differences in the open time (under a second) or price are tolerated.
+If XTB reports a different size or side for that id, for example after a
+partial close, the import is refused before any writes, because the journal
+cannot tell which part was closed. Export one workbook whose date range covers
+both the opening and the close, and import it into a new journal account.
+
+Limits: `.xlsx` only (not legacy `.xls` or password-protected workbooks), up to
+5 MB, one XTB account per workbook and per journal account. Prices stay in the
+instrument currency, so for a position quoted in another currency the trade's
+result is in the account currency but its entry notional is not.
 
 ## NinjaTrader execution exports
 
@@ -106,7 +150,7 @@ positions from an incomplete file. A blank commission uses configured default
 fees (or zero); an explicit zero stays zero.
 
 Configure a positive contract multiplier for each exact imported futures symbol
-in **Settings → Journal**, then review again. For the anonymized
+in **Settings → Trading**, then review again. For the anonymized
 [issue #10](https://github.com/LuxAlgo/trade-journal/issues/10) fixture, `MNQZ6=2`
 produces five closed trades, 26 executions, and $5,265 before fees. Setting only
 `MNQ=2` does not apply to `MNQZ6`; the new import is blocked until its multiplier
@@ -156,7 +200,7 @@ Existing timestamps are not automatically rewritten.
 
 ## Statement and display timezones
 
-In **Settings → Journal**, set **Display timezone** to the zone you want for trade
+In **Settings → General**, set **Display timezone** to the zone you want for trade
 times, analytics, calendars and journal days. Set **Default import timezone** to
 the zone used by your broker's statement. On **Import → File upload**, you can
 override the **Statement timezone** for an individual file without changing either
@@ -181,7 +225,70 @@ Existing installations initially use their previous timezone as the import
 default. Saving a display-only timezone change preserves that previous import
 default. Neither setting rewrites stored executions.
 
-### Correcting an earlier import
+### IBKR broker sync and timezone recovery
+
+**Import → Broker sync → Interactive Brokers** downloads Flex XML through the
+Broker SDK. It uses **Default import timezone** for statement times without an
+explicit offset; the connection form shows the effective setting. Confirm the
+timezone of your Flex statement with IBKR. The instrument's exchange does not
+determine this setting. An explicit `Z` or numeric offset in a timestamp takes
+precedence. Display timezone still controls rendering and analytics only.
+
+Date-only records retain the midnight fallback. Invalid timestamps, unsupported
+suffixes and ambiguous or nonexistent local times at daylight-saving transitions
+are skipped and counted in the sync warning. Check the source report for those
+records before relying on the resulting totals.
+
+### IBKR Flex XML file upload
+
+**Import → File upload** also accepts a Flex Query XML statement (`.xml`). It is
+read by the same Broker SDK parser as broker sync, and the **Statement timezone**
+on the upload form applies to `dateTime` values without an explicit offset. The
+default Flex date and time formats (`yyyyMMdd`, `HHmmss`, `;` separator) are
+required; rows with other formats are skipped and counted in the preview warning.
+
+- Only execution rows are imported. Order, closed-lot and other summary rows
+  (`levelOfDetail` other than `EXECUTION`) are skipped so fills are not counted
+  twice.
+- Rows with a zero price, such as option expiries and assignments, are skipped
+  and counted, as in broker sync.
+- A file that contains more than one IBKR account is refused. Export one
+  account per Flex Query, or import each statement into its own journal account.
+- Uploading into an IBKR broker-sync account requires the statement timezone
+  that account syncs with: the recorded sync timezone, or the **Default import
+  timezone** if nothing has synced yet. Uploaded and synced copies of the same
+  fill then deduplicate. An upload in another timezone is refused before any
+  writes, because its fills would otherwise be stored twice.
+
+The first sync that stores executions records its statement timezone internally.
+Further syncs use the same timezone and existing deduplication. Accounts containing
+older synced executions without this record, or with a different recorded timezone,
+stop before changing executions, trades, notes or sync status. Transfers cannot
+combine synced history with unknown or incompatible timezone provenance.
+
+To recover affected history:
+
+1. Stop the app and copy the **entire data directory**, including `journal.db`,
+   encryption key and attachments, as described in [Export and backup](../README.md#export-and-backup).
+   Keep that backup and the original Flex report.
+2. Restart the app and select the verified statement timezone in
+   **Settings → General → Default import timezone**.
+3. Connect a **separate journal account** to IBKR with the same Flex query and a
+   distinguishable name. Ensure the query covers the full history you want to recover.
+4. Select each account separately in the account filter. Compare execution times,
+   dates, execution and trade counts, fees, open positions and P&L against the report.
+   For example, September 18, 2026 at `08:59:05` in New York should store as
+   `12:59:05Z` and display as `14:59:05` in Rome.
+5. Keep the original account, trades and notes for comparison. Sync the corrected
+   account going forward, and select that account in reports:
+   **archiving alone does not exclude the original trades from All accounts**.
+
+Changing a setting does not repair existing data. Do not transfer the old history
+into the recovered account. This update does not automatically rewrite timestamps
+or migrate annotations. If a corrected account already has the right history,
+restore its recorded default import timezone to resume syncing it.
+
+### Correcting an earlier file import
 
 Changing the import timezone does not repair existing timestamps. Re-importing
 with a different timezone creates different execution hashes and can add duplicate

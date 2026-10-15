@@ -11,6 +11,9 @@ export interface GenericMapping {
   timestamp?: string;
   date?: string;
   time?: string;
+  positionId?: string;
+  executionId?: string;
+  sequence?: string;
 }
 
 /**
@@ -25,7 +28,7 @@ export const parseWithMapping = (
 ): ParsedImport => {
   const records = toRecords(parseCsv(content));
   const alias = (name: string | undefined) => (name ? [headerKey(name)] : []);
-  const { executions, skippedRows } = rowsToFills(
+  const parsed = rowsToFills(
     records,
     {
       symbol: alias(mapping.symbol),
@@ -36,10 +39,14 @@ export const parseWithMapping = (
       timestamp: mapping.timestamp ? alias(mapping.timestamp) : undefined,
       date: alias(mapping.date),
       time: alias(mapping.time),
+      positionId: mapping.positionId ? alias(mapping.positionId) : undefined,
+      executionId: mapping.executionId ? alias(mapping.executionId) : undefined,
+      sequence: mapping.sequence ? alias(mapping.sequence) : undefined,
     },
     options,
+    { positionActions: true },
   );
-  return { format: "generic", executions, skippedRows, warnings: [] };
+  return { format: "generic", ...parsed };
 };
 
 /** Header names of a CSV, for building the mapping UI. */

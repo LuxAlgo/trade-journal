@@ -28,9 +28,11 @@ export interface DailyBarDatum {
 export function DailyBars({
   data,
   height = 240,
+  currency = "USD",
 }: {
   data: DailyBarDatum[];
   height?: number | `${number}%`;
+  currency?: string;
 }) {
   const t = useVizTokens();
   const privateMode = usePrivacy();
@@ -58,13 +60,16 @@ export function DailyBars({
             axisLine={false}
             width={70}
             tickFormatter={(value: number) =>
-              privateMode ? "••••" : fmtMoney(value).replace(".00", "")
+              privateMode ? "••••" : fmtMoney(value, currency).replace(/\.00$/, "")
             }
           />
           <ReferenceLine y={0} stroke={t.baseline} />
           <Tooltip
             contentStyle={tooltipStyle(t)}
-            formatter={(value) => [privateMode ? "Hidden" : fmtMoney(Number(value)), "Net P&L"]}
+            formatter={(value) => [
+              privateMode ? "Hidden" : fmtMoney(Number(value), currency),
+              "Net P&L",
+            ]}
             cursor={{ fill: t.gridline, opacity: 0.4 }}
           />
           <Bar dataKey="netPnl" isAnimationActive={false} maxBarSize={28}>

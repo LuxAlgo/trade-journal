@@ -12,6 +12,19 @@ import { getImportTimeZone } from "@/server/settings";
 import { isTimeZone } from "@/lib/timezone";
 import type { ImportReviewOptions } from "@/lib/import-review";
 import { previewNinjaTraderImport, commitNinjaTraderImport } from "@/server/ninjatrader-import";
+import {
+  IBKR_FLEX_XML,
+  flexUploadSyncProblem,
+  looksLikeFlexXml,
+  parseFlexXmlImport,
+} from "@/server/ibkr-flex-xml-import";
+import { reconcileXtbHoldings, xlsxStatement } from "@/server/xtb-import";
+import type { AiImportOptions } from "@/lib/ai-import";
+import {
+  createAiImportPreview,
+  parseStatementWithAi,
+  readAiImportPreview,
+} from "@/server/ai-import";
 
 interface ImportBody {
   mode: "preview" | "commit";
@@ -23,6 +36,10 @@ interface ImportBody {
   fileName?: string;
   symbol?: string;
   review?: ImportReviewOptions;
+  ai?: AiImportOptions;
+  encoding?: "text" | "pdf" | "xlsx";
+  aiPreviewToken?: string;
+  aiReviewed?: boolean;
 }
 
 /**
@@ -41,19 +58,66 @@ export const POST = handler(async (request: Request) => {
   if (body.timeZone !== undefined)
     requireValue(isTimeZone(body.timeZone), "Enter a valid IANA statement timezone.");
   const timeZone = body.timeZone ?? getImportTimeZone();
+  requireValue(
+    body.encoding === undefined || ["text", "pdf", "xlsx"].includes(body.encoding),
+    "Unsupported file encoding.",
+  );
+  requireValue(body.encoding !== "pdf" || body.ai, "Enable AI parsing to upload PDF statements.");
+  requireValue(
+    body.encoding !== "xlsx" || (!body.ai && !body.mapping),
+    "Turn off AI parsing for an XTB Excel report. The XTB importer reads it directly.",
+  );
+  requireValue(!body.ai || !body.mapping, "Choose AI parsing or column mapping, not both.");
+  // Workbooks are reduced to a statement here, so preview and commit parse the same server-side text.
+  const content = body.encoding === "xlsx" ? await xlsxStatement(body.content) : body.content;
+  const statement = {
+    content: body.content,
+    fileName: body.fileName,
+    // Only AI parsing reads this, and a workbook with AI parsing is refused above.
+    encoding: body.encoding === "xlsx" ? undefined : body.encoding,
+    timeZone,
+  };
+  if (body.ai && body.mode === "commit")
+    requireValue(
+      body.aiReviewed === true && body.aiPreviewToken,
+      "Review the AI preview before importing.",
+    );
 
-  const parsed = body.mapping
-    ? parseWithMapping(body.content, body.mapping, { timeZone })
-    : parseAuto(body.content, { timeZone, fileName: body.fileName, symbol: body.symbol });
+  const parsed = body.ai
+    ? body.mode === "preview"
+      ? await parseStatementWithAi(statement, body.ai, request.signal)
+      : readAiImportPreview(statement, body.aiPreviewToken!)
+    : body.mapping
+      ? parseWithMapping(content, body.mapping, { timeZone })
+      : looksLikeFlexXml(content)
+        ? parseFlexXmlImport(content, timeZone)
+        : parseAuto(content, { timeZone, fileName: body.fileName, symbol: body.symbol });
 
   if (!parsed) {
     return ok({
       detected: null,
       timeZone,
-      headers: readHeaders(body.content),
+      headers: readHeaders(content),
       needsMapping: true,
     });
   }
+
+  const syncProblem =
+    parsed.format === IBKR_FLEX_XML.id && body.accountId
+      ? flexUploadSyncProblem(body.accountId, timeZone)
+      : null;
+  const xtb =
+    parsed.format === "xtb" && body.accountId
+      ? reconcileXtbHoldings(body.accountId, parsed.executions as ImportedExecution[])
+      : null;
+  const problems = [syncProblem, xtb?.problem].filter((problem): problem is string => !!problem);
+  const errors = [...(parsed.errors ?? []), ...problems];
+  const warnings = [
+    ...(parsed.warnings ?? []),
+    ...(xtb?.matched
+      ? [`${xtb.matched} open holding(s) imported earlier are closed by this file.`]
+      : []),
+  ];
 
   if (body.mode === "preview") {
     const symbols = [...new Set(parsed.executions.map((e) => e.symbol))];
@@ -61,7 +125,13 @@ export const POST = handler(async (request: Request) => {
       detected: parsed.format,
       timeZone,
       needsMapping: false,
-      executions: parsed.executions.slice(0, 50),
+      executions: body.ai ? parsed.executions : parsed.executions.slice(0, 50),
+      ...(body.ai
+        ? {
+            aiPreviewToken: createAiImportPreview(statement, parsed),
+            sources: "sources" in parsed ? parsed.sources : [],
+          }
+        : {}),
       totals: {
         executions: parsed.executions.length,
         symbols: symbols.length,
@@ -75,8 +145,8 @@ export const POST = handler(async (request: Request) => {
           null,
         ),
       },
-      warnings: parsed.warnings,
-      errors: parsed.errors,
+      warnings,
+      errors: problems.length ? errors : parsed.errors,
       needsSymbol: parsed.needsSymbol,
       reconciliation:
         parsed.format === "ninjatrader" && body.accountId
@@ -86,23 +156,32 @@ export const POST = handler(async (request: Request) => {
   }
 
   if (!body.accountId) return bad("accountId is required to commit");
-  if (parsed.errors?.length) return bad(parsed.errors.join(" "));
+  if (errors.length) return bad(errors.join(" "));
   if (parsed.executions.length === 0) return bad("No executions to import");
   const result =
     parsed.format === "ninjatrader"
       ? commitNinjaTraderImport(body.accountId, parsed, body.content, timeZone, body.review)
-      : insertExecutions(body.accountId, parsed.executions as ImportedExecution[], "import");
+      : insertExecutions(
+          body.accountId,
+          xtb?.executions ?? (parsed.executions as ImportedExecution[]),
+          "import",
+          undefined,
+          { preserveFees: Boolean(body.ai) },
+        );
+  if (xtb?.matched) result.duplicates += xtb.matched;
   // Invalid rows are skipped with a warning rather than failing the whole file.
-  const warnings = [
-    ...(parsed.warnings ?? []),
+  const commitWarnings = [
+    ...warnings,
     ...(result.skipped > 0
       ? [
           `${result.skipped} row(s) were skipped because they could not be journaled: ${result.skippedReasons.join(" ")}`,
         ]
       : []),
   ];
-  return ok({ detected: parsed.format, ...result, warnings });
+  return ok({ detected: parsed.format, ...result, warnings: commitWarnings });
 });
 
 /** The import page lists what auto-detection understands. */
-export const GET = handler(() => ok({ formats: FORMATS.map(({ id, label }) => ({ id, label })) }));
+export const GET = handler(() =>
+  ok({ formats: [...FORMATS, IBKR_FLEX_XML].map(({ id, label }) => ({ id, label })) }),
+);
