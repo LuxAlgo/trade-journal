@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useApi, postJson } from "@/lib/use-api";
 import {
   EMPTY_DEFAULTS,
+  FEE_ASSET_CLASSES,
   type JournalDefaults,
   type FeeRule,
   type RiskRule,
@@ -105,6 +106,23 @@ export function JournalDefaultSettings() {
               <div key={r.id} className="space-y-2 rounded-md border p-3">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {matchFields(r, update)}
+                  <Field label="Asset class">
+                    <OptionSelect
+                      className={fieldClass}
+                      value={r.assetClass ?? ""}
+                      onValueChange={(next) => {
+                        const { assetClass: _omit, ...rest } = r;
+                        update(next ? { ...rest, assetClass: next } : rest);
+                      }}
+                    >
+                      <option value="">Any asset class</option>
+                      {FEE_ASSET_CLASSES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </OptionSelect>
+                  </Field>
                   <Field label="Fee amount">
                     <MonetaryField>
                       <input
