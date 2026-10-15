@@ -4,7 +4,10 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
+import { localePreference } from "@/lib/locale";
+import { fill, messagesFor } from "@/lib/messages";
 import { PRIVACY_KEY, LEGACY_LAYOUT_KEY, privacyPreference } from "@/lib/privacy-preference";
+import { useI18n } from "./locale";
 
 const PrivacyContext = createContext({ enabled: true, ready: false, error: "", toggle: () => {} });
 export const usePrivacy = () => useContext(PrivacyContext).enabled;
@@ -23,7 +26,10 @@ export function PrivacyProvider({ children }: { children: ReactNode }) {
         if (current === null) localStorage.setItem(PRIVACY_KEY, String(saved));
         setError("");
       } catch {
-        setError("Could not read your privacy preference.");
+        setError(
+          messagesFor(localePreference(document.documentElement.lang === "zh-CN" ? "zh" : "en"))
+            .privacy.readError,
+        );
       }
       setReady(true);
     };
@@ -42,7 +48,10 @@ export function PrivacyProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(PRIVACY_KEY, String(next));
       setError("");
     } catch {
-      setError("Privacy changed for this page, but could not be saved in this browser.");
+      setError(
+        messagesFor(localePreference(document.documentElement.lang === "zh-CN" ? "zh" : "en"))
+          .privacy.saveError,
+      );
     }
   };
   return (
@@ -60,6 +69,7 @@ export function PrivacyToggle({
   iconOnly?: boolean;
 }) {
   const { enabled, ready, error, toggle } = useContext(PrivacyContext);
+  const { text } = useI18n();
   return (
     <div className={compact ? "relative shrink-0" : "space-y-2"}>
       <Button
@@ -72,15 +82,19 @@ export function PrivacyToggle({
         }
         size="sm"
         variant={enabled ? "secondary" : "outline"}
-        aria-label={`Privacy mode ${enabled ? "on" : "off"}`}
+        aria-label={fill(text.privacy.pressed, {
+          state: enabled ? text.privacy.on : text.privacy.off,
+        })}
         aria-pressed={enabled}
         disabled={!ready}
         onClick={toggle}
-        title="Hide balances, P&L and trade prices across the journal"
+        title={text.privacy.title}
       >
         {enabled ? <EyeOff /> : <Eye />}
-        {!iconOnly && (compact ? "Privacy" : "Privacy mode")}
-        {!iconOnly && <span className="ml-auto text-xs">{enabled ? "On" : "Off"}</span>}
+        {!iconOnly && (compact ? text.privacy.compact : text.privacy.label)}
+        {!iconOnly && (
+          <span className="ml-auto text-xs">{enabled ? text.privacy.on : text.privacy.off}</span>
+        )}
       </Button>
       {error && (
         <p

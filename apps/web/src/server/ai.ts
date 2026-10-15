@@ -1,15 +1,38 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import { APICallError, RetryError, generateText } from "ai";
-import { getAiKey, getAiModel, getAiProvider } from "./settings";
-import { AI_PROVIDER_NAMES } from "@/lib/ai-settings";
+import { APICallError, RetryError, generateText, type LanguageModel } from "ai";
+import { getAiKey, getAiModel, getAiProvider, readCustomBaseUrl } from "./settings";
+import { AI_PROVIDER_NAMES, type AiProvider } from "@/lib/ai-settings";
 
 /**
  * BYO-key AI. Self-hosted means YOUR key on YOUR box: the key is read from the
  * encrypted settings store (or the selected provider's environment variable).
  * Requests go straight from this server to the selected provider.
  */
-export const aiConfigured = (): boolean => getAiKey(getAiProvider()) !== null;
+export const aiConfigured = (): boolean => {
+  const provider = getAiProvider();
+  if (!getAiKey(provider)) return false;
+  return provider === "custom" ? Boolean(readCustomBaseUrl().url) : true;
+};
+
+/** Official OpenAI uses Responses. Custom endpoints use Chat Completions at the given base URL. */
+export const languageModel = ({
+  provider,
+  apiKey,
+  model,
+  baseUrl,
+}: {
+  provider: AiProvider;
+  apiKey: string;
+  model: string;
+  baseUrl?: string | null;
+}): LanguageModel => {
+  if (provider === "anthropic") return createAnthropic({ apiKey })(model);
+  if (provider === "openai") return createOpenAI({ apiKey }).responses(model);
+  const baseURL = baseUrl?.trim() || readCustomBaseUrl().url;
+  if (!baseURL) throw new Error("AI is not configured — add your API base URL in Settings.");
+  return createOpenAI({ apiKey, baseURL }).chat(model);
+};
 
 const SYSTEM = `You are the reflection layer of a trader's journal.
 You see only the trader's own recorded data — trades, stats, and notes. Ground every
@@ -27,12 +50,12 @@ export const runAi = async (prompt: string, maxOutputTokens = 1200): Promise<str
     );
   }
   const model = getAiModel(provider);
+  if (!model) throw new Error("AI is not configured — enter a model ID in Settings.");
+  if (provider === "custom" && !readCustomBaseUrl().url)
+    throw new Error("AI is not configured — add your API base URL in Settings.");
   try {
     const result = await generateText({
-      model:
-        provider === "openai"
-          ? createOpenAI({ apiKey }).responses(model)
-          : createAnthropic({ apiKey })(model),
+      model: languageModel({ provider, apiKey, model }),
       ...(provider === "openai" ? { providerOptions: { openai: { store: false } } } : {}),
       system: SYSTEM,
       prompt,

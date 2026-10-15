@@ -28,27 +28,28 @@ import { cn } from "@/lib/utils";
 import { LuxAlgoMark } from "@/components/luxalgo-mark";
 import { PrivacyToggle } from "./privacy";
 import { ThemeToggle } from "./theme";
+import { LanguageToggle, useI18n } from "./locale";
 import { PageTransition } from "./page-transition";
 import { Button } from "./ui/button";
 import { HoverHint } from "./ui/tooltip";
 
 const NAV = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/journal", label: "Daily journal", icon: NotebookPen },
-  { href: "/trades", label: "Trades", icon: ListOrdered },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/prop-firms", label: "Prop firms", icon: Landmark },
-  { href: "/notebook", label: "Notebook", icon: BookText },
-  { href: "/playbooks", label: "Playbooks", icon: BookOpen },
-  { href: "/progress", label: "Progress", icon: ListChecks },
-  { href: "/missed", label: "Missed trades", icon: BookmarkPlus },
+  { href: "/", key: "dashboard", icon: LayoutDashboard },
+  { href: "/calendar", key: "calendar", icon: CalendarDays },
+  { href: "/journal", key: "journal", icon: NotebookPen },
+  { href: "/trades", key: "trades", icon: ListOrdered },
+  { href: "/reports", key: "reports", icon: BarChart3 },
+  { href: "/prop-firms", key: "propFirms", icon: Landmark },
+  { href: "/notebook", key: "notebook", icon: BookText },
+  { href: "/playbooks", key: "playbooks", icon: BookOpen },
+  { href: "/progress", key: "progress", icon: ListChecks },
+  { href: "/missed", key: "missed", icon: BookmarkPlus },
 ] as const;
 
 const NAV_SETUP = [
-  { href: "/import", label: "Import", icon: Import },
-  { href: "/accounts", label: "Accounts", icon: Wallet },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/import", key: "import", icon: Import },
+  { href: "/accounts", key: "accounts", icon: Wallet },
+  { href: "/settings", key: "settings", icon: Settings },
 ] as const;
 
 const SIDEBAR_COLLAPSED_KEY = "journal-sidebar-collapsed-v1";
@@ -86,6 +87,7 @@ function NavLink({
 }
 
 export function Shell({ children }: { children: React.ReactNode }) {
+  const { text } = useI18n();
   const pathname = usePathname();
   const search = useSearchParams();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -148,28 +150,28 @@ export function Shell({ children }: { children: React.ReactNode }) {
   if (pathname === "/login") return <>{children}</>;
   const navigation = (collapsed = false) => (
     <nav
-      aria-label="Journal navigation"
+      aria-label={text.nav.aria}
       className="journal-sidebar-navigation min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain p-2"
       onClick={(event) => {
         if ((event.target as HTMLElement).closest("a")) setMenuOpen(false);
       }}
     >
-      {NAV.map(({ href, label, icon }) => (
+      {NAV.map(({ href, key, icon }) => (
         <NavLink
           key={href}
           href={href === "/prop-firms" ? href : filterQuery.size ? `${href}?${filterQuery}` : href}
-          label={label}
+          label={text.nav[key]}
           icon={icon}
           collapsed={collapsed}
           active={href === "/" ? pathname === "/" : pathname.startsWith(href)}
         />
       ))}
       <div className="!my-3 border-t" />
-      {NAV_SETUP.map(({ href, label, icon }) => (
+      {NAV_SETUP.map(({ href, key, icon }) => (
         <NavLink
           key={href}
           href={filterQuery.size ? `${href}?${filterQuery}` : href}
-          label={label}
+          label={text.nav[key]}
           icon={icon}
           collapsed={collapsed}
           active={pathname.startsWith(href)}
@@ -180,7 +182,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const footer = (
     <div className="journal-sidebar-footer space-y-1 border-t p-3 text-xs text-muted-foreground">
       <div>
-        Open source ·{" "}
+        {text.nav.oss} ·{" "}
         <a
           href="https://github.com/LuxAlgo/trade-journal"
           className="underline underline-offset-2 hover:text-foreground"
@@ -190,7 +192,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           GitHub
         </a>
       </div>
-      <div>Not investment advice.</div>
+      <div>{text.nav.advice}</div>
     </div>
   );
   return (
@@ -202,7 +204,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               variant="ghost"
               size="icon"
               className="h-9 w-9 shrink-0"
-              aria-label="Open navigation"
+              aria-label={text.nav.open}
             >
               <Menu />
             </Button>
@@ -216,14 +218,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <div className="flex h-14 shrink-0 items-center gap-2.5 border-b px-4">
                 <LuxAlgoMark className="h-[18px] w-5" />
                 <DialogPrimitive.Title className="text-sm font-semibold">
-                  Trade Journal
+                  {text.brand}
                 </DialogPrimitive.Title>
                 <DialogPrimitive.Close asChild>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="ml-auto h-8 w-8"
-                    aria-label="Close navigation"
+                    aria-label={text.nav.close}
                   >
                     <X />
                   </Button>
@@ -242,8 +244,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
           className="mr-auto flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight"
         >
           <LuxAlgoMark className="hidden h-4 w-[18px] shrink-0 min-[380px]:block" />
-          <span className="truncate">Trade Journal</span>
+          <span className="truncate">{text.brand}</span>
         </Link>
+        <LanguageToggle iconOnly />
         <PrivacyToggle compact />
         <ThemeToggle iconOnly />
       </header>
@@ -256,7 +259,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="journal-sidebar-home flex h-full min-w-0 items-center gap-2.5">
             <LuxAlgoMark className="h-[18px] w-5 shrink-0" />
             <span className="journal-sidebar-brand-label text-sm font-semibold tracking-tight">
-              Trade Journal
+              {text.brand}
             </span>
           </Link>
           <Button
@@ -265,10 +268,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
             size="icon"
             className="journal-sidebar-trigger absolute h-7 w-7 rounded-full bg-background shadow-sm"
             onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={sidebarCollapsed ? text.nav.expand : text.nav.collapse}
             aria-expanded={!sidebarCollapsed}
             aria-keyshortcuts="Meta+B Control+B"
-            title={`${sidebarCollapsed ? "Expand" : "Collapse"} sidebar (⌘B)`}
+            title={sidebarCollapsed ? text.nav.expandTitle : text.nav.collapseTitle}
           >
             {sidebarCollapsed ? (
               <PanelLeftOpen className="h-3.5 w-3.5" />
@@ -280,6 +283,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         {navigation(sidebarCollapsed)}
         <div className="journal-sidebar-privacy border-t p-3">
           <div className="w-full space-y-1">
+            <LanguageToggle iconOnly={sidebarCollapsed} />
             <ThemeToggle iconOnly={sidebarCollapsed} />
             <PrivacyToggle iconOnly={sidebarCollapsed} />
           </div>

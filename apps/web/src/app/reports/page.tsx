@@ -11,6 +11,7 @@ import {
   type GroupSummary,
 } from "@luxalgo/journal-core";
 import { FilterBar, useFilters } from "@/components/filter-bar";
+import { useI18n } from "@/components/locale";
 import { FilterFields, Field, fieldClass } from "@/components/filter-fields";
 import { ReviewExport } from "@/components/review-export";
 import { AskJournal } from "@/components/ask-journal";
@@ -264,6 +265,7 @@ export default function ReportsPage() {
   );
 }
 function Reports() {
+  const { text } = useI18n();
   const { query, values } = useFilters();
   const [mode, setMode] = useState<
       "overview" | "trends" | "explorer" | "breakdown" | "cross" | "compare"
@@ -278,7 +280,7 @@ function Reports() {
   const multi = (data?.currencies.length ?? 0) > 1;
   return (
     <div>
-      <FilterBar title="Reports" />
+      <FilterBar title={text.pages.reports} />
       <div className="space-y-4 p-4">
         <AskJournal />
         <div className="flex flex-wrap items-center gap-2">

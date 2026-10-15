@@ -15,6 +15,8 @@ import { ReviewExport } from "@/components/review-export";
 import { useAutosave } from "@/lib/use-autosave";
 import { postJson, useApi } from "@/lib/use-api";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/locale";
+import { fill } from "@/lib/messages";
 
 interface NoteRow {
   id: string;
@@ -39,6 +41,15 @@ export default function NotebookPage() {
 }
 
 function Notebook() {
+  const { text } = useI18n();
+  const folderLabel = (item: FolderRow) =>
+    item.id === "all"
+      ? text.notebook.all
+      : item.id === "my-notes"
+        ? text.notebook.mine
+        : item.id === "trade-notes"
+          ? text.notebook.trades
+          : item.name;
   const [folder, setFolder] = useState("all");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -115,10 +126,10 @@ function Notebook() {
         onOpenChange={(open) => !open && !deletingFolder && setFolderToDelete(null)}
       >
         <DialogContent>
-          <DialogTitle>Delete “{folderToDelete?.name}”?</DialogTitle>
-          <DialogDescription>
-            The folder will be removed. Its notes will be kept in My notes.
-          </DialogDescription>
+          <DialogTitle>
+            {fill(text.notebook.deleteTitle, { name: folderToDelete?.name ?? "" })}
+          </DialogTitle>
+          <DialogDescription>{text.notebook.deleteKept}</DialogDescription>
           {deleteError && (
             <p role="alert" className="text-sm text-destructive">
               {deleteError}
@@ -130,21 +141,21 @@ function Notebook() {
               disabled={deletingFolder}
               onClick={() => setFolderToDelete(null)}
             >
-              Cancel
+              {text.notebook.cancel}
             </Button>
             <Button
               variant="destructive"
               disabled={deletingFolder}
               onClick={() => void deleteFolder()}
             >
-              {deletingFolder ? "Deleting…" : "Delete folder"}
+              {deletingFolder ? "Deleting…" : text.notebook.deleteFolder}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
       <Dialog open={folderOpen} onOpenChange={(open) => !creatingFolder && setFolderOpen(open)}>
         <DialogContent>
-          <DialogTitle>New folder</DialogTitle>
+          <DialogTitle>{text.notebook.newFolder}</DialogTitle>
           <DialogDescription>Organize your notes in a named folder.</DialogDescription>
           <form
             className="space-y-4"
@@ -179,21 +190,21 @@ function Notebook() {
                 disabled={creatingFolder}
                 onClick={() => setFolderOpen(false)}
               >
-                Cancel
+                {text.notebook.cancel}
               </Button>
               <Button type="submit" disabled={creatingFolder || !folderName.trim()}>
-                {creatingFolder ? "Creating…" : "Create folder"}
+                {creatingFolder ? text.notebook.creating : text.notebook.createFolder}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
       <FilterBar
-        title="Notebook"
+        title={text.pages.notebook}
         actions={
           <Button size="sm" onClick={createNote}>
             <Plus />
-            New note
+            {text.notebook.newNote}
           </Button>
         }
       />
@@ -208,7 +219,7 @@ function Notebook() {
             )}
             onClick={() => setFolder("all")}
           >
-            All notes
+            {text.notebook.all}
           </button>
           {data?.folders
             .filter((f) => f.id !== "all")
@@ -223,7 +234,7 @@ function Notebook() {
                   )}
                   onClick={() => setFolder(f.id)}
                 >
-                  {f.name}
+                  {folderLabel(f)}
                 </button>
                 {f.id !== "my-notes" && (
                   <Button
@@ -231,7 +242,7 @@ function Notebook() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                    aria-label={`Delete folder: ${f.name}`}
+                    aria-label={fill(text.notebook.deleteFolderOf, { name: f.name })}
                     onClick={() => requestFolderDelete(f)}
                   >
                     <Trash2 />
@@ -249,7 +260,7 @@ function Notebook() {
             }}
           >
             <FolderPlus />
-            New folder
+            {text.notebook.newFolder}
           </Button>
         </div>
 
@@ -257,17 +268,17 @@ function Notebook() {
           <div className="sticky top-0 z-[1] space-y-2 border-b bg-background p-2">
             <div className="flex min-w-0 items-center gap-2 xl:hidden">
               <OptionSelect
-                aria-label="Note folder"
+                aria-label={text.notebook.folderAria}
                 value={folder}
                 onValueChange={(next) => setFolder(next)}
                 className="h-9 min-w-0 flex-1 rounded-lg border bg-card px-2 text-sm"
               >
-                <option value="all">All notes</option>
+                <option value="all">{text.notebook.all}</option>
                 {data?.folders
                   .filter((item) => item.id !== "all")
                   .map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.name}
+                      {folderLabel(item)}
                     </option>
                   ))}
               </OptionSelect>
@@ -277,7 +288,7 @@ function Notebook() {
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={`Delete folder: ${currentFolder.name}`}
+                  aria-label={fill(text.notebook.deleteFolderOf, { name: currentFolder.name })}
                   onClick={() => requestFolderDelete(currentFolder)}
                 >
                   <Trash2 />
@@ -287,7 +298,7 @@ function Notebook() {
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9 shrink-0"
-                aria-label="New folder"
+                aria-label={text.notebook.newFolder}
                 onClick={() => {
                   setFolderError("");
                   setFolderOpen(true);
@@ -301,13 +312,13 @@ function Notebook() {
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search notes"
+                placeholder={text.notebook.search}
                 className="pl-8"
               />
             </div>
           </div>
           {data?.notes.length === 0 && (
-            <p className="p-6 text-center text-sm text-muted-foreground">No notes here yet.</p>
+            <p className="p-6 text-center text-sm text-muted-foreground">{text.notebook.empty}</p>
           )}
           {data?.notes.map((note) => (
             <button
@@ -318,9 +329,12 @@ function Notebook() {
               )}
               onClick={() => setSelectedId(note.id)}
             >
-              <div className="truncate text-sm font-medium">{note.title || "Untitled"}</div>
+              <div className="truncate text-sm font-medium">
+                {note.title || text.notebook.untitled}
+              </div>
               <div className="truncate text-xs text-muted-foreground">
-                {note.updatedAt.slice(0, 10)} · {note.content.slice(0, 60) || "empty"}
+                {note.updatedAt.slice(0, 10)} ·{" "}
+                {note.content.slice(0, 60) || text.notebook.emptyPreview}
               </div>
             </button>
           ))}
@@ -336,14 +350,14 @@ function Notebook() {
               onClick={() => setSelectedId(null)}
             >
               <ArrowLeft />
-              Back to notes
+              {text.notebook.back}
             </Button>
           )}
           {selected ? (
             <NoteEditor key={selected.id} note={selected} onChanged={refresh} />
           ) : (
             <p className="py-24 text-center text-sm text-muted-foreground">
-              Select or create a note.
+              {text.notebook.select}
             </p>
           )}
         </div>
@@ -353,6 +367,7 @@ function Notebook() {
 }
 
 function NoteEditor({ note, onChanged }: { note: NoteRow; onChanged: () => void }) {
+  const { text } = useI18n();
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
   const [mode, setMode] = useState<"edit" | "preview">(note.content.trim() ? "preview" : "edit");
@@ -375,7 +390,7 @@ function NoteEditor({ note, onChanged }: { note: NoteRow; onChanged: () => void 
               save(event.target.value, content);
             }}
             className="notebook-editor-title border-0 px-0 text-lg font-semibold shadow-none focus-visible:ring-0"
-            placeholder="Title"
+            placeholder={text.notebook.title}
           />
           <Button
             type="button"
@@ -383,7 +398,7 @@ function NoteEditor({ note, onChanged }: { note: NoteRow; onChanged: () => void 
             size="sm"
             onClick={() => setMode(mode === "preview" ? "edit" : "preview")}
           >
-            {mode === "preview" ? "Edit" : "Preview"}
+            {mode === "preview" ? text.notebook.edit : text.notebook.preview}
           </Button>
           <VoiceNote
             onPrepare={() => editor.current?.focus()}
@@ -398,13 +413,13 @@ function NoteEditor({ note, onChanged }: { note: NoteRow; onChanged: () => void 
             size="sm"
             className="text-destructive"
             onClick={async () => {
-              if (confirm("Delete this note?")) {
+              if (confirm(text.notebook.deleteNote)) {
                 await postJson(`/api/notes/${note.id}`, undefined, "DELETE");
                 onChanged();
               }
             }}
           >
-            Delete
+            {text.notebook.delete}
           </Button>
         </div>
         <RichEditor
@@ -421,10 +436,10 @@ function NoteEditor({ note, onChanged }: { note: NoteRow; onChanged: () => void 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span role="status">{status}</span>
           <Button variant="ghost" size="sm" onClick={() => void flush()}>
-            Save now
+            {text.notebook.saveNow}
           </Button>
         </div>
-        <ReviewExport document={{ title: title || "Journal note", lines: [content] }} />
+        <ReviewExport document={{ title: title || text.notebook.exportTitle, lines: [content] }} />
         <Attachments type="note" id={note.id} />
       </CardContent>
     </Card>

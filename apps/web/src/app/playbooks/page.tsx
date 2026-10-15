@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { postJson, useApi } from "@/lib/use-api";
+import { useI18n } from "@/components/locale";
+import { fill } from "@/lib/messages";
 
 interface Playbook {
   id: string;
@@ -28,6 +30,7 @@ export default function PlaybooksPage() {
 }
 
 function Playbooks() {
+  const { text } = useI18n();
   const { data, refresh } = useApi<{ playbooks: Playbook[] }>("/api/playbooks");
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -53,19 +56,18 @@ function Playbooks() {
   return (
     <div>
       <FilterBar
-        title="Playbooks"
+        title={text.pages.playbooks}
         actions={
           <Button size="sm" onClick={() => setOpen(true)}>
             <Plus />
-            New playbook
+            {text.playbooks.new}
           </Button>
         }
       />
       <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
         {data?.playbooks.length === 0 && (
           <p className="col-span-full py-16 text-center text-sm text-muted-foreground">
-            A playbook is a setup you trade on purpose — name it, write its rules, then tag trades
-            with it and let Reports tell you if it actually pays.
+            {text.playbooks.empty}
           </p>
         )}
         {data?.playbooks.map((playbook) => (
@@ -75,17 +77,15 @@ function Playbooks() {
                 {playbook.name}
               </CardTitle>
               <div className="ml-auto flex shrink-0 items-center gap-2">
-                <span className="text-xs text-muted-foreground">{playbook.tradeCount} trades</span>
+                <span className="text-xs text-muted-foreground">
+                  {fill(text.playbooks.trades, { count: playbook.tradeCount })}
+                </span>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-muted-foreground hover:text-destructive"
                   onClick={async () => {
-                    if (
-                      confirm(
-                        `Delete "${playbook.name}"? Trades keep their data, just lose the link.`,
-                      )
-                    ) {
+                    if (confirm(fill(text.playbooks.deleteConfirm, { name: playbook.name }))) {
                       await postJson(`/api/playbooks/${playbook.id}`, undefined, "DELETE");
                       refresh();
                     }
@@ -118,29 +118,27 @@ function Playbooks() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New playbook</DialogTitle>
+            <DialogTitle>{text.playbooks.new}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Name (e.g. Opening range breakout)"
+              placeholder={text.playbooks.name}
             />
             <Input
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="One-line description"
+              placeholder={text.playbooks.description}
             />
             <Textarea
               value={rules}
               onChange={(event) => setRules(event.target.value)}
-              placeholder={
-                "One rule per line:\nOnly A+ setups\nRisk max 1R\nNo entries after 11:30"
-              }
+              placeholder={text.playbooks.rules}
               className="min-h-32"
             />
             <Button onClick={create} disabled={!name}>
-              Create
+              {text.playbooks.create}
             </Button>
           </div>
         </DialogContent>

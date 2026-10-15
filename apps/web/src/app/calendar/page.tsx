@@ -6,6 +6,8 @@ import { dayKeyOf } from "@luxalgo/journal-core";
 import { CurrencyNotice } from "@/components/currency-notice";
 import { CalendarPnl } from "@/components/calendar-pnl";
 import { FilterBar, useFilters } from "@/components/filter-bar";
+import { useI18n } from "@/components/locale";
+import { localeTag } from "@/lib/locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +25,7 @@ export default function CalendarPage() {
 }
 
 function CalendarView() {
+  const { text, locale } = useI18n();
   const { query, timeZone } = useFilters();
   const [selection, setMonth] = useState<{ year: number; month: number } | null>(null);
   const { data, error, refresh } = useApi<CalendarResponse>(
@@ -40,7 +43,7 @@ function CalendarView() {
   return (
     <div>
       <FilterBar
-        title="Calendar"
+        title={text.pages.calendar}
         actions={
           <div className="flex items-center gap-1">
             <Button
@@ -48,12 +51,12 @@ function CalendarView() {
               size="icon"
               className="h-8 w-8"
               onClick={() => shift(-1)}
-              aria-label="Previous month"
+              aria-label={text.pages.previousMonth}
             >
               <ChevronLeft />
             </Button>
             <span className="w-36 text-center text-sm font-medium">
-              {new Date(Date.UTC(month.year, month.month - 1)).toLocaleString("en-US", {
+              {new Date(Date.UTC(month.year, month.month - 1)).toLocaleString(localeTag(locale), {
                 month: "long",
                 year: "numeric",
                 timeZone: "UTC",
@@ -64,7 +67,7 @@ function CalendarView() {
               size="icon"
               className="h-8 w-8"
               onClick={() => shift(1)}
-              aria-label="Next month"
+              aria-label={text.pages.nextMonth}
             >
               <ChevronRight />
             </Button>

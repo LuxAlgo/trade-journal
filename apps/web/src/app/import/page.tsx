@@ -27,6 +27,7 @@ import { ImportReconciliation } from "@/components/import-reconciliation";
 import type { ImportReview, ImportReviewOptions } from "@/lib/import-review";
 import { TimeZonePicker } from "@/components/timezone-picker";
 import { AiImportOptions } from "@/components/ai-import-options";
+import { useI18n } from "@/components/locale";
 import { AI_DEFAULT_MODELS, type AiSettingsPayload } from "@/lib/ai-settings";
 import {
   AI_IMPORT_MAX_BYTES,
@@ -83,10 +84,11 @@ export default function ImportPage() {
 }
 
 function ImportView() {
+  const { text } = useI18n();
   const router = useRouter();
   return (
     <div>
-      <FilterBar title="Import trades" />
+      <FilterBar title={text.pages.import} />
       <div className="mx-auto max-w-3xl p-4">
         <Tabs defaultValue="file">
           <TabsList>
@@ -126,6 +128,7 @@ function ImportView() {
 }
 
 function FileImport() {
+  const { text } = useI18n();
   const router = useRouter();
   const [accountId, setAccountId] = useState("");
   const [reviewOptions, setReviewOptions] = useState<ImportReviewOptions>({});
@@ -169,9 +172,16 @@ function FileImport() {
   const timeZone = statementTimeZone ?? settingsData?.importTimeZone ?? "";
   const validTimeZone = isTimeZone(timeZone);
   const displayTimeZone = settingsData?.timeZone ?? "UTC";
+  const connection = settingsData?.aiConnections[aiOptions.provider];
   const aiReady = Boolean(
     aiOptions.model.trim() &&
-    (aiOptions.apiKey?.trim() || settingsData?.aiConnections[aiOptions.provider].configured),
+    (aiOptions.apiKey?.trim() ||
+      connection?.configured ||
+      (aiOptions.provider === "custom" && connection?.source)) &&
+    (aiOptions.provider !== "custom" ||
+      aiOptions.baseUrl?.trim() ||
+      connection?.baseUrl ||
+      connection?.baseUrlSource === "environment"),
   );
   const invalidateAiPreview = () => {
     setPreview(null);
@@ -449,11 +459,11 @@ function FileImport() {
             >
               {busy
                 ? aiEnabled
-                  ? "AI is reading your statement…"
-                  : "Reading…"
+                  ? text.ai.readingAi
+                  : text.ai.reading
                 : aiEnabled
-                  ? "Preview with AI"
-                  : "Preview file"}
+                  ? text.ai.preview
+                  : text.ai.previewFile}
             </Button>
           )}
 
@@ -687,7 +697,7 @@ function FileImport() {
                   (preview.detected === "ninjatrader" && !preview.reconciliation?.token)
                 }
               >
-                {busy ? "Importing…" : "Import"}
+                {busy ? text.ai.importing : text.ai.import}
               </Button>
               {preview.aiPreviewToken && (
                 <label className="flex items-start gap-2 text-xs text-muted-foreground">

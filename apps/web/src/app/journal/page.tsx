@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import Loading from "@/app/loading";
 import { useApi } from "@/lib/use-api";
+import { useI18n } from "@/components/locale";
+import { localeTag } from "@/lib/locale";
 import { fmtPercent } from "@/lib/utils";
 
 interface JournalDay {
@@ -22,10 +24,6 @@ interface JournalDay {
 }
 
 const PAGE_SIZE = 50;
-const weekdayFormatter = new Intl.DateTimeFormat("en-US", {
-  weekday: "long",
-  timeZone: "UTC",
-});
 
 export default function JournalPage() {
   return (
@@ -36,6 +34,11 @@ export default function JournalPage() {
 }
 
 function Journal() {
+  const { text, locale } = useI18n();
+  const weekdayFormatter = new Intl.DateTimeFormat(localeTag(locale), {
+    weekday: "long",
+    timeZone: "UTC",
+  });
   const { query, timeZone } = useFilters();
   const { data, error, refresh } = useApi<{ days: JournalDay[] }>(`/api/journal?${query}`);
   // Reset the visible window immediately when filters change. Keep every day
@@ -47,13 +50,13 @@ function Journal() {
   return (
     <div>
       <FilterBar
-        title="Daily journal"
+        title={text.pages.journal}
         actions={
           <Link
             href={`/journal/${dayKeyOf(new Date().toISOString(), timeZone)}?${query}`}
             className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
           >
-            View my day
+            {text.pages.viewDay}
           </Link>
         }
       />
@@ -62,17 +65,17 @@ function Journal() {
           <div role="alert" className="space-y-2 text-sm text-destructive">
             <p>{error}</p>
             <Button variant="outline" onClick={refresh}>
-              Try again
+              {text.pages.tryAgain}
             </Button>
           </div>
         ) : !data ? (
-          <div role="status" aria-label="Loading journal">
+          <div role="status" aria-label={text.pages.loadingJournal}>
             <Skeleton className="h-48" />
           </div>
         ) : null}
         {data?.days.length === 0 && (
           <p className="py-16 text-center text-sm text-muted-foreground">
-            No trading days yet — import trades or write your first day note.
+            {text.pages.emptyJournal}
           </p>
         )}
         {data?.days.slice(0, limit).map((day) => (

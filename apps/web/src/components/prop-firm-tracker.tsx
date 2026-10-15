@@ -18,6 +18,7 @@ import { OptionSelect } from "./ui/option-select";
 import { DatePicker } from "./ui/date-picker";
 import { EquityArea } from "./charts/equity-area";
 import { usePrivacy } from "./privacy";
+import { useI18n } from "./locale";
 import { useApi } from "@/lib/use-api";
 import { PropCashSummary, PropCashComparison } from "./prop-cash-overview";
 import { createPropDemo } from "@/lib/prop-demo";
@@ -75,6 +76,7 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p className="py-8 text-center text-sm text-muted-foreground">{children}</p>;
 }
 export function PropFirmTracker() {
+  const { text } = useI18n();
   const { data: savedData, error, loading, refresh } = useApi<PropData>("/api/prop-firms");
   const [demo, setDemo] = useState<PropData | null>(null);
   const [showBreakdowns, setShowBreakdowns] = useState(false);
@@ -311,7 +313,7 @@ export function PropFirmTracker() {
   return (
     <div>
       <FilterBar
-        title="Prop firms"
+        title={text.pages.propFirms}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
