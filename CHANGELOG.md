@@ -36,6 +36,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- The Trades list "Net ROI" column now applies the contract multiplier, like the trade page's "Net / entry notional". Futures, options, forex and CFD trades previously showed returns too large by the multiplier (×2 for MNQ, ×100 for options); a trade whose notional is unknown now shows "–" instead of a wrong or 0% value.
 - IBKR Flex Query XML statements can be uploaded on Import → File upload, and their times are read in the statement timezone, as broker sync does. Previously an XML upload was not recognized and could not be imported, so the Default import timezone never applied ([#16](https://github.com/LuxAlgo/trade-journal/issues/16)).
 - Password protection now verifies the session signature on every API route. Previously, when `JOURNAL_PASSWORD` was set, any request carrying a cookie of the right name was accepted, so a forged cookie could read the journal.
 
