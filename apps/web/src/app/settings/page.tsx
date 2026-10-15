@@ -14,6 +14,7 @@ import { JournalDefaultSettings } from "@/components/journal-default-settings";
 import { ContractMultiplierSettings, TimeZoneSettings } from "@/components/journal-settings";
 import { MarketDataSettings } from "@/components/market-data-settings";
 import { AiSettings } from "@/components/ai-settings";
+import { LanguageSettings, useI18n } from "@/components/locale";
 import { CurrencySettings } from "@/components/currency-settings";
 import { FilterBar } from "@/components/filter-bar";
 import { Button } from "@/components/ui/button";
@@ -22,51 +23,21 @@ import { Label } from "@/components/ui/label";
 import { OptionSelect } from "@/components/ui/option-select";
 import { cn } from "@/lib/utils";
 
-const sections = [
-  {
-    id: "general",
-    label: "General",
-    icon: Globe,
-    description: "Choose the timezones used to display and import your trades.",
-  },
-  {
-    id: "trading",
-    label: "Trading",
-    icon: SlidersHorizontal,
-    description: "Manage contract multipliers, breakeven rules, fees, and risk defaults.",
-  },
-  {
-    id: "currency-conversion",
-    label: "Currency conversion",
-    icon: ArrowLeftRight,
-    description: "Set a reporting currency and saved exchange rates for combined performance.",
-  },
-  {
-    id: "market-data",
-    label: "Market data",
-    icon: ChartCandlestick,
-    description: "Connect price history or upload candles for replay and trade analysis.",
-  },
-  {
-    id: "ai-settings",
-    label: "AI",
-    icon: Sparkles,
-    description: "Choose your AI provider and manage your model and API key.",
-  },
-  {
-    id: "your-data",
-    label: "Data & backups",
-    icon: Database,
-    description: "Download your journal data for safekeeping or use in other tools.",
-  },
+const SECTION_IDS = [
+  "general",
+  "trading",
+  "currency-conversion",
+  "market-data",
+  "ai-settings",
+  "your-data",
 ] as const;
-type Section = (typeof sections)[number]["id"];
+type Section = (typeof SECTION_IDS)[number];
 
 function sectionForHash(hash: string): Section {
   const id = hash.replace(/^#/, "");
   if (id === "market-csv") return "market-data";
   if (id === "contract-multipliers" || id === "journal-defaults") return "trading";
-  return sections.find((section) => section.id === id)?.id ?? "general";
+  return SECTION_IDS.find((section) => section === id) ?? "general";
 }
 
 export default function SettingsPage() {
@@ -78,6 +49,45 @@ export default function SettingsPage() {
 }
 
 function Settings() {
+  const { text } = useI18n();
+  const sections = [
+    {
+      id: "general" as const,
+      label: text.settings.general,
+      icon: Globe,
+      description: text.settings.generalDescription,
+    },
+    {
+      id: "trading" as const,
+      label: text.settings.trading,
+      icon: SlidersHorizontal,
+      description: text.settings.tradingDescription,
+    },
+    {
+      id: "currency-conversion" as const,
+      label: text.settings.currency,
+      icon: ArrowLeftRight,
+      description: text.settings.currencyDescription,
+    },
+    {
+      id: "market-data" as const,
+      label: text.settings.market,
+      icon: ChartCandlestick,
+      description: text.settings.marketDescription,
+    },
+    {
+      id: "ai-settings" as const,
+      label: text.settings.ai,
+      icon: Sparkles,
+      description: text.settings.aiDescription,
+    },
+    {
+      id: "your-data" as const,
+      label: text.settings.data,
+      icon: Database,
+      description: text.settings.dataDescription,
+    },
+  ];
   const [active, setActive] = useState<Section>("general");
   const top = useRef<HTMLDivElement>(null);
 
@@ -101,13 +111,13 @@ function Settings() {
 
   return (
     <div>
-      <FilterBar title="Settings" />
+      <FilterBar title={text.pages.settings} />
       <div
         ref={top}
         className="mx-auto grid max-w-5xl scroll-mt-20 gap-6 p-4 sm:p-6 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-8"
       >
         <nav
-          aria-label="Settings sections"
+          aria-label={text.settings.nav}
           className="hidden space-y-1 lg:sticky lg:top-20 lg:block lg:self-start"
         >
           {sections.map(({ id, label, icon: Icon }) => (
@@ -141,7 +151,7 @@ function Settings() {
         </nav>
         <div className="space-y-2 lg:hidden">
           <Label htmlFor="settings-section" className="text-xs text-muted-foreground">
-            Settings section
+            {text.settings.section}
           </Label>
           <OptionSelect
             id="settings-section"
@@ -166,7 +176,12 @@ function Settings() {
                 <p className="text-sm text-muted-foreground">{description}</p>
               </div>
               <div className="space-y-4">
-                {id === "general" && <TimeZoneSettings />}
+                {id === "general" && (
+                  <>
+                    <LanguageSettings />
+                    <TimeZoneSettings />
+                  </>
+                )}
                 {id === "trading" && (
                   <>
                     <ContractMultiplierSettings />
@@ -179,23 +194,21 @@ function Settings() {
                 {id === "your-data" && (
                   <Card>
                     <CardHeader>
-                      <CardTitle>Export your data</CardTitle>
+                      <CardTitle>{text.settings.exportTitle}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <p className="text-sm text-muted-foreground">
-                        Save a full journal backup, or export your trades as a CSV.
-                      </p>
+                      <p className="text-sm text-muted-foreground">{text.settings.exportBody}</p>
                       <div className="flex flex-wrap gap-2">
                         <Button variant="outline" asChild>
                           <a href="/api/export" download="trade-journal-export.json">
                             <Download aria-hidden="true" />
-                            Full backup (JSON)
+                            {text.settings.exportJson}
                           </a>
                         </Button>
                         <Button variant="outline" asChild>
                           <a href="/api/export?format=csv" download>
                             <Download aria-hidden="true" />
-                            Trades (CSV)
+                            {text.settings.exportCsv}
                           </a>
                         </Button>
                       </div>

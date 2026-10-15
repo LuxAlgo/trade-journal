@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { HoverHint } from "@/components/ui/tooltip";
 import { Suspense, useState } from "react";
 import { FilterBar } from "@/components/filter-bar";
+import { useI18n } from "@/components/locale";
 import { Field, fieldClass } from "@/components/filter-fields";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ export default function ProgressPage() {
   );
 }
 function Progress() {
+  const { text } = useI18n();
   const { data, error, refresh } = useApi<{
     rules: Routine[];
     checks: RoutineCheck[];
@@ -62,7 +64,7 @@ function Progress() {
   return (
     <div>
       <FilterBar
-        title="Progress"
+        title={text.pages.progress}
         actions={
           <Button size="sm" onClick={() => setOpen(true)}>
             Add routine

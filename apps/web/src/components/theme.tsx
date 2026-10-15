@@ -2,7 +2,10 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Moon, Sun } from "lucide-react";
+import { localePreference } from "@/lib/locale";
+import { messagesFor } from "@/lib/messages";
 import { THEME_KEY, themePreference, type Theme } from "@/lib/theme";
+import { useI18n } from "./locale";
 import { Button } from "./ui/button";
 
 const ThemeContext = createContext({ theme: "dark" as Theme, ready: false, toggle: () => {} });
@@ -35,7 +38,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(THEME_KEY, next);
       setError("");
     } catch {
-      setError("Appearance changed, but your browser could not save it for next time.");
+      setError(
+        messagesFor(localePreference(document.documentElement.lang === "zh-CN" ? "zh" : "en")).theme
+          .unsaved,
+      );
     }
   };
   return (
@@ -55,7 +61,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function ThemeToggle({ iconOnly = false }: { iconOnly?: boolean }) {
   const { theme, ready, toggle } = useContext(ThemeContext);
-  const label = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  const { text } = useI18n();
+  const label = theme === "dark" ? text.theme.toLight : text.theme.toDark;
   return (
     <Button
       type="button"
@@ -72,7 +79,7 @@ export function ThemeToggle({ iconOnly = false }: { iconOnly?: boolean }) {
       title={iconOnly ? label : undefined}
     >
       {theme === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-      {!iconOnly && (theme === "dark" ? "Light mode" : "Dark mode")}
+      {!iconOnly && (theme === "dark" ? text.theme.light : text.theme.dark)}
     </Button>
   );
 }

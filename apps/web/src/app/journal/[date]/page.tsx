@@ -6,6 +6,8 @@ import { Suspense, use, useRef, useState } from "react";
 import type { IntradayPoint, TradeMetrics } from "@luxalgo/journal-core";
 import { EquityArea } from "@/components/charts/equity-area";
 import { FilterBar, useFilters } from "@/components/filter-bar";
+import { useI18n } from "@/components/locale";
+import { fill } from "@/lib/messages";
 import { Pnl } from "@/components/pnl";
 import { MonetaryValue } from "@/components/privacy";
 import { VoiceNote } from "@/components/voice-note";
@@ -50,6 +52,7 @@ export default function JournalDayPage({ params }: { params: Promise<{ date: str
 }
 
 function JournalDay({ date }: { date: string }) {
+  const { text } = useI18n();
   const { query, values: filters, timeZone } = useFilters();
   const { data, error } = useApi<DayPayload>(`/api/journal/${date}?${query}`);
   const [note, setNote] = useState<string | null>(null);
@@ -67,7 +70,7 @@ function JournalDay({ date }: { date: string }) {
   const m = data?.metrics;
   return (
     <div>
-      <FilterBar title={`Journal · ${date}`} />
+      <FilterBar title={fill(text.pages.journalDay, { date })} />
       <div className="grid gap-3 p-4 xl:grid-cols-3">
         <div className="min-w-0 space-y-3 xl:col-span-2">
           {m && m.closedTrades > 0 ? (

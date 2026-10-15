@@ -1,6 +1,4 @@
 import { createHash } from "node:crypto";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText, jsonSchema, Output, type UserContent } from "ai";
 import {
   parseTimestamp,
@@ -13,9 +11,10 @@ import {
   AI_IMPORT_MAX_TEXT,
   type AiImportOptions,
 } from "@/lib/ai-import";
-import { isAiProvider } from "@/lib/ai-settings";
+import { isAiProvider, parseCustomBaseUrl } from "@/lib/ai-settings";
 import { requireValue } from "./api";
-import { getAiKey } from "./settings";
+import { languageModel } from "./ai";
+import { getAiKey, readCustomBaseUrl } from "./settings";
 import { encryptJson, decryptJson } from "./crypto";
 import { executionHash } from "./ids";
 import { executionProblem } from "./executions";
@@ -172,7 +171,7 @@ export async function parseStatementWithAi(
   options: AiImportOptions,
   signal?: AbortSignal,
 ) {
-  requireValue(options && isAiProvider(options.provider), "Choose OpenAI or Anthropic.");
+  requireValue(options && isAiProvider(options.provider), "Choose a provider.");
   requireValue(
     typeof options.model === "string" &&
       options.model.trim().length > 0 &&
@@ -187,6 +186,20 @@ export async function parseStatementWithAi(
   );
   const apiKey = options.apiKey?.trim() || getAiKey(options.provider);
   requireValue(apiKey, "Add an API key for the selected provider to parse this upload.");
+  let baseUrl: string | undefined;
+  if (options.provider === "custom") {
+    const explicit = typeof options.baseUrl === "string" ? options.baseUrl.trim() : "";
+    if (explicit) {
+      const parsed = parseCustomBaseUrl(explicit);
+      requireValue(parsed.ok, parsed.ok ? "" : parsed.error);
+      if (parsed.ok) baseUrl = parsed.url;
+    } else {
+      const saved = readCustomBaseUrl();
+      requireValue(!saved.invalid, "CUSTOM_AI_BASE_URL is not a valid http(s) URL.");
+      requireValue(saved.url, "Add an API base URL for the custom provider.");
+      baseUrl = saved.url ?? undefined;
+    }
+  }
   let input: UserContent;
   if (statement.encoding === "pdf") {
     requireValue(
@@ -211,10 +224,7 @@ export async function parseStatementWithAi(
   let output: unknown;
   try {
     const result = await generateText({
-      model:
-        options.provider === "openai"
-          ? createOpenAI({ apiKey }).responses(options.model)
-          : createAnthropic({ apiKey })(options.model),
+      model: languageModel({ provider: options.provider, apiKey, model: options.model, baseUrl }),
       ...(options.provider === "openai" ? { providerOptions: { openai: { store: false } } } : {}),
       system: SYSTEM,
       messages: [

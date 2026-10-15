@@ -16,6 +16,7 @@ import {
 import { ArrowUpDown, Check, Columns3, Download, Tag, Trash2 } from "lucide-react";
 import { dayKeyOf, netReturnOnEntry, type TradeMetrics } from "@luxalgo/journal-core";
 import { FilterBar, useFilters } from "@/components/filter-bar";
+import { useI18n } from "@/components/locale";
 import { Pnl } from "@/components/pnl";
 import { MonetaryValue } from "@/components/privacy";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +72,7 @@ export default function TradesPage() {
 }
 
 function Trades() {
+  const { text } = useI18n();
   const { query } = useFilters();
   const { data, error, refresh } = useApi<{
     trades: TradeRow[];
@@ -286,7 +288,7 @@ function Trades() {
   return (
     <div>
       <FilterBar
-        title="Trades"
+        title={text.pages.trades}
         actions={
           <div className="flex items-center gap-2">
             <a href={`/api/export?format=csv&${query}`} download>

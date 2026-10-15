@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { Archive, ArchiveRestore, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AccountCreateForm } from "@/components/account-create-form";
 import { FilterBar } from "@/components/filter-bar";
+import { useI18n } from "@/components/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +51,7 @@ export default function AccountsPage() {
 }
 
 function Accounts() {
+  const { text } = useI18n();
   const { data, refresh } = useApi<{ accounts: AccountRow[] }>("/api/accounts");
   const [syncing, setSyncing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -80,7 +82,7 @@ function Accounts() {
   return (
     <div>
       <FilterBar
-        title="Accounts"
+        title={text.pages.accounts}
         actions={
           <Button size="sm" onClick={() => setCreating(true)}>
             <Plus />

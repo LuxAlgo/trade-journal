@@ -27,6 +27,8 @@ beforeEach(() => {
   db.delete(settings).run();
   vi.stubEnv("ANTHROPIC_API_KEY", "");
   vi.stubEnv("OPENAI_API_KEY", "");
+  vi.stubEnv("CUSTOM_AI_API_KEY", "");
+  vi.stubEnv("CUSTOM_AI_BASE_URL", "");
   vi.stubEnv("JOURNAL_PASSWORD", "");
   vi.stubGlobal(
     "fetch",
@@ -146,7 +148,13 @@ describe("AI provider settings", () => {
       ...["", " ", 42, {}, "key\nvalue", "a".repeat(4097)].flatMap((key) => [
         { openaiKey: key },
         { anthropicKey: key },
+        { customKey: key },
       ]),
+      { customBaseUrl: "javascript:alert(1)" },
+      { customBaseUrl: "ftp://files.example/v1" },
+      { customBaseUrl: "https://user:secret@api.example/v1" },
+      { customBaseUrl: "https://api.example/v1?token=secret" },
+      { customBaseUrl: "not a url" },
     ]) {
       expect((await save({ timeZone: "America/Jamaica", ...invalid })).status).toBe(400);
       expect(db.select().from(settings).all()).toHaveLength(0);
@@ -256,6 +264,75 @@ describe("AI provider requests through the real SDK adapters", () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toContain(expected);
     expect((error as Error).message).not.toContain("fixture-private");
+  });
+
+  it("sends a custom endpoint key and model to Chat Completions", async () => {
+    await save({
+      aiProvider: "custom",
+      customKey: "fixture-custom",
+      customBaseUrl: "https://models.example/v1/chat/completions/",
+      aiModel: "deepseek-chat",
+    });
+    expect(await state()).toMatchObject({
+      aiProvider: "custom",
+      aiConfigured: true,
+      aiModel: "deepseek-chat",
+      aiConnections: {
+        custom: { baseUrl: "https://models.example/v1", source: "saved", baseUrlSource: "saved" },
+      },
+    });
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        id: "chatcmpl-fixture",
+        object: "chat.completion",
+        created: 1,
+        model: "deepseek-chat",
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: "Custom fixture" },
+            finish_reason: "stop",
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    expect(await runAi("Fixture custom prompt", 640)).toBe("Custom fixture");
+    const [url, init] = (fetcher.mock.calls as unknown as [string, RequestInit][])[0]!;
+    expect(url).toBe("https://models.example/v1/chat/completions");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer fixture-custom");
+    const body = JSON.parse(init.body as string);
+    expect(body.model).toBe("deepseek-chat");
+    expect(JSON.stringify(body)).toContain("Fixture custom prompt");
+    expect(body.store).toBeUndefined();
+  });
+
+  it("lets the custom environment override a saved endpoint without exposing the key", async () => {
+    await save({
+      aiProvider: "custom",
+      customKey: "fixture-saved-custom",
+      customBaseUrl: "https://saved.example/v1",
+      aiModel: "local-model",
+    });
+    vi.stubEnv("CUSTOM_AI_API_KEY", "fixture-env-custom");
+    vi.stubEnv("CUSTOM_AI_BASE_URL", "http://127.0.0.1:11434/v1");
+    expect(await state()).toMatchObject({
+      aiConfigured: true,
+      aiConnections: {
+        custom: {
+          source: "environment",
+          baseUrl: "http://127.0.0.1:11434/v1",
+          baseUrlSource: "environment",
+        },
+      },
+    });
+    expect((await save({ customKey: "fixture-replacement" })).status).toBe(400);
+    expect((await save({ customBaseUrl: "https://other.example/v1" })).status).toBe(400);
+    const exported = await exportData(new Request("http://localhost/api/export"));
+    const body = await exported.text();
+    expect(body).not.toContain("fixture-saved-custom");
+    expect(body).not.toContain("fixture-env-custom");
   });
 
   it("preserves rate-limit guidance after the SDK exhausts its retries", async () => {

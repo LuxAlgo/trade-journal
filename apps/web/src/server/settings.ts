@@ -5,7 +5,9 @@ import { EMPTY_DEFAULTS, type JournalDefaults } from "@/lib/journal-defaults";
 import { DEFAULT_CONVERSION, parseCurrencyConversion } from "@/lib/currencies";
 import {
   AI_DEFAULT_MODELS,
+  AI_KEY_ENV,
   isAiProvider,
+  parseCustomBaseUrl,
   type AiProvider,
   type AiSettingsPayload,
 } from "@/lib/ai-settings";
@@ -57,8 +59,30 @@ export const getMultipliers = (): Record<string, number> => {
 };
 
 export const aiKeyEnvironment = (provider: AiProvider): string | null =>
-  (provider === "openai" ? process.env.OPENAI_API_KEY : process.env.ANTHROPIC_API_KEY)?.trim() ||
-  null;
+  process.env[AI_KEY_ENV[provider]]?.trim() || null;
+
+export const customBaseUrlLocked = (): boolean => Boolean(process.env.CUSTOM_AI_BASE_URL?.trim());
+
+/** Saved or environment OpenAI-compatible base URL. An invalid environment value is not replaced by a saved URL. */
+export const readCustomBaseUrl = (): {
+  url: string | null;
+  source: "environment" | "saved" | null;
+  invalid: boolean;
+} => {
+  const env = process.env.CUSTOM_AI_BASE_URL?.trim() ?? "";
+  if (env) {
+    const parsed = parseCustomBaseUrl(env);
+    return parsed.ok
+      ? { url: parsed.url, source: "environment", invalid: false }
+      : { url: null, source: "environment", invalid: true };
+  }
+  const saved = getSetting("customBaseUrl")?.trim() ?? "";
+  if (!saved) return { url: null, source: null, invalid: false };
+  const parsed = parseCustomBaseUrl(saved);
+  return parsed.ok
+    ? { url: parsed.url, source: "saved", invalid: false }
+    : { url: null, source: null, invalid: false };
+};
 
 /** Provider keys are stored separately and encrypted like broker credentials. */
 export const getAiKey = (provider: AiProvider): string | null => {
@@ -90,23 +114,39 @@ export const getAiProvider = (): AiProvider => {
 };
 
 export const aiModelSetting = (provider: AiProvider): string =>
-  provider === "anthropic" ? "aiModel" : "openaiModel";
+  provider === "anthropic" ? "aiModel" : provider === "openai" ? "openaiModel" : "customModel";
 
 export const getAiModel = (provider: AiProvider): string =>
   getSetting(aiModelSetting(provider))?.trim() || AI_DEFAULT_MODELS[provider];
 
 export const getAiSettings = (): AiSettingsPayload => {
   const aiProvider = getAiProvider();
-  const connection = (provider: AiProvider) => ({
-    configured: Boolean(getAiKey(provider)),
-    source: aiKeyEnvironment(provider)
-      ? ("environment" as const)
-      : getAiKey(provider)
-        ? ("saved" as const)
-        : null,
-    model: getAiModel(provider),
-  });
-  const aiConnections = { anthropic: connection("anthropic"), openai: connection("openai") };
+  const endpoint = readCustomBaseUrl();
+  const connection = (provider: AiProvider) => {
+    const key = Boolean(getAiKey(provider));
+    const base = provider === "custom" ? endpoint : null;
+    return {
+      configured: provider === "custom" ? key && Boolean(base?.url) : key,
+      source: aiKeyEnvironment(provider)
+        ? ("environment" as const)
+        : key
+          ? ("saved" as const)
+          : null,
+      model: getAiModel(provider),
+      ...(provider === "custom"
+        ? {
+            baseUrl: endpoint.url,
+            baseUrlSource: endpoint.source,
+            baseUrlInvalid: endpoint.invalid,
+          }
+        : {}),
+    };
+  };
+  const aiConnections = {
+    anthropic: connection("anthropic"),
+    openai: connection("openai"),
+    custom: connection("custom"),
+  };
   return {
     aiProvider,
     aiConfigured: aiConnections[aiProvider].configured,

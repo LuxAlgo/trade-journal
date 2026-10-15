@@ -7,8 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { LuxAlgoMark } from "@/components/luxalgo-mark";
 import { postJson } from "@/lib/use-api";
+import { useI18n } from "@/components/locale";
 
 export default function LoginPage() {
+  const { text } = useI18n();
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +22,7 @@ export default function LoginPage() {
       router.push("/");
       router.refresh();
     } catch {
-      setError("Wrong password");
+      setError(text.login.wrong);
     }
   };
 
@@ -31,18 +33,18 @@ export default function LoginPage() {
           <form onSubmit={submit} className="space-y-3">
             <div className="text-center">
               <LuxAlgoMark className="mx-auto mb-2 h-6 w-7" />
-              <h1 className="text-sm font-semibold">Trade Journal</h1>
+              <h1 className="text-sm font-semibold">{text.brand}</h1>
             </div>
             <Input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Password"
+              placeholder={text.login.password}
               autoFocus
             />
             {error && <p className="text-center text-xs text-loss">{error}</p>}
             <Button type="submit" className="w-full">
-              Unlock
+              {text.login.unlock}
             </Button>
           </form>
         </CardContent>

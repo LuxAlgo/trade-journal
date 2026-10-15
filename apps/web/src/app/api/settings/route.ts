@@ -8,12 +8,20 @@ import {
   getImportTimeZone,
   aiKeyEnvironment,
   aiModelSetting,
+  customBaseUrlLocked,
   getAiProvider,
   getAiSettings,
   setAiKey,
   setSetting,
+  deleteSetting,
 } from "@/server/settings";
-import { AI_PROVIDERS, AI_PROVIDER_NAMES, isAiProvider, type AiProvider } from "@/lib/ai-settings";
+import {
+  AI_PROVIDERS,
+  AI_PROVIDER_NAMES,
+  isAiProvider,
+  parseCustomBaseUrl,
+  type AiProvider,
+} from "@/lib/ai-settings";
 import { isTimeZone } from "@/lib/timezone";
 import { parseCurrencyConversion, type CurrencyConversion } from "@/lib/currencies";
 
@@ -34,6 +42,8 @@ interface SettingsBody {
   /** Set to a key string to store (encrypted), or null to clear. Absent = unchanged. */
   anthropicKey?: string | null;
   openaiKey?: string | null;
+  customKey?: string | null;
+  customBaseUrl?: string | null;
   aiProvider?: AiProvider;
   aiModel?: string;
   currencyConversion?: CurrencyConversion;
@@ -68,7 +78,21 @@ export const PATCH = handler(async (request: Request) => {
     }
   }
   if (body.aiProvider !== undefined)
-    requireValue(isAiProvider(body.aiProvider), "Choose Anthropic or OpenAI.");
+    requireValue(isAiProvider(body.aiProvider), "Choose Anthropic, OpenAI, or a custom endpoint.");
+  let normalizedBaseUrl: string | null | undefined;
+  if (body.customBaseUrl !== undefined) {
+    requireValue(
+      !customBaseUrlLocked(),
+      "Custom AI uses CUSTOM_AI_BASE_URL from the server environment. Update or remove it on the server.",
+    );
+    if (body.customBaseUrl === null) normalizedBaseUrl = null;
+    else {
+      requireValue(typeof body.customBaseUrl === "string", "Enter a valid API base URL.");
+      const parsed = parseCustomBaseUrl(body.customBaseUrl);
+      requireValue(parsed.ok, parsed.ok ? "" : parsed.error);
+      if (parsed.ok) normalizedBaseUrl = parsed.url;
+    }
+  }
   const provider = body.aiProvider ?? getAiProvider();
   if (body.aiModel !== undefined)
     requireValue(
@@ -127,6 +151,8 @@ export const PATCH = handler(async (request: Request) => {
     }
     if (body.aiProvider !== undefined) setSetting("aiProvider", body.aiProvider);
     if (body.aiModel !== undefined) setSetting(aiModelSetting(provider), body.aiModel.trim());
+    if (normalizedBaseUrl === null) deleteSetting("customBaseUrl");
+    else if (normalizedBaseUrl !== undefined) setSetting("customBaseUrl", normalizedBaseUrl);
   });
   return ok({ saved: true });
 });

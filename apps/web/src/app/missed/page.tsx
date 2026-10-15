@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { Suspense, useState } from "react";
 import { FilterBar } from "@/components/filter-bar";
+import { useI18n } from "@/components/locale";
 import { Field, fieldClass } from "@/components/filter-fields";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ export default function MissedPage() {
   );
 }
 function Missed() {
+  const { text } = useI18n();
   const { data, error, refresh } = useApi<{ trades: Missed[] }>("/api/workspace/missed"),
     { data: books } = useApi<{ playbooks: { id: string; name: string }[] }>("/api/playbooks");
   const [open, setOpen] = useState(false),
@@ -103,7 +105,7 @@ function Missed() {
   return (
     <div>
       <FilterBar
-        title="Missed trades"
+        title={text.pages.missed}
         actions={
           <Button size="sm" onClick={() => edit()}>
             Log opportunity

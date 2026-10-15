@@ -6,6 +6,7 @@ import { use, useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { netReturnOnEntry } from "@luxalgo/journal-core";
 import { FilterBar } from "@/components/filter-bar";
+import { useI18n } from "@/components/locale";
 import { Pnl } from "@/components/pnl";
 import { MonetaryValue, MonetaryField } from "@/components/privacy";
 import { TradeMarketData } from "@/components/trade-market-data";
@@ -91,6 +92,7 @@ export default function TradePage({ params }: { params: Promise<{ key: string }>
 }
 
 function TradeView({ tradeKey }: { tradeKey: string }) {
+  const { text } = useI18n();
   const { data, error, refresh } = useApi<{
     trade: TradeDetail;
     executions: ExecutionRow[];
@@ -103,7 +105,7 @@ function TradeView({ tradeKey }: { tradeKey: string }) {
   if (!data) {
     return (
       <div>
-        <FilterBar title="Trade" />
+        <FilterBar title={text.pages.trade} />
         <div className="p-4">
           {error ? (
             <p role="alert" className="text-sm text-destructive">
