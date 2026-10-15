@@ -21,6 +21,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Prop firm tracker: evaluation and reset costs, refunds, payout requests, receipts, cash ROI, renewals, attachments, CSV import and export
 - Calendar insights, rolling performance trends, and a trade explorer scatter in Reports
 - Light mode, a collapsible sidebar, and friendlier AI setup and error notices
+- OpenAI-compatible AI provider for local or third-party models (Ollama, LM Studio, OpenRouter and others), and documented `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` gateway support (proposed by @fiandev in [#19](https://github.com/LuxAlgo/trade-journal/pull/19))
 
 ### Changed
 

@@ -62,6 +62,17 @@ describe("AI feedback", () => {
     });
     expect(aiFeedback("Unauthorized").action?.href).toBe("/login");
   });
+  it("sends an unreachable OpenAI-compatible server back to its URL setting", () => {
+    expect(
+      aiFeedback(
+        "AI server unreachable: check the server URL in Settings and that the server is running.",
+      ),
+    ).toMatchObject({
+      title: "Couldn’t reach your AI server",
+      retry: true,
+      action: { href: "/settings#ai-settings" },
+    });
+  });
   it("never echoes raw provider payloads or credentials into the notice", () => {
     const raw = 'Provider error: {secret: "sk-ant-PRIVATE", prompt: "PRIVATE JOURNAL"}';
     const notice = aiFeedback(raw);

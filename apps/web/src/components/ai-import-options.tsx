@@ -7,13 +7,12 @@ import { HelpHint } from "./ui/tooltip";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { OptionSelect } from "./ui/option-select";
+import { AI_DEFAULT_MODELS, AI_PROVIDER_NAMES, type AiSettingsPayload } from "@/lib/ai-settings";
 import {
-  AI_DEFAULT_MODELS,
-  AI_PROVIDER_NAMES,
-  type AiSettingsPayload,
-  type AiProvider,
-} from "@/lib/ai-settings";
-import { AI_IMPORT_HELP, type AiImportOptions as Options } from "@/lib/ai-import";
+  AI_IMPORT_HELP,
+  type AiImportOptions as Options,
+  type AiImportProvider,
+} from "@/lib/ai-import";
 
 export function AiImportOptions({
   enabled,
@@ -90,7 +89,7 @@ export function AiImportOptions({
                   value={value.provider}
                   disabled={disabled}
                   onValueChange={(provider) => {
-                    const next = provider as AiProvider;
+                    const next = provider as AiImportProvider;
                     onChange({
                       provider: next,
                       model: settings?.aiConnections[next].model ?? AI_DEFAULT_MODELS[next],
