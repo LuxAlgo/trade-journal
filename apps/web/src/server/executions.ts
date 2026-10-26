@@ -41,6 +41,11 @@ export const executionProblem = (row: unknown, source: ExecutionSource): string 
     (source === "manual" || !Number.isSafeInteger(r.occurrence) || r.occurrence < 1)
   )
     return `${label}: invalid copy number for an identical fill.`;
+  if (
+    r.hashQuantity !== undefined &&
+    (source !== "sync" || !isFiniteNumber(r.hashQuantity) || r.hashQuantity <= r.quantity)
+  )
+    return `${label}: invalid reported quantity for a fill kept in part.`;
   const meta = r.importMetadata;
   const metaOk =
     !meta ||

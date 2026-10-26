@@ -24,19 +24,33 @@ const numberIdenticalFills = (rows: ImportedExecution[]): ImportedExecution[] =>
  */
 export const brokerTradesToExecutions = (
   trades: Trade[],
-): { timed: ImportedExecution[]; untimed: number } => {
-  const rows: ImportedExecution[] = trades.map((trade) => ({
-    symbol: trade.symbol,
-    side: trade.side,
-    quantity: trade.quantity,
-    price: trade.price,
-    fee: trade.fee ?? 0,
-    // The SDK omits unparseable timestamps; a fill with no time can't be
-    // journaled meaningfully, so it is dropped rather than guessed at.
-    executedAt: trade.executedAt ?? "",
-  }));
-  const timed = rows.filter((row) => row.executedAt !== "");
-  return { timed: numberIdenticalFills(timed), untimed: rows.length - timed.length };
+): {
+  timed: ImportedExecution[];
+  untimed: number;
+  /** Whether each timed row opened or closed a position, where the broker says so. */
+  positionEffects: Map<ImportedExecution, "open" | "close">;
+} => {
+  // The SDK omits unparseable timestamps; a fill with no time can't be
+  // journaled meaningfully, so it is dropped rather than guessed at.
+  const timedTrades = trades.filter((trade) => trade.executedAt);
+  const timed = numberIdenticalFills(
+    timedTrades.map((trade) => ({
+      symbol: trade.symbol,
+      side: trade.side,
+      quantity: trade.quantity,
+      price: trade.price,
+      fee: trade.fee ?? 0,
+      executedAt: trade.executedAt!,
+      // The SDK's "cash" has no journal equivalent.
+      ...(trade.assetClass && trade.assetClass !== "cash" ? { assetClass: trade.assetClass } : {}),
+    })),
+  );
+  const positionEffects = new Map<ImportedExecution, "open" | "close">();
+  timed.forEach((row, index) => {
+    const effect = timedTrades[index]!.positionEffect;
+    if (effect) positionEffects.set(row, effect);
+  });
+  return { timed, untimed: trades.length - timedTrades.length, positionEffects };
 };
 
 export const untimedFillsReason = (untimed: number, statementTimeZone: boolean): string =>

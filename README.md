@@ -151,6 +151,11 @@ Default import timezone** for Flex timestamps without an offset. Existing synced
 timezone provenance require recovery into a separate account; see
 [IBKR timezone recovery](docs/importers.md#ibkr-broker-sync-and-timezone-recovery).
 
+Webull sync reads about a year of order history. A synced fill that closes a position opened before
+that is skipped, or kept only for the part the history covers, and the sync reports it, rather than
+showing a position that never existed. Options that expired while held close at 0 at the 4pm New
+York expiry.
+
 ## Screenshots
 
 Captured from the local app with generated demo trades and fictional prop firm records. Expand a view to inspect it at full width.
