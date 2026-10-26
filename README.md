@@ -151,10 +151,12 @@ Default import timezone** for Flex timestamps without an offset. Existing synced
 timezone provenance require recovery into a separate account; see
 [IBKR timezone recovery](docs/importers.md#ibkr-broker-sync-and-timezone-recovery).
 
-Webull sync reads about a year of order history. A synced fill that closes a position opened before
-that is skipped, or kept only for the part the history covers, and the sync reports it, rather than
-showing a position that never existed. Options that expired while held close at 0 at the 4pm New
-York expiry.
+Webull sync reads about a year of order history, and Binance futures sync the last three months. A
+synced fill that closes a position opened before that history is skipped, or kept only for the part
+the history covers, and the sync reports it, rather than showing a position that never existed.
+Webull options that expired while held close at 0 at the 4pm New York expiry. In Binance hedge mode,
+a long and a short held at once on one symbol stay separate trades. A Binance quarterly contract held
+to delivery stays open, because delivery leaves no fill.
 
 ## Screenshots
 

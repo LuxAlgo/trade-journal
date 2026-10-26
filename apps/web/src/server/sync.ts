@@ -20,7 +20,7 @@ import { withoutSummaryRows } from "./ibkr-flex-xml-import";
 export { listBrokers };
 
 /** The asset class whose fills a broker's complete position list can vouch for. */
-const CHECKED_ASSET_CLASS: Record<string, string> = { webull: "equity" };
+const CHECKED_ASSET_CLASS: Record<string, string> = { webull: "equity", binance: "futures" };
 /** Later syncs re-read this much before the last one, for orders that filled after placement. */
 const HISTORY_OVERLAP_MS = 30 * 86_400_000;
 
@@ -101,13 +101,18 @@ export const syncAccount = async (accountId: string): Promise<SyncOutcome> => {
   const checked = CHECKED_ASSET_CLASS[account.broker ?? ""];
   const brokerQuantities = new Map<string, number>();
   for (const position of snapshot.accounts.flatMap((a) => a.positions)) {
+    // Hedge-mode sides replay in their own groups, so they say nothing about one-way fills.
+    if (position.positionSide) continue;
     brokerQuantities.set(
       position.symbol,
       (brokerQuantities.get(position.symbol) ?? 0) + position.quantity,
     );
   }
+  // A Binance quarterly contract (BTCUSDT_261225) settles at delivery without a
+  // fill, so its empty position doesn't show that its history is incomplete.
+  const delivered = (symbol: string) => account.broker === "binance" && /_\d{6}$/.test(symbol);
   const brokerQuantity = (symbol: string) =>
-    checked ? (brokerQuantities.get(symbol) ?? 0) : undefined;
+    checked && !delivered(symbol) ? (brokerQuantities.get(symbol) ?? 0) : undefined;
   let dropped = 0;
   let trimmed = 0;
   const withinHistory = (fills: ImportedExecution[]): ImportedExecution[] => {
