@@ -139,6 +139,27 @@ describe("IBKR HTTP connection through persisted journal APIs", () => {
     expect(db.select().from(executions).get()?.executedAt).toBe(expected);
   });
 
+  it("syncs identical executions as separate fills and skips order rows that repeat them", async () => {
+    const row = (side: string, quantity: number, price: number, time: string, level: string) =>
+      `<Trade symbol="TEST" buySell="${side}" quantity="${quantity}" tradePrice="${price}" ibCommission="-1" dateTime="${time}" levelOfDetail="${level}" />`;
+    mockXml(
+      `<FlexQueryResponse><FlexStatement accountId="U_TEST"><EquitySummaryByReportDateInBase total="1000" />${[
+        // One buy order filled in two identical executions, then its order row.
+        row("BUY", 1, 100, "20260918;085905", "EXECUTION"),
+        row("BUY", 1, 100, "20260918;085905", "EXECUTION"),
+        row("BUY", 2, 100, "20260918;085905", "ORDER"),
+        // One sell order filled in one execution: its order row is identical.
+        row("SELL", 2, 102, "20260918;100830", "EXECUTION"),
+        row("SELL", 2, 102, "20260918;100830", "ORDER"),
+      ].join("")}</FlexStatement></FlexQueryResponse>`,
+    );
+    expect(await syncAccount("ibkr")).toMatchObject({ inserted: 3, duplicates: 0 });
+    expect(db.select().from(trades).all()).toMatchObject([
+      { quantity: 2, openQuantity: 0, grossPnl: 4, fees: 3, status: "win" },
+    ]);
+    expect(await syncAccount("ibkr")).toMatchObject({ inserted: 0, duplicates: 3 });
+  });
+
   it("captures the default once before fetching, even if settings change during fetch", async () => {
     fetchMock.mockImplementation(async (input) => {
       setSetting("importTimeZone", "Europe/Rome");

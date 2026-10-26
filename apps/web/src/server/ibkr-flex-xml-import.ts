@@ -31,6 +31,21 @@ const elements = (xml: string, tag: string): Record<string, string>[] =>
 const isSummaryRow = (trade: Record<string, string>): boolean =>
   Boolean(trade.levelOfDetail) && trade.levelOfDetail!.toUpperCase() !== "EXECUTION";
 
+/** Order, closed-lot and summary rows repeat the executions they summarize. */
+export const withoutSummaryRows = (
+  xml: string,
+): { xml: string; summaries: Record<string, string>[] } => {
+  const summaries = elements(xml, "Trade").filter(isSummaryRow);
+  return {
+    summaries,
+    xml: summaries.length
+      ? xml.replace(/<Trade\s[^>]*?\/?>/g, (tag) =>
+          isSummaryRow(elements(tag, "Trade")[0] ?? {}) ? "" : tag,
+        )
+      : xml,
+  };
+};
+
 /**
  * Parse an uploaded Flex Query XML statement with the broker SDK's Flex parser,
  * the same parser broker sync uses. Naive `dateTime` values are read in the
@@ -57,13 +72,7 @@ export const parseFlexXmlImport = (content: string, timeZone: string): ParsedImp
       `This Flex statement contains ${accountIds.size} IBKR accounts (${[...accountIds].join(", ")}). Export one account per Flex Query, or import each account's statement into its own journal account.`,
     );
 
-  // Order, closed-lot and summary rows repeat the executions they summarize.
-  const summaries = rows.filter(isSummaryRow);
-  const executionXml = summaries.length
-    ? content.replace(/<Trade\s[^>]*?\/?>/g, (tag) =>
-        isSummaryRow(elements(tag, "Trade")[0] ?? {}) ? "" : tag,
-      )
-    : content;
+  const { xml: executionXml, summaries } = withoutSummaryRows(content);
   if (summaries.length)
     warnings.push(
       `${summaries.length} Trade summary row(s) (${[...new Set(summaries.map((row) => row.levelOfDetail))].join(", ")}) were skipped; only execution rows are imported.`,
