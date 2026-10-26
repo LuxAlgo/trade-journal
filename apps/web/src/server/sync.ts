@@ -12,9 +12,23 @@ import {
   canonicalImportTimeZone,
   isIbkrSyncAccount,
 } from "./ibkr-sync-timezone";
+import { withoutSummaryRows } from "./ibkr-flex-xml-import";
 
 /** All broker connectivity goes through @luxalgo/broker-sdk, never direct API code. */
 export { listBrokers };
+
+/**
+ * The SDK reads every Flex `<Trade>` row as a fill. Keep execution rows only,
+ * as file uploads do, so order and summary rows are not journaled as fills.
+ */
+const flexExecutionRowsOnly: typeof globalThis.fetch = async (input, init) => {
+  const response = await fetch(input, init);
+  return new Response(withoutSummaryRows(await response.text()).xml, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+};
 
 export interface SyncOutcome extends InsertResult {
   accountId: string;
@@ -40,6 +54,7 @@ export const syncAccount = async (accountId: string): Promise<SyncOutcome> => {
     broker: account.broker as BrokerId,
     credentials,
     ...(statementTimeZone !== undefined ? { statementTimeZone } : {}),
+    ...(isIbkrSyncAccount(account) ? { fetch: flexExecutionRowsOnly } : {}),
     // Some brokers rotate tokens on every fetch (Questrade): persist or die.
     onCredentialsRotated: (next: Record<string, string>) => {
       db.update(accounts)

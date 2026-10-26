@@ -36,6 +36,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Broker sync and IBKR Flex XML uploads keep every fill when an order fills in identical pieces (same symbol, side, size, price and time). Previously the later pieces were dropped as duplicates, so volume, fees and P&L were under-counted and a closed position could stay open, as with a closed Hyperliquid short ([#50](https://github.com/LuxAlgo/trade-journal/issues/50), [#52](https://github.com/LuxAlgo/trade-journal/issues/52)). Fills already stored keep their identity; the next sync adds the missing pieces that are still in the broker's history. IBKR sync now skips order, closed-lot and summary rows in the Flex statement, as file uploads already did, so they are no longer stored as extra fills.
 - IBKR Flex Query XML statements can be uploaded on Import → File upload, and their times are read in the statement timezone, as broker sync does. Previously an XML upload was not recognized and could not be imported, so the Default import timezone never applied ([#16](https://github.com/LuxAlgo/trade-journal/issues/16)).
 - Password protection now verifies the session signature on every API route. Previously, when `JOURNAL_PASSWORD` was set, any request carrying a cookie of the right name was accepted, so a forged cookie could read the journal.
 
