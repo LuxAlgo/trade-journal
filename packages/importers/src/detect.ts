@@ -14,6 +14,7 @@ import {
 import { thinkorswim } from "./formats/thinkorswim";
 import { tradezella } from "./formats/tradezella";
 import { xtb } from "./formats/xtb";
+import { hyperliquid } from "./formats/hyperliquid";
 import { historyFormat, parseHistory } from "./formats/history";
 import type { ImportFormat, ImportOptions, ParsedImport } from "./types";
 
@@ -35,6 +36,7 @@ const LEGACY_FORMATS: ImportFormat[] = [
   webull,
   dastrader,
   xtb,
+  hyperliquid,
 ];
 
 export const FORMATS: ImportFormat[] = [...LEGACY_FORMATS, historyFormat];

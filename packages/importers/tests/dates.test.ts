@@ -10,6 +10,7 @@ it.each([
   ["20260105;093000", "2026-01-05T09:30:00.000Z"],
   ["2026.01.05", "2026-01-05T00:00:00.000Z"],
   ["2024-02-29 23:59:59.999", "2024-02-29T23:59:59.999Z"],
+  ["11/8/2025 - 19:31:18", "2025-11-08T19:31:18.000Z"],
 ])("preserves full timestamp %s", (input, expected) => {
   expect(parseTimestamp(input)).toBe(expected);
 });
@@ -33,6 +34,8 @@ it.each([
   "2026-13-05",
   "1/5/2026 13:30 PM",
   "2026-01-05 09:30:00.1234",
+  "11/8/2025-19:31:18",
+  "11/8/2025 - - 19:31:18",
 ])("rejects invalid or unsupported precision rather than changing timestamp %s", (input) => {
   expect(parseTimestamp(input)).toBeNull();
 });
