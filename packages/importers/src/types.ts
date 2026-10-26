@@ -12,6 +12,12 @@ export interface ImportedExecution {
   legacyExecutedAt?: string;
   assetClass?: AssetClass;
   importMetadata?: ImportMetadata;
+  /**
+   * Numbers the later copies of an identical fill (1 for the second copy) from a
+   * source without fill IDs, so genuine partial fills sharing symbol, side, size,
+   * price and time are each kept. The first copy has none.
+   */
+  occurrence?: number;
   /** Untrusted export labels are resolved to saved source IDs by the import review. */
   ninjaTrader?: {
     sourceKey: string;

@@ -36,6 +36,11 @@ export const executionProblem = (row: unknown, source: ExecutionSource): string 
   if (!isFiniteNumber(r.fee ?? 0)) return `${label}: fee must be a finite number.`;
   if (typeof r.executedAt !== "string" || !Number.isFinite(Date.parse(r.executedAt)))
     return `${label}: timestamp is missing or invalid.`;
+  if (
+    r.occurrence !== undefined &&
+    (source === "manual" || !Number.isSafeInteger(r.occurrence) || r.occurrence < 1)
+  )
+    return `${label}: invalid copy number for an identical fill.`;
   const meta = r.importMetadata;
   const metaOk =
     !meta ||

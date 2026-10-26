@@ -1,5 +1,22 @@
 import type { Trade } from "@luxalgo/broker-sdk";
 import type { ImportedExecution } from "@luxalgo/journal-importers";
+import { executionHash } from "./ids";
+
+/**
+ * SDK trades carry no fill ID, so one order filling in identical pieces (same
+ * symbol, side, size, price and time) would collapse into one execution. Each
+ * record is a separate fill: number the later copies so every one is kept. The
+ * numbers count copies, not positions, so a reordered batch keeps its hashes.
+ */
+const numberIdenticalFills = (rows: ImportedExecution[]): ImportedExecution[] => {
+  const copies = new Map<string, number>();
+  return rows.map((row) => {
+    const hash = executionHash(row);
+    const occurrence = copies.get(hash) ?? 0;
+    copies.set(hash, occurrence + 1);
+    return occurrence ? { ...row, occurrence } : row;
+  });
+};
 
 /**
  * SDK fills as journal executions. Broker sync and statement uploads share this
@@ -19,7 +36,7 @@ export const brokerTradesToExecutions = (
     executedAt: trade.executedAt ?? "",
   }));
   const timed = rows.filter((row) => row.executedAt !== "");
-  return { timed, untimed: rows.length - timed.length };
+  return { timed: numberIdenticalFills(timed), untimed: rows.length - timed.length };
 };
 
 export const untimedFillsReason = (untimed: number, statementTimeZone: boolean): string =>
