@@ -7,4 +7,5 @@ export { parseWithMapping, readHeaders, type GenericMapping } from "./formats/ge
 export { makeFillsFormat, parseSide, type FillsFormatSpec } from "./formats/fills";
 export { parseHistory, type HistoryParseOptions } from "./formats/history";
 export { xtbWorkbookToStatement } from "./formats/xtb";
+export { HYPERLIQUID_FORMAT_ID } from "./formats/hyperliquid";
 export { positionFillProblem } from "./position-fills";

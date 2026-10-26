@@ -39,6 +39,7 @@ Two validation tiers:
 | MetaTrader 5 (deals report)        | fills                        | HTML/CSV deal table signature         | ☐ (fixtures)  | ☐         |
 | TradingView (strategy list)        | trades → reconstructed fills | `List of trades` headers              | ☐ (fixtures)  | ☐         |
 | XTB xStation (account `.xlsx`)     | closed trades + open lots    | Closed Positions header               | ☐ (fixtures)  | ✅ (#42)  |
+| Hyperliquid (trade history)        | perpetual fills              | `coin`/`dir`/`px`/`closedPnl` headers | ☐             | ✅ (#53)  |
 | Generic (column mapper)            | fills                        | user-mapped                           | n/a           | n/a       |
 
 ¹ [TradeNote community broker parsers](https://github.com/Eleven-Trading/TradeNote/blob/main/src/utils/brokers.js):
@@ -113,6 +114,35 @@ Limits: `.xlsx` only (not legacy `.xls` or password-protected workbooks), up to
 5 MB, one XTB account per workbook and per journal account. Prices stay in the
 instrument currency, so for a position quoted in another currency the trade's
 result is in the account currency but its entry notional is not.
+
+## Hyperliquid trade history
+
+Export the **Trade History** tab with **Export as CSV**. Each row is one fill, with
+`time`, `coin`, `dir`, `px`, `sz`, `ntl`, `fee` and `closedPnl` columns.
+
+- Hyperliquid perpetuals are one-way: each coin has one net position. **Open/Close
+  Long/Short** and flips (**Long > Short**, **Short > Long**) are read as buys and
+  sells, so the fills form the same trades as broker sync's. Annotations such as
+  **(Price Improved)** are ignored. An unrecognized direction, or a perpetual fill
+  without a readable time, coin, size or price, stops the import.
+- HIP-3 markets are stored under their API names (`ANTH (io)` becomes `io:ANTH`), and
+  symbol case is kept (`kPEPE`), so a coin has one symbol from file or sync.
+- Times have no offset and are in the timezone of the browser the file was exported
+  from. Set **Statement timezone** to that timezone and check the preview.
+- Rows carry no fill ID. Identical fills are kept as separate executions, and the
+  same or a later export imports once.
+- Spot fills (**Buy**/**Sell**) are skipped and counted: the export does not say which
+  token paid a spot fee. `ntl` and `closedPnl` are not imported; P&L is computed from
+  the fills.
+
+**Adding older history to a synced account.** Broker sync reads only Hyperliquid's
+latest 2,000 fills. Import the export into the Hyperliquid sync account after it has
+synced at least once. The export rounds times to the second, so its fills cannot be
+matched exactly to synced fills: the import adds only fills older than the account's
+first synced fill and leaves everything from then on to sync. If none of the file's
+fills in the synced period match a synced fill, the statement timezone or the wallet
+is wrong, and nothing is saved. A fill in the same second as the first synced fill,
+but before it, cannot be told apart from synced fills and is left out.
 
 ## NinjaTrader execution exports
 

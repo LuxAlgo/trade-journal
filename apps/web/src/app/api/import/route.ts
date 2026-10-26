@@ -1,5 +1,6 @@
 import {
   FORMATS,
+  HYPERLIQUID_FORMAT_ID,
   parseAuto,
   parseWithMapping,
   readHeaders,
@@ -19,6 +20,7 @@ import {
   parseFlexXmlImport,
 } from "@/server/ibkr-flex-xml-import";
 import { reconcileXtbHoldings, xlsxStatement } from "@/server/xtb-import";
+import { reconcileHyperliquidSync } from "@/server/hyperliquid-import";
 import type { AiImportOptions } from "@/lib/ai-import";
 import {
   createAiImportPreview,
@@ -110,12 +112,25 @@ export const POST = handler(async (request: Request) => {
     parsed.format === "xtb" && body.accountId
       ? reconcileXtbHoldings(body.accountId, parsed.executions as ImportedExecution[])
       : null;
-  const problems = [syncProblem, xtb?.problem].filter((problem): problem is string => !!problem);
+  const hyperliquid =
+    parsed.format === HYPERLIQUID_FORMAT_ID && body.accountId
+      ? reconcileHyperliquidSync(body.accountId, parsed.executions as ImportedExecution[])
+      : null;
+  // The preview then counts only the fills that will be saved.
+  if (hyperliquid) parsed.executions = hyperliquid.executions;
+  const problems = [syncProblem, xtb?.problem, hyperliquid?.problem].filter(
+    (problem): problem is string => !!problem,
+  );
   const errors = [...(parsed.errors ?? []), ...problems];
   const warnings = [
     ...(parsed.warnings ?? []),
     ...(xtb?.matched
       ? [`${xtb.matched} open holding(s) imported earlier are closed by this file.`]
+      : []),
+    ...(hyperliquid?.covered
+      ? [
+          `${hyperliquid.covered} fill(s) at or after this account's first synced fill (${hyperliquid.since}) are left to broker sync, which covers that period. Only older fills from this file are added.`,
+        ]
       : []),
   ];
 
@@ -169,6 +184,7 @@ export const POST = handler(async (request: Request) => {
           { preserveFees: Boolean(body.ai) },
         );
   if (xtb?.matched) result.duplicates += xtb.matched;
+  if (hyperliquid?.covered) result.duplicates += hyperliquid.covered;
   // Invalid rows are skipped with a warning rather than failing the whole file.
   const commitWarnings = [
     ...warnings,
