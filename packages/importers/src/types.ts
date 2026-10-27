@@ -18,6 +18,12 @@ export interface ImportedExecution {
    * price and time are each kept. The first copy has none.
    */
   occurrence?: number;
+  /**
+   * The quantity a broker reported for a fill the journal keeps only in part,
+   * because the rest closed a position opened before the broker's history.
+   * The content hash uses it, so the fill still deduplicates on later syncs.
+   */
+  hashQuantity?: number;
   /** Untrusted export labels are resolved to saved source IDs by the import review. */
   ninjaTrader?: {
     sourceKey: string;
