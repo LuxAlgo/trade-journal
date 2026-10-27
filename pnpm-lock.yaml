@@ -42,8 +42,8 @@ importers:
         specifier: 10.0.0
         version: 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
       '@luxalgo/broker-sdk':
-        specifier: 0.5.1
-        version: 0.5.1(react@19.2.8)
+        specifier: 0.6.0
+        version: 0.6.0(react@19.2.8)
       '@luxalgo/journal-core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -617,8 +617,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@luxalgo/broker-sdk@0.5.1':
-    resolution: {integrity: sha512-JS+q5kBK6mBFviL3h9q+/R0KEBzddKOtELUGG1KvlyHt/W4Fba/5zz9i9MPyLXLyc5HtNFVxwUra+4wrZa+nfQ==}
+  '@luxalgo/broker-sdk@0.6.0':
+    resolution: {integrity: sha512-DmsrHPDrFqRaTeZ+x/yAf5/RfEu62aUNt67nIGlKOynRgn3aEOR/0qQBM+qaFITeL/pY4PCtQqCWp/TcGo8QDA==}
     engines: {node: '>=18.17'}
     hasBin: true
     peerDependencies:
@@ -3209,7 +3209,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@luxalgo/broker-sdk@0.5.1(react@19.2.8)':
+  '@luxalgo/broker-sdk@0.6.0(react@19.2.8)':
     optionalDependencies:
       react: 19.2.8
 
