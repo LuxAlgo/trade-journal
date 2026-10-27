@@ -43,6 +43,10 @@ export const brokerTradesToExecutions = (
       executedAt: trade.executedAt!,
       // The SDK's "cash" has no journal equivalent.
       ...(trade.assetClass && trade.assetClass !== "cash" ? { assetClass: trade.assetClass } : {}),
+      // A hedge-mode side (Binance) is its own position, so it must not net with the other.
+      ...(trade.positionSide
+        ? { importMetadata: { id: "sync", group: `sync-hedge:${trade.positionSide}`, order: 0 } }
+        : {}),
     })),
   );
   const positionEffects = new Map<ImportedExecution, "open" | "close">();
