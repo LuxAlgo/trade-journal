@@ -65,6 +65,10 @@ docker compose up -d
 # http://localhost:3000, data persisted in ./data on the host
 ```
 
+### One-click deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/Trade%20Journal/)
+
 ### Configuration (all optional)
 
 | Env var              | Effect                                                                                                   |
