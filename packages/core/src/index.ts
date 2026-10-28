@@ -8,3 +8,4 @@ export * from "./time";
 export * from "./analysis";
 export * from "./adherence";
 export * from "./returns";
+export * from "./multipliers";

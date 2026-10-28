@@ -5,6 +5,7 @@ import type {
   RoundTrip,
   TradeDirection,
 } from "./types";
+import { resolveMultiplier } from "./multipliers";
 
 /** Positions smaller than this are considered flat (guards float drift on fractional crypto sizes). */
 const FLAT_EPS = 1e-9;
@@ -13,7 +14,8 @@ export interface BuildRoundTripsOptions {
   method?: ProfitCalcMethod;
   /**
    * Per-symbol contract multiplier (futures point value, option contract size).
-   * P&L for a matched chunk is (priceDiff × qty × multiplier). Defaults to 1.
+   * P&L for a matched chunk is (priceDiff × qty × multiplier). Defaults to 100
+   * for an OCC equity-option symbol and to 1 otherwise (see `resolveMultiplier`).
    */
   multipliers?: Record<string, number>;
 }
@@ -174,7 +176,7 @@ export const buildRoundTrips = (
     group.sort(compareExecutions);
     const { accountId, symbol } = group[0]!;
     const importGroup = group[0]!.importMetadata?.group;
-    const contractMultiplier = options.multipliers?.[symbol];
+    const contractMultiplier = resolveMultiplier(symbol, options.multipliers);
     const multiplier = contractMultiplier ?? 1;
     const assetClass = group.find((e) => e.assetClass)?.assetClass;
 
