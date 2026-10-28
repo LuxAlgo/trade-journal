@@ -37,7 +37,7 @@ export function aiFeedback(message: string): AiFeedback {
     return {
       title: "Set up AI to continue",
       description:
-        "Connect an Anthropic or OpenAI API key in Settings to ask questions, generate recaps, and review trades.",
+        "Connect Anthropic, OpenAI or an OpenAI-compatible server in Settings to ask questions, generate recaps, and review trades.",
       tone: "info",
       action: { label: "Set up AI", href: "/settings#ai-settings" },
     };
@@ -70,6 +70,15 @@ export function aiFeedback(message: string): AiFeedback {
       description: "Check the model ID and your provider account’s access in Settings.",
       tone: "error",
       action: { label: "Review AI settings", href: "/settings#ai-settings" },
+    };
+  if (/AI server unreachable/i.test(message))
+    return {
+      title: "Couldn’t reach your AI server",
+      description:
+        "Check the server URL in Settings and that the server is running and reachable from the journal.",
+      tone: "error",
+      action: { label: "Review AI settings", href: "/settings#ai-settings" },
+      retry: true,
     };
   if (/rate.limit|too many requests|overloaded/i.test(message))
     return {

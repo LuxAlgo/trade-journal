@@ -12,6 +12,18 @@ export interface ImportedExecution {
   legacyExecutedAt?: string;
   assetClass?: AssetClass;
   importMetadata?: ImportMetadata;
+  /**
+   * Numbers the later copies of an identical fill (1 for the second copy) from a
+   * source without fill IDs, so genuine partial fills sharing symbol, side, size,
+   * price and time are each kept. The first copy has none.
+   */
+  occurrence?: number;
+  /**
+   * The quantity a broker reported for a fill the journal keeps only in part,
+   * because the rest closed a position opened before the broker's history.
+   * The content hash uses it, so the fill still deduplicates on later syncs.
+   */
+  hashQuantity?: number;
   /** Untrusted export labels are resolved to saved source IDs by the import review. */
   ninjaTrader?: {
     sourceKey: string;
@@ -74,7 +86,7 @@ export interface ImportFormat {
 }
 
 /** Turn a trade-level row into its two synthetic executions (fees on the exit). */
-export const tradeToExecutions = (trade: ImportedTrade): ImportedExecution[] => [
+export const tradeToExecutions = (trade: ImportedTrade): [ImportedExecution, ImportedExecution] => [
   {
     symbol: trade.symbol,
     side: trade.direction === "long" ? "buy" : "sell",

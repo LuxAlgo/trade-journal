@@ -38,6 +38,8 @@ Two validation tiers:
 | DAS Trader Pro                     | fills                        | `Symb`/`B/S` headers                  | ☐             | ☐         |
 | MetaTrader 5 (deals report)        | fills                        | HTML/CSV deal table signature         | ☐ (fixtures)  | ☐         |
 | TradingView (strategy list)        | trades → reconstructed fills | `List of trades` headers              | ☐ (fixtures)  | ☐         |
+| XTB xStation (account `.xlsx`)     | closed trades + open lots    | Closed Positions header               | ☐ (fixtures)  | ✅ (#42)  |
+| Hyperliquid (trade history)        | perpetual fills              | `coin`/`dir`/`px`/`closedPnl` headers | ☐             | ✅ (#53)  |
 | Generic (column mapper)            | fills                        | user-mapped                           | n/a           | n/a       |
 
 ¹ [TradeNote community broker parsers](https://github.com/Eleven-Trading/TradeNote/blob/main/src/utils/brokers.js):
@@ -80,6 +82,67 @@ In **Import → File upload**, map the action column to **Side** if the format i
 Closes are checked against the selected account's saved fills and the new file together, after duplicate removal. Missing opens, excessive closes, mixed labelled/unlabelled histories, conflicting identities, and uncertain ordering stop the entire import. Identical fills need distinct execution IDs; different-price fills at the same timestamp need a reliable sequence or more precise timestamps. Repeating or reordering the same valid export does not add executions. Keep the export's identity columns consistent between uploads.
 
 If you previously imported the same contract after changing its actions to Buy/Sell, import the complete original history into a separate journal account and compare it before retiring the old one. The importer will not rewrite the old fills or silently combine the two representations. Export one source account at a time. Configure futures multipliers for the imported symbols in Settings; action labels do not establish a multiplier. AI parsing still does not support hedged position histories.
+
+## XTB account workbooks
+
+XTB xStation exports one `.xlsx` workbook per account, with Closed Positions,
+Open Positions and Cash Operations sheets. Upload it on **Import → File upload**
+with AI parsing off; the server reads the workbook directly.
+
+- Each closed position becomes an entry fill and an exit fill at the reported
+  prices. **Gross Profit** is kept as the trade's result, because XTB states it
+  in the account currency and a conversion rate can make price × volume a
+  different currency. When **Profit/Loss** is lower than Gross Profit, the
+  difference is the fee.
+- Each lot on Open Positions becomes an entry fill keyed by its XTB position id,
+  so it shows as an open position. The symbol rollup row is skipped, and its
+  category applies to the lots below it. Unrealized profit is not stored.
+- Cash operations (deposits, transfers, conversions and the cash legs of stock
+  trades) are counted and skipped; the positions already represent the trades.
+- Times labelled UTC are stored as UTC; the statement timezone does not shift them.
+
+**Closing a holding later.** Import a later workbook for the same XTB account
+into the same journal account. A closed position whose id matches a stored open
+lot reuses that lot's entry, so only the exit is added and the position closes.
+Rounding differences in the open time (under a second) or price are tolerated.
+If XTB reports a different size or side for that id, for example after a
+partial close, the import is refused before any writes, because the journal
+cannot tell which part was closed. Export one workbook whose date range covers
+both the opening and the close, and import it into a new journal account.
+
+Limits: `.xlsx` only (not legacy `.xls` or password-protected workbooks), up to
+5 MB, one XTB account per workbook and per journal account. Prices stay in the
+instrument currency, so for a position quoted in another currency the trade's
+result is in the account currency but its entry notional is not.
+
+## Hyperliquid trade history
+
+Export the **Trade History** tab with **Export as CSV**. Each row is one fill, with
+`time`, `coin`, `dir`, `px`, `sz`, `ntl`, `fee` and `closedPnl` columns.
+
+- Hyperliquid perpetuals are one-way: each coin has one net position. **Open/Close
+  Long/Short** and flips (**Long > Short**, **Short > Long**) are read as buys and
+  sells, so the fills form the same trades as broker sync's. Annotations such as
+  **(Price Improved)** are ignored. An unrecognized direction, or a perpetual fill
+  without a readable time, coin, size or price, stops the import.
+- HIP-3 markets are stored under their API names (`ANTH (io)` becomes `io:ANTH`), and
+  symbol case is kept (`kPEPE`), so a coin has one symbol from file or sync.
+- Times have no offset and are in the timezone of the browser the file was exported
+  from. Set **Statement timezone** to that timezone and check the preview.
+- Rows carry no fill ID. Identical fills are kept as separate executions, and the
+  same or a later export imports once.
+- Spot fills (**Buy**/**Sell**) are skipped and counted: the export does not say which
+  token paid a spot fee. `ntl` and `closedPnl` are not imported; P&L is computed from
+  the fills.
+
+**Adding older history to a synced account.** Broker sync reads only Hyperliquid's
+latest 2,000 fills. Import the export into the Hyperliquid sync account after it has
+synced at least once. The export rounds times to the second, so its fills cannot be
+matched exactly to synced fills: the import adds only fills older than the account's
+first synced fill and leaves everything from then on to sync. If none of the file's
+fills in the synced period match a synced fill, the statement timezone or the wallet
+is wrong, and nothing is saved. A fill in the same second as the first synced fill,
+but before it, cannot be told apart from synced fills and is left out.
 
 ## NinjaTrader execution exports
 

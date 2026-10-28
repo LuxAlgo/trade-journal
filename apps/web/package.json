@@ -12,9 +12,10 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.41",
     "@ai-sdk/openai": "^4.0.64",
+    "@ai-sdk/openai-compatible": "3.0.46",
     "@dnd-kit/core": "6.3.1",
     "@dnd-kit/sortable": "10.0.0",
-    "@luxalgo/broker-sdk": "0.5.1",
+    "@luxalgo/broker-sdk": "0.6.0",
     "@luxalgo/journal-core": "workspace:*",
     "@luxalgo/journal-importers": "workspace:*",
     "@luxalgo/vela": "^0.6.8",

@@ -5,7 +5,9 @@ import { EMPTY_DEFAULTS, type JournalDefaults } from "@/lib/journal-defaults";
 import { DEFAULT_CONVERSION, parseCurrencyConversion } from "@/lib/currencies";
 import {
   AI_DEFAULT_MODELS,
+  AI_KEY_VARIABLES,
   isAiProvider,
+  type AiConnection,
   type AiProvider,
   type AiSettingsPayload,
 } from "@/lib/ai-settings";
@@ -56,9 +58,10 @@ export const getMultipliers = (): Record<string, number> => {
   }
 };
 
-export const aiKeyEnvironment = (provider: AiProvider): string | null =>
-  (provider === "openai" ? process.env.OPENAI_API_KEY : process.env.ANTHROPIC_API_KEY)?.trim() ||
-  null;
+export const aiKeyEnvironment = (provider: AiProvider): string | null => {
+  const variable = AI_KEY_VARIABLES[provider];
+  return (variable && process.env[variable]?.trim()) || null;
+};
 
 /** Provider keys are stored separately and encrypted like broker credentials. */
 export const getAiKey = (provider: AiProvider): string | null => {
@@ -82,6 +85,26 @@ export const setAiKey = (provider: AiProvider, key: string | null): void => {
 export const getAnthropicKey = (): string | null => getAiKey("anthropic");
 export const setAnthropicKey = (key: string | null): void => setAiKey("anthropic", key);
 
+/** An http(s) API root without credentials, query or fragment, minus trailing slashes. */
+export const normalizeAiBaseUrl = (value: string): string | null => {
+  if (value.length > 2048 || /[?#]/.test(value)) return null;
+  try {
+    const url = new URL(value.trim());
+    if (!/^https?:$/.test(url.protocol) || url.username || url.password) return null;
+    return url.href.replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+};
+
+export const getCompatibleBaseUrl = (): string | null => getSetting("compatibleBaseUrl");
+
+/** A saved key belongs to the server it was entered for, so a new URL drops it. */
+export const setCompatibleBaseUrl = (url: string, keepKey: boolean): void => {
+  if (!keepKey && url !== getCompatibleBaseUrl()) setAiKey("compatible", null);
+  setSetting("compatibleBaseUrl", url);
+};
+
 export const getAiProvider = (): AiProvider => {
   const selected = getSetting("aiProvider");
   if (isAiProvider(selected)) return selected;
@@ -89,24 +112,36 @@ export const getAiProvider = (): AiProvider => {
   return !getAiKey("anthropic") && getAiKey("openai") ? "openai" : "anthropic";
 };
 
+/** Anthropic keeps the legacy "aiModel" key; other providers use "<provider>Model". */
 export const aiModelSetting = (provider: AiProvider): string =>
-  provider === "anthropic" ? "aiModel" : "openaiModel";
+  provider === "anthropic" ? "aiModel" : `${provider}Model`;
 
 export const getAiModel = (provider: AiProvider): string =>
   getSetting(aiModelSetting(provider))?.trim() || AI_DEFAULT_MODELS[provider];
 
+/** Hosted providers need a key. A compatible server needs a URL and model; its key is optional. */
+export const aiProviderConfigured = (provider: AiProvider): boolean =>
+  provider === "compatible"
+    ? Boolean(getCompatibleBaseUrl() && getAiModel(provider))
+    : getAiKey(provider) !== null;
+
 export const getAiSettings = (): AiSettingsPayload => {
   const aiProvider = getAiProvider();
-  const connection = (provider: AiProvider) => ({
-    configured: Boolean(getAiKey(provider)),
+  const connection = (provider: AiProvider): AiConnection => ({
+    configured: aiProviderConfigured(provider),
     source: aiKeyEnvironment(provider)
       ? ("environment" as const)
       : getAiKey(provider)
         ? ("saved" as const)
         : null,
     model: getAiModel(provider),
+    baseUrl: provider === "compatible" ? getCompatibleBaseUrl() : null,
   });
-  const aiConnections = { anthropic: connection("anthropic"), openai: connection("openai") };
+  const aiConnections = {
+    anthropic: connection("anthropic"),
+    openai: connection("openai"),
+    compatible: connection("compatible"),
+  };
   return {
     aiProvider,
     aiConfigured: aiConnections[aiProvider].configured,

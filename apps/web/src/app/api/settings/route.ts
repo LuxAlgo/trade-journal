@@ -10,7 +10,9 @@ import {
   aiModelSetting,
   getAiProvider,
   getAiSettings,
+  normalizeAiBaseUrl,
   setAiKey,
+  setCompatibleBaseUrl,
   setSetting,
 } from "@/server/settings";
 import { AI_PROVIDERS, AI_PROVIDER_NAMES, isAiProvider, type AiProvider } from "@/lib/ai-settings";
@@ -34,6 +36,9 @@ interface SettingsBody {
   /** Set to a key string to store (encrypted), or null to clear. Absent = unchanged. */
   anthropicKey?: string | null;
   openaiKey?: string | null;
+  compatibleKey?: string | null;
+  /** OpenAI-compatible API root. A different URL clears the saved key unless one is sent. */
+  compatibleBaseUrl?: string;
   aiProvider?: AiProvider;
   aiModel?: string;
   currencyConversion?: CurrencyConversion;
@@ -68,8 +73,21 @@ export const PATCH = handler(async (request: Request) => {
     }
   }
   if (body.aiProvider !== undefined)
-    requireValue(isAiProvider(body.aiProvider), "Choose Anthropic or OpenAI.");
+    requireValue(
+      isAiProvider(body.aiProvider),
+      "Choose Anthropic, OpenAI or an OpenAI-compatible server.",
+    );
   const provider = body.aiProvider ?? getAiProvider();
+  const compatibleBaseUrl =
+    body.compatibleBaseUrl === undefined
+      ? undefined
+      : typeof body.compatibleBaseUrl === "string"
+        ? normalizeAiBaseUrl(body.compatibleBaseUrl)
+        : null;
+  requireValue(
+    compatibleBaseUrl !== null,
+    "Enter a valid server URL, such as http://localhost:11434/v1.",
+  );
   if (body.aiModel !== undefined)
     requireValue(
       typeof body.aiModel === "string" &&
@@ -125,6 +143,8 @@ export const PATCH = handler(async (request: Request) => {
       const key = body[`${id}Key`];
       if (key !== undefined) setAiKey(id, key);
     }
+    if (compatibleBaseUrl)
+      setCompatibleBaseUrl(compatibleBaseUrl, body.compatibleKey !== undefined);
     if (body.aiProvider !== undefined) setSetting("aiProvider", body.aiProvider);
     if (body.aiModel !== undefined) setSetting(aiModelSetting(provider), body.aiModel.trim());
   });

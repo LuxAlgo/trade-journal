@@ -1,4 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Runs in Node and the browser: the .xlsx reader uses TextDecoder and DecompressionStream.
+    "lib": ["ES2022", "DOM"]
+  },
   "include": ["src"]
 }

@@ -36,10 +36,20 @@ export const executionProblem = (row: unknown, source: ExecutionSource): string 
   if (!isFiniteNumber(r.fee ?? 0)) return `${label}: fee must be a finite number.`;
   if (typeof r.executedAt !== "string" || !Number.isFinite(Date.parse(r.executedAt)))
     return `${label}: timestamp is missing or invalid.`;
+  if (
+    r.occurrence !== undefined &&
+    (source === "manual" || !Number.isSafeInteger(r.occurrence) || r.occurrence < 1)
+  )
+    return `${label}: invalid copy number for an identical fill.`;
+  if (
+    r.hashQuantity !== undefined &&
+    (source !== "sync" || !isFiniteNumber(r.hashQuantity) || r.hashQuantity <= r.quantity)
+  )
+    return `${label}: invalid reported quantity for a fill kept in part.`;
   const meta = r.importMetadata;
   const metaOk =
     !meta ||
-    (source === "import" &&
+    ((source === "import" || source === "sync") &&
       typeof meta.id === "string" &&
       meta.id.length > 0 &&
       meta.id.length <= 2000 &&

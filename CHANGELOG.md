@@ -15,11 +15,15 @@ All notable changes to this project are documented here. The format follows [Kee
 - PDF and PNG review exports; JSON export now includes folders, templates, rule assessments, routines and defaults
 - Configurable breakeven tolerance, default fees, and default stop/target distances per account and symbol
 - Importers: MetaTrader 5 deal reports and TradingView strategy exports
+- Importers: XTB xStation `.xlsx` account workbooks, with closed positions, open holdings and later closes of those holdings (contributed by @zahei, [#42](https://github.com/LuxAlgo/trade-journal/issues/42))
+- Importers: Hyperliquid trade history CSV exports, with HIP-3 markets under the same symbols as broker sync. Imported into a synced Hyperliquid account, the file adds only the history older than broker sync reaches ([#53](https://github.com/LuxAlgo/trade-journal/issues/53))
+- Broker sync: Binance USDⓈ-M futures ([#30](https://github.com/LuxAlgo/trade-journal/issues/30)). A Binance connection now also reads futures balances, positions and the last three months of fills, as futures trades. Fees paid in BNB are converted at that hour's BNB/USDT price. In hedge mode, a long and a short held at once on one symbol stay separate trades. A fill that closes a position opened before Binance's history is skipped, or kept only for the part the history covers, and reported. Spot fills are not read yet, and a quarterly contract held to delivery stays open, because delivery leaves no fill.
 - Realized R accounts for contract multipliers and scaled entries
 - Optional historical market data connections (London Strategic Edge, Alpaca, OANDA, Binance, Coinbase, or your own candle CSV) with estimated MAE/MFE and candle replay on closed trades
 - Prop firm tracker: evaluation and reset costs, refunds, payout requests, receipts, cash ROI, renewals, attachments, CSV import and export
 - Calendar insights, rolling performance trends, and a trade explorer scatter in Reports
 - Light mode, a collapsible sidebar, and friendlier AI setup and error notices
+- OpenAI-compatible AI provider for local or third-party models (Ollama, LM Studio, OpenRouter and others), and documented `ANTHROPIC_BASE_URL` / `OPENAI_BASE_URL` gateway support (proposed by @fiandev in [#19](https://github.com/LuxAlgo/trade-journal/pull/19))
 
 ### Changed
 
@@ -35,6 +39,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 
 - The Trades list "Net ROI" column now applies the contract multiplier, like the trade page's "Net / entry notional". Futures, options, forex and CFD trades previously showed returns too large by the multiplier (×2 for MNQ, ×100 for options); a trade whose notional is unknown now shows "–" instead of a wrong or 0% value.
+- Webull sync imports trade history ([#28](https://github.com/LuxAlgo/trade-journal/issues/28), proposed by @anthony-som in [#29](https://github.com/LuxAlgo/trade-journal/pull/29)). A fill that closes a position opened before Webull's roughly one year of history is skipped, or kept only for the part the history covers, and reported, instead of showing a position that never existed. An option that expired while held closes at 0 at the 4pm New York expiry, and Webull's option contract sizes are saved as multipliers unless you set one. Later syncs only ask for orders from 30 days before the previous sync onward.
+- Broker sync and IBKR Flex XML uploads keep every fill when an order fills in identical pieces (same symbol, side, size, price and time). Previously the later pieces were dropped as duplicates, so volume, fees and P&L were under-counted and a closed position could stay open, as with a closed Hyperliquid short ([#50](https://github.com/LuxAlgo/trade-journal/issues/50), [#52](https://github.com/LuxAlgo/trade-journal/issues/52)). Fills already stored keep their identity; the next sync adds the missing pieces that are still in the broker's history. IBKR sync now skips order, closed-lot and summary rows in the Flex statement, as file uploads already did, so they are no longer stored as extra fills.
 - IBKR Flex Query XML statements can be uploaded on Import → File upload, and their times are read in the statement timezone, as broker sync does. Previously an XML upload was not recognized and could not be imported, so the Default import timezone never applied ([#16](https://github.com/LuxAlgo/trade-journal/issues/16)).
 - Password protection now verifies the session signature on every API route. Previously, when `JOURNAL_PASSWORD` was set, any request carrying a cookie of the right name was accepted, so a forged cookie could read the journal.
 

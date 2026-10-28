@@ -115,6 +115,17 @@ it.each(["openai", "anthropic"])(
     expect(JSON.stringify(preview)).not.toContain("test-only-key");
   },
 );
+it("keeps statement parsing on hosted providers that accept PDFs and strict schemas", async () => {
+  setSetting("compatibleBaseUrl", "http://localhost:11434/v1");
+  const response = await request({
+    ...base,
+    mode: "preview",
+    ai: { ...base.ai, provider: "compatible" },
+  });
+  expect(response.status).toBe(400);
+  expect((await response.json()).error).toBe("Choose OpenAI or Anthropic.");
+  expect(generateText).not.toHaveBeenCalled();
+});
 it("commits exactly the reviewed result without calling AI again and preserves zero fees", async () => {
   setSetting(
     "journalDefaults",

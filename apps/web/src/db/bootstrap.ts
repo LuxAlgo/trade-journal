@@ -1,7 +1,9 @@
+import Database from "better-sqlite3";
+
 /**
  * Idempotent schema bootstrap, run by the app at startup. Self-hosted software
  * should never make its user run a migration tool; new columns arrive as
- * additive `ALTER TABLE` guards in `MIGRATION_STEPS` below.
+ * additive `ALTER TABLE` guards in `migrate` below.
  *
  * Keep in sync with schema.ts.
  */
@@ -197,3 +199,64 @@ CREATE TABLE IF NOT EXISTS import_batches (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS import_batch_unique ON import_batches(account_id, format, fingerprint);
 `;
+
+const hasColumn = (sqlite: Database.Database, table: string, name: string) =>
+  (sqlite.pragma(`table_info(${table})`) as { name: string }[]).some(
+    (column) => column.name === name,
+  );
+
+function migrate(sqlite: Database.Database) {
+  sqlite.exec(BOOTSTRAP_SQL);
+  if (!hasColumn(sqlite, "folders", "deleted_at")) {
+    sqlite.exec("ALTER TABLE folders ADD COLUMN deleted_at TEXT");
+  }
+  if (!hasColumn(sqlite, "accounts", "ibkr_sync_time_zone")) {
+    sqlite.exec("ALTER TABLE accounts ADD COLUMN ibkr_sync_time_zone TEXT");
+  }
+  // Additive upgrade: existing executions retain their fields and dedup hashes.
+  if (!hasColumn(sqlite, "executions", "import_metadata_json")) {
+    sqlite.exec("ALTER TABLE executions ADD COLUMN import_metadata_json TEXT");
+  }
+  // Materialize CSV bounds once so connection and range lookups never scan candle JSON.
+  for (const name of ["bar_count", "first_time", "last_time"]) {
+    if (!hasColumn(sqlite, "market_csv_datasets", name))
+      sqlite.exec(`ALTER TABLE market_csv_datasets ADD COLUMN ${name} INTEGER NOT NULL DEFAULT 0`);
+  }
+  sqlite.exec(`UPDATE market_csv_datasets SET
+    bar_count = json_array_length(bars_json),
+    first_time = json_extract(bars_json, '$[0].time'),
+    last_time = json_extract(bars_json, '$[#-1].time') WHERE bar_count = 0`);
+}
+
+const SETUP_DEADLINE_MS = 15_000;
+const sleeper = new Int32Array(new SharedArrayBuffer(4));
+
+/**
+ * `next build` imports route modules from several workers at once and each one
+ * opens the journal. SQLite refuses some lock upgrades immediately instead of
+ * waiting out busy_timeout (switching a fresh file to WAL, for one), so setup
+ * retries those with a short, jittered backoff.
+ */
+function retryWhileBusy<T>(step: () => T): T {
+  const deadline = Date.now() + SETUP_DEADLINE_MS;
+  for (let delay = 5; ; delay = Math.min(delay * 2, 250)) {
+    try {
+      return step();
+    } catch (error) {
+      const busy = error instanceof Database.SqliteError && error.code.startsWith("SQLITE_BUSY");
+      if (!busy || Date.now() >= deadline) throw error;
+      Atomics.wait(sleeper, 0, 0, delay * (0.5 + Math.random()));
+    }
+  }
+}
+
+/** Opens the journal and brings its schema up to date; safe to call from many processes at once. */
+export function openJournalDatabase(file: string): Database.Database {
+  const sqlite = new Database(file);
+  retryWhileBusy(() => sqlite.pragma("journal_mode = WAL"));
+  sqlite.pragma("foreign_keys = ON");
+  // One write lock covers every column check and ALTER, so concurrent first runs
+  // cannot both decide a column is missing.
+  retryWhileBusy(() => sqlite.transaction(() => migrate(sqlite)).immediate());
+  return sqlite;
+}

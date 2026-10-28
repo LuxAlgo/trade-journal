@@ -11,9 +11,9 @@ import {
   AI_IMPORT_MAX_BYTES,
   AI_IMPORT_MAX_EXECUTIONS,
   AI_IMPORT_MAX_TEXT,
+  isAiImportProvider,
   type AiImportOptions,
 } from "@/lib/ai-import";
-import { isAiProvider } from "@/lib/ai-settings";
 import { requireValue } from "./api";
 import { getAiKey } from "./settings";
 import { encryptJson, decryptJson } from "./crypto";
@@ -172,7 +172,7 @@ export async function parseStatementWithAi(
   options: AiImportOptions,
   signal?: AbortSignal,
 ) {
-  requireValue(options && isAiProvider(options.provider), "Choose OpenAI or Anthropic.");
+  requireValue(options && isAiImportProvider(options.provider), "Choose OpenAI or Anthropic.");
   requireValue(
     typeof options.model === "string" &&
       options.model.trim().length > 0 &&
